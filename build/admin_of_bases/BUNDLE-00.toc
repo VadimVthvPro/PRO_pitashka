@@ -1,0 +1,3 @@
+([('admin_of_bases',
+   '/Users/VadimVthv/Desktop/project/PROпиташка/PROpitashka/dist/admin_of_bases',
+   'EXECUTABLE')],)
