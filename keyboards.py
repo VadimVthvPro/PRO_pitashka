@@ -32,7 +32,7 @@ def starter(k):
     return kb[k]
 
 def keyboard(user_id, k):
-    conn = psycopg2.connect(dbname='propitashka', user='postgres', password='000', host='localhost', port="5432")
+    conn = psycopg2.connect(dbname='propitashka', user='postgres', password='Vadamahjkl1', host='localhost', port="5432")
     cursor = conn.cursor()
     cursor.execute(
         "SELECT lang FROM user_lang WHERE user_id = {}".format(int(user_id))
