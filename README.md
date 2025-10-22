@@ -42,14 +42,25 @@ venv\Scripts\activate  # для Windows
 pip install -r requirements.txt
 ```
 
-4. Создайте файл `.env` с вашими ключами:
+4. Настройте PostgreSQL базу данных:
+```bash
+# Создайте базу данных
+sudo -u postgres psql
+CREATE DATABASE propitashka;
+\q
+
+# Инициализируйте таблицы
+psql -U postgres -d propitashka -f database_init.sql
+```
+
+📖 **Подробная инструкция**: См. [DATABASE_SETUP.md](DATABASE_SETUP.md)
+
+5. Создайте файл `.env` с вашими ключами:
 ```env
 TOKEN=ваш_telegram_bot_token
 GIGA=base64_encoded_gigachat_credentials
 gpt=yandex_gpt_api_key
 ```
-
-5. Настройте PostgreSQL базу данных `propitashka`
 
 6. Запустите бота:
 ```bash
