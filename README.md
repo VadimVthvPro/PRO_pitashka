@@ -57,10 +57,22 @@ psql -U postgres -d propitashka -f database_init.sql
 
 5. Создайте файл `.env` с вашими ключами:
 ```env
+# Telegram Bot
 TOKEN=ваш_telegram_bot_token
+
+# AI Services
 GIGA=base64_encoded_gigachat_credentials
 gpt=yandex_gpt_api_key
+
+# PostgreSQL Database
+DB_NAME=propitashka
+DB_USER=postgres
+DB_PASSWORD=ваш_пароль_БД
+DB_HOST=localhost
+DB_PORT=5432
 ```
+
+💡 **Совет**: Скопируйте `.env.example` в `.env` и заполните своими значениями
 
 6. Запустите бота:
 ```bash
