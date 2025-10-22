@@ -55,7 +55,7 @@ TOKEN = os.getenv('TOKEN')
 
 # Логируем старт приложения
 logger.info("=" * 60)
-logger.info("Запуск бота PROpitashka")
+logger.info("Starting PROpitashka Bot")
 logger.info("=" * 60)
 
 
@@ -80,8 +80,10 @@ bot = Bot(TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-conn = psycopg2.connect(dbname='propitashka', user='postgres', password='vadamahjkl', host='localhost', port="5432")
-cursor = conn.cursor()
+# Import database connection from centralized config
+from db_config import conn, cursor
+
+logger.info("Database connection imported successfully")
 
 
 class REG(StatesGroup):

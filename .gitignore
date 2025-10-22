@@ -18,11 +18,15 @@ include/
 pyvenv.cfg
 share/
 
-# База данных
+# База данных (SQLite - не используется)
 *.db
 *.sqlite
 *.sqlite3
 pro3.db
+
+# PostgreSQL dumps
+*.sql.backup
+*.dump
 
 # IDE
 .vscode/

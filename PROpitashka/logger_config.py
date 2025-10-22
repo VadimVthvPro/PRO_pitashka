@@ -142,19 +142,18 @@ def setup_logger(name='bot_logger', log_dir='logs'):
     
     # 4. Handler для записи в базу данных
     try:
-        db_config = {
-            'dbname': 'propitashka',
-            'user': 'postgres',
-            'password': 'vadamahjkl',
-            'host': 'localhost',
-            'port': '5432'
-        }
-        db_handler = DatabaseHandler(db_config)
+        # Import centralized database config
+        import sys
+        import os
+        sys.path.insert(0, os.path.dirname(__file__))
+        from db_config import DB_CONFIG
+        
+        db_handler = DatabaseHandler(DB_CONFIG)
         db_handler.setLevel(logging.INFO)  # В БД пишем только INFO и выше
         db_handler.setFormatter(simple_formatter)
         logger.addHandler(db_handler)
     except Exception as e:
-        print(f"Не удалось подключить DatabaseHandler: {e}")
+        print(f"Failed to connect DatabaseHandler: {e}")
     
     # Добавляем handlers к логгеру
     logger.addHandler(all_logs_handler)
