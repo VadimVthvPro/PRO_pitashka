@@ -24,6 +24,13 @@ from translate import Translator
 import requests
 import re
 import aiohttp
+import traceback
+
+# Импорт модуля логирования
+from logger_config import setup_logger, log_user_action, log_error
+
+# Инициализация логгера
+logger = setup_logger('propitashka_bot', 'logs')
 GIF_LIBRARY = {
     "Жим штанги лёжа": "https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnIycmluczlwMG92cXV0N3BpbG14ajdibzNxa2owc3M5N3U2cTNleCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3tCMXFyNBabv8f6DoW/giphy.gif",
 }
@@ -45,6 +52,11 @@ tren_list = [["Жим штанги лёжа", "Bench press", "Banc de musculatio
 
 load_dotenv()
 TOKEN = os.getenv('TOKEN')
+
+# Логируем старт приложения
+logger.info("=" * 60)
+logger.info("Запуск бота PROpitashka")
+logger.info("=" * 60)
 
 
 def decode_credentials(encoded_str):
@@ -99,47 +111,63 @@ class REG(StatesGroup):
 
 @dp.message(CommandStart())
 async def leng(message: Message, state: FSMContext):
-    await state.set_state(REG.leng)
-    await message.answer(text='Please, choose a language:', reply_markup=kb.starter('lenguage'))
+    try:
+        log_user_action(logger, message.from_user, "Команда /start - Выбор языка")
+        await state.set_state(REG.leng)
+        await message.answer(text='Please, choose a language:', reply_markup=kb.starter('lenguage'))
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка в обработчике /start")
+        await message.answer("Произошла ошибка. Попробуйте позже.")
 
 
 @dp.message(REG.leng)
 async def start(message: Message, state: FSMContext):
-    await state.update_data(leng=message.text)
-    data = await state.get_data()
-    cursor.execute(
-        f"""
+    try:
+        await state.update_data(leng=message.text)
+        data = await state.get_data()
+        selected_lang = languages.get(data['leng'], 'ru')
+        
+        log_user_action(logger, message.from_user, f"Выбран язык: {selected_lang}")
+        
+        cursor.execute(
+            f"""
 
-                    DO $$
-                    BEGIN
-                        IF EXISTS (SELECT * FROM user_lang WHERE user_id = {message.from_user.id}) THEN
-                            UPDATE 
-                            user_lang 
-                            SET lang='{languages[data['leng']]}'
-                             WHERE user_id = {message.from_user.id};
-                        ELSE
-                            INSERT INTO 
-                            user_lang(user_id, lang)
-                            VALUES
-                            ({str(message.from_user.id)}, '{languages[data['leng']]}');
-                        END IF;
-                    END;
-                    $$
+                        DO $$
+                        BEGIN
+                            IF EXISTS (SELECT * FROM user_lang WHERE user_id = {message.from_user.id}) THEN
+                                UPDATE 
+                                user_lang 
+                                SET lang='{languages[data['leng']]}'
+                                 WHERE user_id = {message.from_user.id};
+                            ELSE
+                                INSERT INTO 
+                                user_lang(user_id, lang)
+                                VALUES
+                                ({str(message.from_user.id)}, '{languages[data['leng']]}');
+                            END IF;
+                        END;
+                        $$
 
-                """)
-    conn.commit()
-    await message.answer_photo(
-        FSInputFile(path='new_logo.jpg'),
-        caption=l.printer(message.from_user.id, "start").format(message.from_user.first_name),
+                    """)
+        conn.commit()
+        await message.answer_photo(
+            FSInputFile(path='new_logo.jpg'),
+            caption=l.printer(message.from_user.id, "start").format(message.from_user.first_name),
 
-        reply_markup=kb.keyboard(message.from_user.id, 'startMenu')
-    )
-    await state.clear()
+            reply_markup=kb.keyboard(message.from_user.id, 'startMenu')
+        )
+        await state.clear()
+        logger.info(f"Пользователь {message.from_user.id} успешно выбрал язык и попал в стартовое меню")
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка при выборе языка")
+        await message.answer("Произошла ошибка. Попробуйте снова /start")
 
 
 @dp.message(F.text.in_({'Вход', 'Entry', 'Entrée', 'Entrada', 'Eintrag'}))
 async def entrance(message: Message, state: FSMContext):
     try:
+        log_user_action(logger, message.from_user, "Попытка входа в систему")
+        
         cursor.execute(f"""SELECT 
         *
         FROM user_health 
@@ -160,20 +188,27 @@ async def entrance(message: Message, state: FSMContext):
             await message.answer(
                 l.printer(message.from_user.id, 'SuccesfulEntrance'),
                 reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
-
+            
+            log_user_action(logger, message.from_user, "Успешный вход", f"Вес: {weight}, ИМТ: {imt}")
 
         else:
+            logger.warning(f"Пользователь {message.from_user.id} - неполные данные регистрации")
             await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'MissedReg'),
                                    reply_markup=kb.keyboard(message.from_user.id, 'reRig'))
-    except:
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка при входе - пользователь не зарегистрирован")
         await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'MissedReg'),
                                reply_markup=kb.keyboard(message.from_user.id, 'reRig'))
 
 
 @dp.message(F.text.in_({'Регистрация', "Anmeldung", 'Registration', 'Enregistrement', 'Inscripción'}))
 async def registration(message: Message, state: FSMContext):
-    await state.set_state(REG.height)
-    await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height'))
+    try:
+        log_user_action(logger, message.from_user, "Начало регистрации")
+        await state.set_state(REG.height)
+        await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height'))
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка при начале регистрации")
 
 
 @dp.message(REG.height)
@@ -265,9 +300,12 @@ async def wei(message: Message, state: FSMContext):
         )
         await message.answer(text=l.printer(message.from_user.id, 'SuccesfulReg'),
                              reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
+        
+        log_user_action(logger, message.from_user, "Регистрация завершена успешно", 
+                       f"Вес: {weight}кг, Рост: {height}см, Возраст: {age}, ИМТ: {imt}")
         await state.clear()
     except Exception as e:
-        print(e)
+        log_error(logger, message.from_user, e, "Ошибка завершения регистрации")
         await state.set_state(REG.weight)
         await message.answer(l.printer(message.from_user.id, 'weight'), reply_markup=types.ReplyKeyboardRemove())
 
@@ -336,20 +374,26 @@ async def send_photo_to_deepseek(api_url, api_key, image_path, query):
 
 async def generate(zap):
     try:
+        logger.debug(f"Отправка запроса к Gemini AI: {zap[:100]}...")
         model = genai.GenerativeModel('gemini-2.5-pro')
         response = model.generate_content(f"Role: You are a personal fitnes trainer and dietolog. Please help with the next task: {zap}")
+        logger.info("Успешный ответ от Gemini AI")
         return response.text
     except Exception as e:
-        print(f"Ошибка при генерации плана: {str(e)}")
+        logger.error(f"Ошибка при генерации плана Gemini AI: {str(e)}", exc_info=True)
         return f"Ошибка при генерации плана: {e}"
 
 
 @dp.message(F.text.in_(
     {'Добавить тренировки', "Añadir formación", 'Add training', 'Ajouter une formation', 'Ausbildung hinzufügen'}))
 async def tren(message: Message, state: FSMContext):
-    await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'TrenType'),
-                           reply_markup=kb.keyboard(message.from_user.id, 'tren'))
-    await state.set_state(REG.types)
+    try:
+        log_user_action(logger, message.from_user, "Начало добавления тренировки")
+        await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'TrenType'),
+                               reply_markup=kb.keyboard(message.from_user.id, 'tren'))
+        await state.set_state(REG.types)
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка при добавлении тренировки")
 
 
 @dp.message(REG.types)
@@ -546,9 +590,13 @@ def replace_none_with_zero_in_list(lst, index):
 @dp.message(F.text.in_({'Ввести еду за день', "Das Essen des Tages einführen", "Enter a day's worth of food",
                         "Introducir la comida del día", 'Présenter les aliments du jour'}))
 async def food1(message: Message, state: FSMContext):
-    await message.answer(text=l.printer(message.from_user.id, 'ChooseTheWay'),
-                         reply_markup=kb.keyboard(message.from_user.id, 'food'))
-    await state.set_state(REG.food)
+    try:
+        log_user_action(logger, message.from_user, "Начало добавления еды")
+        await message.answer(text=l.printer(message.from_user.id, 'ChooseTheWay'),
+                             reply_markup=kb.keyboard(message.from_user.id, 'food'))
+        await state.set_state(REG.food)
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка при добавлении еды")
 
 
 @dp.message(REG.food)
@@ -784,11 +832,14 @@ async def grams(message: Message, state: FSMContext):
                                     """
                 cursor.execute(a)
                 conn.commit()
+        
+        log_user_action(logger, message.from_user, f"Добавлена еда (текстом)", f"Продукты: {', '.join(name_a)}")
 
         await message.answer(text=l.printer(message.from_user.id, "InfoInBase"),
                              reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         await state.clear()
-    except:
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Ошибка при сохранении еды (текст) в БД")
         await message.answer(text=l.printer(message.from_user.id, 'SendMes'), reply_markup=types.ReplyKeyboardRemove())
         await state.set_state(REG.food_list)
 
@@ -1293,9 +1344,53 @@ async def svodka(message: Message, state: FSMContext):
         return f"Ошибка при генерации плана: {e}"
 
 
+async def global_error_handler(update: types.Update, exception: Exception):
+    """
+    Глобальный обработчик ошибок для всего бота
+    """
+    try:
+        user = None
+        if update.message:
+            user = update.message.from_user
+        elif update.callback_query:
+            user = update.callback_query.from_user
+        
+        log_error(logger, user, exception, "Необработанная ошибка в боте")
+        
+        # Пытаемся отправить сообщение пользователю
+        if update.message:
+            try:
+                await update.message.answer(
+                    "Произошла непредвиденная ошибка. Попробуйте позже или обратитесь к администратору."
+                )
+            except:
+                pass
+                
+    except Exception as e:
+        logger.critical(f"Ошибка в глобальном обработчике ошибок: {e}", exc_info=True)
+
+
 async def main():
-    await dp.start_polling(bot)
+    try:
+        logger.info("Инициализация диспетчера...")
+        
+        # Регистрируем глобальный обработчик ошибок
+        dp.errors.register(global_error_handler)
+        
+        logger.info("Бот запущен и начинает polling...")
+        await dp.start_polling(bot)
+        
+    except Exception as e:
+        logger.critical(f"Критическая ошибка при запуске бота: {e}", exc_info=True)
+        raise
+    finally:
+        logger.info("Бот остановлен")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("Бот остановлен пользователем (Ctrl+C)")
+    except Exception as e:
+        logger.critical(f"Критическая ошибка: {e}", exc_info=True)
