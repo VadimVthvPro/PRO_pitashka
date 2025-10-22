@@ -1,0 +1,47 @@
+# Конфиденциальные данные
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Виртуальное окружение
+bin/
+lib/
+lib64/
+include/
+pyvenv.cfg
+share/
+
+# База данных
+*.db
+*.sqlite
+*.sqlite3
+pro3.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Временные файлы
+*.log
+*.tmp
+photo.jpg
+*.weights.h5
+
+# MacOS
+.DS_Store
+
+# Сборки
+build/
+dist/
+*.spec
+

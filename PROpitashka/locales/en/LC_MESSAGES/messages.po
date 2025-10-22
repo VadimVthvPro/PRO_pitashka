@@ -1,0 +1,370 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-11-27 23:48+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: script.py:5
+msgid "start"
+msgstr "Hi, {}! The PROpitashka bot helps you keep a personalized calculation of your nutrition and activity."
+
+msgid "IInfo"
+msgstr "{}, your weight is {}, your height is {}, your BMI is : {}, and your weight is {}."
+
+
+
+msgid "SuccesfulEntrance"
+msgstr "Successful login ✅. Now you have access to all the bot's functionality, you just need to select the desired function in the keyboard."
+
+
+msgid "MissedReg"
+msgstr "Your data isn't in the database 🙁 First of all, register."
+
+
+msgid "height"
+msgstr "Enter your height in centimeters:"
+
+
+msgid "age"
+msgstr "Enter your age:"
+
+
+msgid "sex"
+msgstr "Pick your gender:"
+
+
+msgid "aim"
+msgstr "Choose how you want to change"
+
+
+msgid "weight"
+msgstr "Enter your weight in kilograms:"
+
+
+msgid "SuccesfulReg"
+msgstr "Registration was successful ✅. Now you have access to all the functionality of the bot, you just need to select the desired function in the keyboard."
+
+msgid "info"
+msgstr "{}, your weight is {}, your height is {}, your BMI is: {}, and your weight is {}"
+
+
+msgid "imt1"
+msgstr "Severe underweight"
+
+msgid "imt2"
+msgstr "Underweight"
+
+msgid "imt3"
+msgstr "Normal"
+
+msgid "imt4"
+msgstr "Overweight"
+
+
+msgid "imt5"
+msgstr "Obesity"
+
+msgid "svoYEAR"
+msgstr "Over the past 12 months:{} your weight has changed from {} to {};{} on average you burned {} kilocalories in exercise per month;{} on average your diet was {} kilocalories.{} At the beginning of the year your diet was {} kilocalories, and your final value was {} kilocalories. Your P/F/C ratio averaged: {}/{}/{}. At the beginning of the year your P/F/C ratio was {}/{}/{}, and the final value was {}/{}/{}. You drank an average of {} milliliters of water each day."
+
+
+
+
+msgid "svoMONTH"
+msgstr "{}, in one month, the following changes have occurred: your weight went from {} to {}, you exercised {} minutes per day every day while burning an average of {} kilocalories. Your P/F/C ratio was {}/{}/{}, and you drank about {} milliliters of water. I believe in you!"
+
+
+
+
+
+msgid "svoDAY"
+msgstr "{}, for {} you have the following results: you burned {} kilocalories during your workouts, your diet today consisted of {}. Your caloric intake for the day was {}. You consumed P/F/C {}/{}/{}, and you drank {} milliliters of water. I believe in your success!"
+
+
+
+msgid "svoPERIOD"
+msgstr "Choose for which period you want to see the summary:"
+
+msgid "begining"
+msgstr "Now you can enter the foods you consumed today and the workouts you did today. At the end of the day you'll get a report on your P/F/C for the day and calories consumed."
+
+
+
+msgid "unhappy"
+msgstr "The function is not yet available :("
+
+
+
+
+msgid "ok"
+msgstr "Good."
+
+
+
+
+msgid "return"
+msgstr "Return to menu"
+
+
+
+msgid "trenchoose"
+msgstr "Pick which workout you'd like to do:"
+
+
+
+msgid "choosemeal"
+msgstr "Choose which meal you want to generate a recipe for:"
+
+
+
+
+msgid "recommend"
+msgstr "The nutrition and exercise plans issued are only recommendations that you can follow at will."
+
+
+
+
+
+msgid "InProcess"
+msgstr "Wait a couple seconds, the neural network is generating a response."
+
+
+
+msgid "InfoInBase"
+msgstr "Data written."
+
+
+
+
+msgid "cup"
+msgstr "Glass added."
+
+
+
+
+msgid "TrenType"
+msgstr "Pick which workout you did today:"
+
+
+msgid "gram"
+msgstr "Enter how many grams were in this dish:"
+
+
+msgid "foto"
+msgstr "Photo saved."
+
+
+msgid "SengFoto"
+msgstr "Send a photo for recognition:"
+
+msgid "SendMes"
+msgstr "Enter comma-delimited names of dishes:"
+
+msgid "ChooseTheWay"
+msgstr "Choose how you would like to add the food eaten:"
+
+msgid "TrenCalDay"
+msgstr "{}, you've burned {} kilocalories today. Way to go!"
+
+msgid "TrenCal"
+msgstr "Great! You burned {} kilocalories during your workout. Way to go!"
+
+msgid "tren1"
+msgstr "Light"
+
+msgid "tren2"
+msgstr "Moderate"
+
+
+msgid "tren3"
+msgstr "Heavy"
+
+
+msgid "trenMIN"
+msgstr "Okay, and enter how many minutes your workout lasted:"
+
+msgid "kbENTRANCE"
+msgstr "Entry"
+
+
+msgid "kbREG"
+msgstr "Registration"
+
+
+
+msgid "kbENTRANCE2PROG"
+msgstr "Login to program"
+
+msgid "kbRU"
+msgstr "Русский 🇷🇺"
+
+
+msgid "kbEN"
+msgstr "English 🇬🇧"
+
+
+
+msgid "kbDE)"
+msgstr "Deutsch 🇩🇪"
+
+
+msgid "kbFR"
+msgstr "Française 🇫🇷"
+
+
+msgid "kbSP"
+msgstr "Spanish 🇪🇸"
+
+msgid "kbreREG"
+msgstr "Registration"
+
+
+msgid "kbMAN"
+msgstr "Male"
+
+
+msgid "kbWOMAN"
+msgstr "Woman"
+
+msgid "kbfood1"
+msgstr "With a photo"
+
+
+msgid "kbfood2"
+msgstr "With text"
+
+
+
+msgid "kbwant1"
+msgstr "Weight loss"
+
+msgid "kbwant2"
+msgstr "Mass retention"
+
+
+msgid "kbwant3"
+msgstr "Weight gain"
+
+
+msgid "kbmain1"
+msgstr "Add training"
+
+
+
+msgid "kbmain2"
+msgstr "Enter a day's worth of food"
+
+msgid "kbmain3"
+msgstr "Summary"
+
+msgid "kbmain4"
+msgstr "Help with the recipe"
+
+msgid "kbmain5"
+msgstr "Help with training"
+
+
+
+
+msgid "kbmain6"
+msgstr "Change language"
+
+msgid "kbmain7"
+msgstr "Weekly nutrition and exercise plan"
+
+msgid "kbmain8"
+msgstr "Add a glass of water"
+
+msgid "kbmain9"
+msgstr "Join the chat room"
+
+msgid "kbtren1"
+msgstr "Light"
+
+msgid "kbtren2"
+msgstr "Moderate"
+
+msgid "kbtren3"
+msgstr "Heavy"
+
+msgid "kbmeal1"
+msgstr "Breakfast"
+
+msgid "kbmeal2"
+msgstr "Lunch"
+
+msgid "kbmeal3"
+msgstr "Dinner"
+
+msgid "kbsvo1"
+msgstr "Day"
+
+msgid "kbsvo2"
+msgstr "Month"
+
+msgid "kbsvo3"
+msgstr "Year"
+
+msgid "kbtype1"
+msgstr "Power"
+
+msgid "kbtype2"
+msgstr "Stretch"
+
+msgid "kbtype3"
+msgstr "Cardio"
+
+msgid "kbchoise1"
+msgstr "Return to menu"
+
+msgid "kbchoise2"
+msgstr "Correct technique."
+
+msgid "newl"
+msgstr "Language changed 🇬🇧"
+
+
+
+
+
+msgid "pitforweek"
+msgstr "Devise a personalized, varied meal plan for a week for {}, whose height is {}, age is {}, BMI is {}, and goal is {}."
+
+
+
+msgid "trenforweek"
+msgstr "Devise a personalized weekly workout plan for {}, whose height is {}, age is {}, whose BMI is {}, whose goal is {}, and whose personalized nutrition plan is {}."
+
+
+msgid "mealai"
+msgstr "Come up with a new recipe for {} with cooking tips."
+
+
+
+msgid "trenai"
+msgstr "Come up with a workout {} with recommendations for a person with a BMI equal to {}."
+
+
+
+msgid "correct_tech"
+msgstr "The correct technique for performing the exercise: {}"
+
+
+msgid "ret2main"
+msgstr "Return to main menu."
+
+
+
