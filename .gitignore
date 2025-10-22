@@ -33,6 +33,8 @@ pro3.db
 
 # Временные файлы
 *.log
+*.log.*
+logs/
 *.tmp
 photo.jpg
 *.weights.h5
