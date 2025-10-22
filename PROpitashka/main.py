@@ -116,8 +116,8 @@ async def leng(message: Message, state: FSMContext):
         await state.set_state(REG.leng)
         await message.answer(text='Please, choose a language:', reply_markup=kb.starter('lenguage'))
     except Exception as e:
-        log_error(logger, message.from_user, e, "Ошибка в обработчике /start")
-        await message.answer("Произошла ошибка. Попробуйте позже.")
+        log_error(logger, message.from_user, e, "Error in /start handler")
+        await message.answer(l.printer(message.from_user.id, "error_generic"))
 
 
 @dp.message(REG.leng)
@@ -159,8 +159,8 @@ async def start(message: Message, state: FSMContext):
         await state.clear()
         logger.info(f"Пользователь {message.from_user.id} успешно выбрал язык и попал в стартовое меню")
     except Exception as e:
-        log_error(logger, message.from_user, e, "Ошибка при выборе языка")
-        await message.answer("Произошла ошибка. Попробуйте снова /start")
+        log_error(logger, message.from_user, e, "Error selecting language")
+        await message.answer(l.printer(message.from_user.id, "error_restart"))
 
 
 @dp.message(F.text.in_({'Вход', 'Entry', 'Entrée', 'Entrada', 'Eintrag'}))
@@ -192,11 +192,11 @@ async def entrance(message: Message, state: FSMContext):
             log_user_action(logger, message.from_user, "Успешный вход", f"Вес: {weight}, ИМТ: {imt}")
 
         else:
-            logger.warning(f"Пользователь {message.from_user.id} - неполные данные регистрации")
+            logger.warning(f"User {message.from_user.id} - incomplete registration data")
             await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'MissedReg'),
                                    reply_markup=kb.keyboard(message.from_user.id, 'reRig'))
     except Exception as e:
-        log_error(logger, message.from_user, e, "Ошибка при входе - пользователь не зарегистрирован")
+        log_error(logger, message.from_user, e, "Error on entrance - user not registered")
         await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'MissedReg'),
                                reply_markup=kb.keyboard(message.from_user.id, 'reRig'))
 
@@ -208,7 +208,7 @@ async def registration(message: Message, state: FSMContext):
         await state.set_state(REG.height)
         await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height'))
     except Exception as e:
-        log_error(logger, message.from_user, e, "Ошибка при начале регистрации")
+        log_error(logger, message.from_user, e, "Error starting registration")
 
 
 @dp.message(REG.height)
@@ -407,7 +407,7 @@ async def set_weight_and_continue(message: Message, state: FSMContext):
     try:
         weight = float(message.text)
     except ValueError:
-        await message.answer("Введите число — ваш вес в кг.")
+        await message.answer(l.printer(message.from_user.id, 'enter_weight_number'))
         return
 
     # Сохраняем вес в БД
@@ -436,10 +436,10 @@ async def tren_len(message: Message, state: FSMContext):
         try:
             weight = float(text)
             if not (25 <= weight <= 400):
-                await message.answer("Введите реальный вес в кг (например, 72.5).")
+                await message.answer(l.printer(message.from_user.id, 'enter_realistic_weight'))
                 return
         except ValueError:
-            await message.answer("Введите число — ваш вес в кг (например, 72.5).")
+            await message.answer(l.printer(message.from_user.id, 'enter_weight_number'))
             return
 
         # 2) Пишем вес в БД через SELECT/UPDATE/INSERT (без ON CONFLICT)
@@ -534,7 +534,7 @@ async def tren_len(message: Message, state: FSMContext):
 
     if not row or row[0] is None:
         # Запрашиваем вес и ждём новое сообщение в этом же состоянии
-        await message.answer("Введите свой вес (кг):")
+        await message.answer(l.printer(message.from_user.id, 'enter_weight_prompt'))
         await state.update_data(waiting_for_weight=True)
         return
 
@@ -622,35 +622,54 @@ async def names(message: Message, state: FSMContext):
 
 @dp.message(content_types=types.ContentType.PHOTO)
 async def handle_photo(message: Message, state: FSMContext):
-    # 📥 Получаем файл
-    photo = message.photo[-1]
-    file_info = await bot.get_file(photo.file_id)
-    file_path = file_info.file_path
-    model = genai.GenerativeModel('gemini-2.5-pro')
-    # 📤 Скачиваем изображение
-    photo_url = f"https://api.telegram.org/file/bot{bot.token}/{file_path}"
-    async with aiohttp.ClientSession() as session:
-        async with session.get(photo_url) as resp:
-            if resp.status == 200:
-                image_bytes = await resp.read()
+    try:
+        log_user_action(logger, message.from_user, "Photo uploaded for food recognition")
+        
+        # Get user language
+        cursor.execute(f"SELECT lang FROM user_lang WHERE user_id = {message.from_user.id}")
+        user_lang = cursor.fetchone()
+        target_lang = user_lang[0] if user_lang else 'ru'
+        
+        # Get photo file
+        photo = message.photo[-1]
+        file_info = await bot.get_file(photo.file_id)
+        file_path = file_info.file_path
+        model = genai.GenerativeModel('gemini-2.5-pro')
+        
+        # Download image
+        photo_url = f"https://api.telegram.org/file/bot{bot.token}/{file_path}"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(photo_url) as resp:
+                if resp.status == 200:
+                    image_bytes = await resp.read()
 
-                # 🧠 Отправляем в Gemini
-                try:
-                    response = model.generate_content(
-                        [image_bytes, "What food is shown in this image? Respond with the name in English."]
-                    )
-                    food_name = response.text.strip()
-                    await message.reply(f"🍽️ I think this is: **{food_name}**")
-                    translator = Translator(from_lang="en", to_lang="ru")
-                    name_a = []
-                    name_a.append(translator.translate(food_name).title())
-                    await state.set_state(REG.grams1)
-                    await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'gram'))
-                    await state.update_data(food_list=name_a)
-                except Exception as e:
-                    await message.reply(f"⚠️ Error recognizing food: {e}")
-            else:
-                await message.reply("❌ Couldn't download the image.")
+                    # Send to Gemini for recognition
+                    try:
+                        response = model.generate_content(
+                            [image_bytes, "What food is shown in this image? Respond with the name only in English."]
+                        )
+                        food_name_en = response.text.strip()
+                        
+                        # Translate to user's language
+                        translator = Translator(from_lang="en", to_lang=target_lang)
+                        food_name = translator.translate(food_name_en).title()
+                        
+                        log_user_action(logger, message.from_user, f"Food recognized: {food_name}")
+                        
+                        await message.reply(l.printer(message.from_user.id, 'photo_recognized').format(food_name))
+                        
+                        name_a = [food_name]
+                        await state.set_state(REG.grams1)
+                        await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'gram'))
+                        await state.update_data(food_list=name_a)
+                    except Exception as e:
+                        log_error(logger, message.from_user, e, "Error recognizing food from photo")
+                        await message.reply(l.printer(message.from_user.id, 'photo_error').format(str(e)))
+                else:
+                    await message.reply(l.printer(message.from_user.id, 'photo_download_error'))
+    except Exception as e:
+        log_error(logger, message.from_user, e, "Error in photo handler")
+        await message.reply(l.printer(message.from_user.id, 'error_generic'))
 @dp.message(REG.food_photo)
 async def handle_photo(message: Message, state: FSMContext):
     await state.update_data(food_photo=message.photo)

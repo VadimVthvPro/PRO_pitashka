@@ -366,5 +366,29 @@ msgstr "The correct technique for performing the exercise: {}"
 msgid "ret2main"
 msgstr "Return to main menu."
 
+msgid "error_generic"
+msgstr "An error occurred. Please try again later."
+
+msgid "error_restart"
+msgstr "An error occurred. Please try again with /start"
+
+msgid "photo_recognized"
+msgstr "🍽️ I think this is: **{}**"
+
+msgid "photo_error"
+msgstr "⚠️ Error recognizing food: {}"
+
+msgid "photo_download_error"
+msgstr "❌ Couldn't download the image."
+
+msgid "enter_weight_prompt"
+msgstr "Enter your weight (kg):"
+
+msgid "enter_weight_number"
+msgstr "Enter a number — your weight in kg (e.g., 72.5)."
+
+msgid "enter_realistic_weight"
+msgstr "Enter a realistic weight in kg (e.g., 72.5)."
+
 
 
