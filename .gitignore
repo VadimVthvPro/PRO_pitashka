@@ -1,32 +1,38 @@
-# Конфиденциальные данные
-.env
-.env.local
-.env.*.local
-
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-
-# Виртуальное окружение
-bin/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
 lib/
 lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+bin/
 include/
 pyvenv.cfg
 share/
 
-# База данных (SQLite - не используется)
-*.db
-*.sqlite
-*.sqlite3
-pro3.db
-
-# PostgreSQL dumps
-*.sql.backup
-*.dump
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -34,20 +40,64 @@ pro3.db
 *.swp
 *.swo
 *~
-
-# Временные файлы
-*.log
-*.log.*
-logs/
-*.tmp
-photo.jpg
-*.weights.h5
-
-# MacOS
 .DS_Store
 
-# Сборки
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# PyInstaller
+*.spec
+*.manifest
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Translations
+*.mo
+*.pot
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Thumbnails
+Thumbs.db
+
+# Build artifacts
 build/
 dist/
-*.spec
+*.app
+*.iconset
+*.icns
 
+# Temporary files
+*.tmp
+*.temp
+nohup.out
+bot_output.log
+
+# Sensitive data
+*password*
+*secret*
+*token*
+!requirements.txt
