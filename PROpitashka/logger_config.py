@@ -144,8 +144,8 @@ def setup_logger(name='bot_logger', log_dir='logs'):
     try:
         # Import centralized database config
         import sys
-        import os
-        sys.path.insert(0, os.path.dirname(__file__))
+        current_dir = os.path.dirname(__file__)
+        sys.path.insert(0, current_dir)
         from db_config import DB_CONFIG
         
         db_handler = DatabaseHandler(DB_CONFIG)
