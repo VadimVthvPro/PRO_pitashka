@@ -622,7 +622,7 @@ async def names(message: Message, state: FSMContext):
     await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'gram'))
     await state.set_state(REG.grams)
 
-@dp.message(content_types=types.ContentType.PHOTO)
+@dp.message(F.photo)
 async def handle_photo(message: Message, state: FSMContext):
     try:
         log_user_action(logger, message.from_user, "Photo uploaded for food recognition")

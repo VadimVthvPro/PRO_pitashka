@@ -11,7 +11,7 @@ def center_window(window, width, height):
     y = (screen_height // 2) - (height // 2)
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-def get_db_connection(user="postgres", password="000"):
+def get_db_connection(user="postgres", password="vadamahjkl"):
     """Функция для подключения к базе данных."""
     try:
         conn = psycopg2.connect(
@@ -53,8 +53,7 @@ class Application:
             "training_id": "Номер записи",
             "training_cal": "Сожжённые калории",
             "tren_time": "Продолжительность тренировки",
-            "water_id": "Номер записи",
-            "count": "Количество",
+            "count": "Количество воды",
             "data": "Дата"
         }
         self.initialize_ui()
@@ -152,8 +151,8 @@ class Application:
              "SELECT user_id, lang FROM user_lang", "user_lang"),
             ("Тренировки", ["training_id", "user_id", "date", "training_cal", "tren_time"],
              "SELECT training_id, user_id, date, training_cal, tren_time FROM user_training", "user_training"),
-            ("Вода", ["water_id", "user_id", "count", "data"],
-             "SELECT water_id, user_id, count, data FROM water", "water")
+            ("Вода", ["user_id", "data", "count"],
+             "SELECT user_id, data, count FROM water", "water")
         ]
 
         for tab_name, columns, query, table_name in tabs:
@@ -325,10 +324,7 @@ class Application:
             label = ttk.Label(add_window, text=label_text)
             label.grid(row=i, column=0, padx=5, pady=5, sticky="e")
 
-            if col == "water_id" and table_name == "water":
-                entry = Spinbox(add_window, from_=0, to=99999999999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "count" and table_name == "water":
+            if col == "count" and table_name == "water":
                 entry = Spinbox(add_window, from_=0, to=99999999999999999, increment=1)
                 entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
             elif col == "training_id" and table_name == "user_training":
