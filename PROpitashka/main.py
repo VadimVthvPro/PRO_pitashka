@@ -6,8 +6,8 @@ from aiogram.enums import ParseMode
 import base64
 import json
 from aiogram.filters import StateFilter
-from dotenv import load_dotenv
 import os
+import sys
 import keyboards as kb
 import asyncio
 import datetime
@@ -26,6 +26,10 @@ import re
 import aiohttp
 import traceback
 
+# Add parent directory to path to import config
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from config import config
+
 # Импорт модуля логирования
 from logger_config import setup_logger, log_user_action, log_error
 
@@ -35,10 +39,9 @@ GIF_LIBRARY = {
     "Жим штанги лёжа": "https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnIycmluczlwMG92cXV0N3BpbG14ajdibzNxa2owc3M5N3U2cTNleCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3tCMXFyNBabv8f6DoW/giphy.gif",
 }
 
-genai.configure(api_key="AIzaSyAg3UNgtFgalGchbrPO4Olq6Jz9LZnO6jo")
-
-
-API_KEY = os.getenv('gpt')
+# Configure AI services from centralized config
+genai.configure(api_key=config.GEMINI_API_KEY)
+API_KEY = config.YANDEX_GPT_API_KEY
 
 # URL для отправки запросов к модели
 URL = 'gpt://ajeva7v073iank62rr8g/yandexgpt-lite'
@@ -50,8 +53,8 @@ tren_list = [["Жим штанги лёжа", "Bench press", "Banc de musculatio
              ["Подъём на бицепс", "Curl de bíceps", "Bizepscurl", "Flexion des biceps", "Biceps curl"],
              ["Подтягивания", "Pull-ups", "Tractions", "Klimmzüge", "Pull-ups"]]
 
-load_dotenv()
-TOKEN = os.getenv('TOKEN')
+# Load Telegram token from config
+TOKEN = config.TELEGRAM_TOKEN
 
 # Логируем старт приложения
 logger.info("=" * 60)
