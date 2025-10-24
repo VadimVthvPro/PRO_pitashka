@@ -2,6 +2,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox, Spinbox
 import psycopg2
 from datetime import datetime
+import sys
+import os
+
+# Add parent directory to path to import config
+sys.path.insert(0, os.path.dirname(__file__))
+from config import config
 
 def center_window(window, width, height):
     """Функция для центрирования окна на экране."""
@@ -11,16 +17,11 @@ def center_window(window, width, height):
     y = (screen_height // 2) - (height // 2)
     window.geometry(f"{width}x{height}+{x}+{y}")
 
-def get_db_connection(user="postgres", password="vadamahjkl"):
-    """Функция для подключения к базе данных."""
+def get_db_connection():
+    """Функция для подключения к базе данных (с правами администратора)."""
     try:
-        conn = psycopg2.connect(
-            dbname='propitashka',
-            user=user,
-            password=password,
-            host='localhost',
-            port="5432"
-        )
+        db_config = config.get_db_config(admin=True)
+        conn = psycopg2.connect(**db_config)
         return conn
     except psycopg2.Error as e:
         messagebox.showerror("Ошибка подключения", f"Не удалось подключиться к базе данных: {e}")

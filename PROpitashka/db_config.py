@@ -3,19 +3,15 @@ Database configuration module for PROpitashka Bot
 Centralized PostgreSQL connection settings
 """
 import psycopg2
+import sys
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
+# Add parent directory to path to import config
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+from config import config
 
-# PostgreSQL connection parameters
-DB_CONFIG = {
-    'dbname': os.getenv('DB_NAME', 'propitashka'),
-    'user': os.getenv('DB_USER', 'postgres'),
-    'password': os.getenv('DB_PASSWORD', 'vadamahjkl'),
-    'host': os.getenv('DB_HOST', 'localhost'),
-    'port': os.getenv('DB_PORT', '5432')
-}
+# PostgreSQL connection parameters (from centralized config)
+DB_CONFIG = config.get_db_config(admin=False)
 
 
 def get_db_connection():
