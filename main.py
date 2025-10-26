@@ -4,44 +4,115 @@ from aiogram.client.bot import DefaultBotProperties
 from aiogram.enums import ParseMode
 import base64
 import json
-import matplotlib.pyplot as plt  # type: ignore
-import PIL  # type: ignore
 from aiogram.filters import StateFilter
-import numpy as np  # type: ignore
-from tensorflow import keras  # type: ignore
-from tensorflow.keras import layers  # type: ignore
-from tensorflow.keras.models import Sequential  # type: ignore
-import pathlib
-from dotenv import load_dotenv
-import os
+from config import config
 import keyboards as kb
 import asyncio
 import datetime
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.types import Message, FSInputFile, file
-import tensorflow as tf  # type: ignore
+from aiogram.types import Message, FSInputFile, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from gigachat import GigaChat
 from aiogram.filters import Command
 import main_mo as l
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from translate import Translator
 import requests
-from openai import OpenAI
 import re
+from typing import Callable, Dict, Any, Awaitable
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
+from aiogram.types import TelegramObject
+import functools
+import redis.asyncio as redis
+import food_database_fallback as food_db
+import google.generativeai as genai
+from logger_setup import bot_logger
+
+# ============================================
+# Google Gemini Setup
+# ============================================
+genai.configure(api_key=config.GEMINI_API_KEY)
+gemini_model = genai.GenerativeModel('gemini-pro')
+
+# ============================================
+# Redis Cache Setup
+# ============================================
+redis_client = redis.from_url(config.get_redis_url(), decode_responses=True)
+
+async def get_from_cache(key: str):
+    """Get data from Redis cache."""
+    return await redis_client.get(key)
+
+async def set_to_cache(key: str, value: str, ttl: int):
+    """Set data to Redis cache with a TTL."""
+    await redis_client.set(key, value, ex=ttl)
+
+# ============================================
+# Retry Decorator
+# ============================================
+def async_retry(max_attempts: int, delay: float, exceptions: tuple):
+    """
+    Декоратор для повторного выполнения асинхронной функции при возникновении исключений.
+    """
+    def decorator(async_func):
+        @functools.wraps(async_func)
+        async def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return await async_func(*args, **kwargs)
+                except exceptions as e:
+                    if attempt == max_attempts - 1:
+                        raise  # Последняя попытка, пробрасываем исключение
+                    print(f"Попытка {attempt + 1}/{max_attempts} не удалась: {e}. Повтор через {delay} сек.")
+                    await asyncio.sleep(delay)
+        return wrapper
+    return decorator
 
 GIF_LIBRARY = {
     "Жим штанги лёжа": "https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExcnIycmluczlwMG92cXV0N3BpbG14ajdibzNxa2owc3M5N3U2cTNleCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3tCMXFyNBabv8f6DoW/giphy.gif",
 }
 
-client = OpenAI(api_key='sk-7e56f002522c4a589d447cbef93c3d95', base_url="https://api.deepseek.com")
+# GigaChat, DeepSeek, YandexGPT - удалены, используется только Gemini
 
-API_KEY = os.getenv('gpt')
+# ============================================
+# Middleware for Privacy Consent
+# ============================================
+class PrivacyConsentMiddleware(BaseMiddleware):
+    async def __call__(
+        self,
+        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: TelegramObject,
+        data: Dict[str, Any],
+    ) -> Any:
+        # Мы хотим проверить только сообщения и колбэки от пользователей
+        if not isinstance(event, (types.Message, types.CallbackQuery)):
+            return await handler(event, data)
 
-# URL для отправки запросов к модели
-URL = 'gpt://ajeva7v073iank62rr8g/yandexgpt-lite'
+        user_id = event.from_user.id
+        
+        # Пропускаем команду /start и ответы на запрос согласия
+        if isinstance(event, types.Message) and event.text and event.text.startswith('/start'):
+            return await handler(event, data)
+        if isinstance(event, types.CallbackQuery) and event.data in ['accept_privacy', 'decline_privacy']:
+            return await handler(event, data)
+
+        # Проверяем согласие в базе данных
+        cursor.execute("SELECT privacy_consent_given FROM user_main WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+
+        if not result or not result[0]:
+            # Если согласия нет, отправляем напоминание
+            await bot.send_message(
+                user_id,
+                "Пожалуйста, дайте свое согласие на обработку персональных данных, чтобы продолжить. "
+                "Отправьте /start, чтобы увидеть запрос снова.",
+                reply_markup=kb.privacy_consent_keyboard()
+            )
+            return  # Блокируем дальнейшую обработку
+
+        # Если согласие есть, продолжаем
+        return await handler(event, data)
 
 languages = {'Русский 🇷🇺': 'ru', 'English 🇬🇧': 'en', 'Deutsch 🇩🇪': 'de', 'Française 🇫🇷': 'fr', 'Spanish 🇪🇸': 'es'}
 llaallallaa = {'ru': 'Русский 🇷🇺', 'en': 'English 🇬🇧', 'de': 'Deutsch 🇩🇪', 'fr': 'Française 🇫🇷', 'es': 'Spanish 🇪🇸'}
@@ -49,91 +120,18 @@ llaallallaa = {'ru': 'Русский 🇷🇺', 'en': 'English 🇬🇧', 'de': 
 tren_list = [["Жим штанги лёжа", "Bench press", "Banc de musculation", "Bankdrücken", "Press de banca"],
              ["Подъём на бицепс", "Curl de bíceps", "Bizepscurl", "Flexion des biceps", "Biceps curl"],
              ["Подтягивания", "Pull-ups", "Tractions", "Klimmzüge", "Pull-ups"]]
-"""
-dataset_dir = pathlib.Path("food-101")
-batch_size = 32
-img_width = 180
-img_height = 180
-train_ds = tf.keras.utils.image_dataset_from_directory(
-    dataset_dir,
-    validation_split=0.2,
-    subset="training",
-    seed=123,
-    image_size=(img_height, img_width),
-    batch_size=batch_size)
 
-val_ds = tf.keras.utils.image_dataset_from_directory(
-    dataset_dir,
-    validation_split=0.2,
-    subset="validation",
-    seed=123,
-    image_size=(img_height, img_width),
-    batch_size=batch_size)
-
-class_names = train_ds.class_names
-print(f"Class names: {class_names}")
-
-num_classes = len(class_names)
-model = Sequential([
-    tf.keras.layers.Rescaling(1. / 255, input_shape=(img_height, img_width, 3)),
-
-    tf.keras.layers.RandomFlip("horizontal", input_shape=(img_height, img_width, 3)),
-    tf.keras.layers.RandomRotation(0.1),
-    tf.keras.layers.RandomZoom(0.1),
-    tf.keras.layers.RandomContrast(0.2),
-
-    layers.Conv2D(16, 3, padding='same', activation='relu'),
-    layers.MaxPooling2D(),
-
-    layers.Conv2D(32, 3, padding='same', activation='relu'),
-    layers.MaxPooling2D(),
-
-    layers.Conv2D(64, 3, padding='same', activation='relu'),
-    layers.MaxPooling2D(),
-
-    layers.Dropout(0.2),
-
-    layers.Flatten(),
-    layers.Dense(128, activation='relu'),
-    layers.Dense(num_classes)
-])
-
-model.compile(
-    optimizer='adam',
-    loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-    metrics=['accuracy'])
-
-model.load_weights("Foood.weights.h5")
-
-loss, acc = model.evaluate(train_ds, verbose=2)
-print("Restored model, accuracy: {:5.2f}%".format(100 * acc))
-"""
-load_dotenv()
-TOKEN = os.getenv('TOKEN')
+TOKEN = config.TELEGRAM_TOKEN
 
 
-def decode_credentials(encoded_str):
-    decoded_bytes = base64.b64decode(encoded_str)
-    decoded_str = decoded_bytes.decode('utf-8')
-    client_id, client_secret = decoded_str.split(':')
-    return client_id, client_secret
-
-
-encoded_credentials = os.getenv('GIGA')
-client_id, client_secret = decode_credentials(encoded_credentials)
-GIGA = {
-    'client_id': client_id,
-    'client_secret': client_secret
-}
-
-credentials_str = f"{GIGA['client_id']}:{GIGA['client_secret']}"
-credentials_base64 = base64.b64encode(credentials_str.encode("utf-8")).decode("utf-8")
 
 bot = Bot(TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+# Register middleware
+dp.update.middleware(PrivacyConsentMiddleware())
 
-conn = psycopg2.connect(dbname='propitashka', user='postgres', password='Vadamahjkl1', host='localhost', port="5432")
+conn = psycopg2.connect(**config.get_db_config())
 cursor = conn.cursor()
 
 
@@ -163,43 +161,325 @@ class REG(StatesGroup):
 
 
 @dp.message(CommandStart())
-async def leng(message: Message, state: FSMContext):
-    await state.set_state(REG.leng)
-    await message.answer(text='Please, choose a language:', reply_markup=kb.starter('lenguage'))
+async def command_start(message: Message, state: FSMContext):
+    """Handles the /start command - shows language selection first."""
+    user_id = message.from_user.id
+    bot_logger.info(f"User {user_id} (@{message.from_user.username}) sent /start")
+    
+    # Извлекаем и парсим deep link параметры
+    start_payload = message.text.split(' ')[1] if len(message.text.split(' ')) > 1 else None
+    utm_source, utm_medium, utm_campaign, ref_code = None, None, None, None
 
+    if start_payload:
+        params = start_payload.split('_')
+        if params[0] == 'ref' and len(params) > 1:
+            ref_code = params[1]
+            utm_source = params[1]
+        elif params[0] == 'utm' and len(params) >= 4:
+            utm_source = params[1]
+            utm_medium = params[2]
+            utm_campaign = params[3]
 
-@dp.message(REG.leng)
-async def start(message: Message, state: FSMContext):
-    await state.update_data(leng=message.text)
-    data = await state.get_data()
-    cursor.execute(
-        f"""
+    # Создаем или обновляем пользователя в БД
+    cursor.execute("SELECT privacy_consent_given, ref_code FROM user_main WHERE user_id = %s", (user_id,))
+    result = cursor.fetchone()
+    
+    if result and (ref_code and not result[1]):
+        cursor.execute(
+            """
+            UPDATE user_main 
+            SET utm_source = %s, utm_medium = %s, utm_campaign = %s, ref_code = %s
+            WHERE user_id = %s;
+            """,
+            (utm_source, utm_medium, utm_campaign, ref_code, user_id)
+        )
+        conn.commit()
+    
+    if not result:
+        # Если пользователь новый, создаем запись
+        cursor.execute(
+            """
+            INSERT INTO user_main (user_id, user_name, utm_source, utm_medium, utm_campaign, ref_code)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id) DO NOTHING;
+            """,
+            (user_id, message.from_user.first_name, utm_source, utm_medium, utm_campaign, ref_code)
+        )
+        conn.commit()
 
-                    DO $$
-                    BEGIN
-                        IF EXISTS (SELECT * FROM user_lang WHERE user_id = {message.from_user.id}) THEN
-                            UPDATE 
-                            user_lang 
-                            SET lang='{languages[data['leng']]}'
-                             WHERE user_id = {message.from_user.id};
-                        ELSE
-                            INSERT INTO 
-                            user_lang(user_id, lang)
-                            VALUES
-                            ({str(message.from_user.id)}, '{languages[data['leng']]}');
-                        END IF;
-                    END;
-                    $$
-
-                """)
-    conn.commit()
-    await message.answer_photo(
-        FSInputFile(path='new_logo.jpg'),
-        caption=l.printer(message.from_user.id, "start").format(message.from_user.first_name),
-
-        reply_markup=kb.keyboard(message.from_user.id, 'startMenu')
+    # Всегда показываем выбор языка (независимо от того, новый пользователь или вернувшийся)
+    welcome_text = (
+        "🎉 <b>Добро пожаловать в PROpitashka!</b>\n\n"
+        "Я — ваш персональный помощник по питанию и фитнесу.\n\n"
+        "Сначала выберите язык / Select language 👇"
     )
-    await state.clear()
+    
+    # Создаем ReplyKeyboard для выбора языка
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    lang_keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Русский 🇷🇺")],
+            [KeyboardButton(text="English 🇬🇧")],
+            [KeyboardButton(text="Deutsch 🇩🇪")],
+            [KeyboardButton(text="Française 🇫🇷")],
+            [KeyboardButton(text="Spanish 🇪🇸")]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    
+    await message.answer(
+        welcome_text,
+        reply_markup=lang_keyboard
+    )
+
+@dp.callback_query(F.data.in_(['accept_privacy', 'decline_privacy']))
+async def handle_privacy_consent(callback_query: CallbackQuery, state: FSMContext):
+    """Handles user's response to the privacy policy."""
+    user_id = callback_query.from_user.id
+    
+    if callback_query.data == 'accept_privacy':
+        # Пользователь согласился
+        cursor.execute(
+            """
+            UPDATE user_main 
+            SET privacy_consent_given = TRUE, privacy_consent_at = NOW() 
+            WHERE user_id = %s;
+            """,
+            (user_id,)
+        )
+        conn.commit()
+        bot_logger.info(f"User {user_id} accepted privacy policy")
+        
+        # Получаем язык пользователя
+        cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (user_id,))
+        result = cursor.fetchone()
+        lang_code = result[0] if result else 'en'
+        
+        # Удаляем старое сообщение с политикой
+        try:
+            await callback_query.message.delete()
+        except:
+            pass
+        
+        # Создаём Message объект для передачи в show_registration_menu
+        from aiogram.types import Message as MessageType
+        # Используем callback_query.message как основу
+        await show_registration_menu(callback_query.message, lang_code)
+    else:
+        # Пользователь отказался
+        await callback_query.message.edit_text(
+            "К сожалению, без вашего согласия на обработку данных использование бота невозможно. "
+            "Если вы передумаете, просто отправьте команду /start снова.",
+            reply_markup=None
+        )
+    
+    await callback_query.answer()
+
+
+# Обработчик выбора языка (стандартная клавиатура)
+@dp.message(F.text.in_(['Русский 🇷🇺', 'English 🇬🇧', 'Deutsch 🇩🇪', 'Française 🇫🇷', 'Spanish 🇪🇸']))
+async def handle_language_selection(message: Message, state: FSMContext):
+    """Обработчик выбора языка - показывает политику конфиденциальности"""
+    user_id = message.from_user.id
+    
+    # Определяем код языка по тексту
+    lang_map = {
+        'Русский 🇷🇺': 'ru',
+        'English 🇬🇧': 'en',
+        'Deutsch 🇩🇪': 'de',
+        'Française 🇫🇷': 'fr',
+        'Spanish 🇪🇸': 'es'
+    }
+    lang_code = lang_map.get(message.text, 'en')
+    bot_logger.info(f"User {user_id} selected language: {lang_code}")
+
+    # Сохраняем язык в БД
+    cursor.execute(
+        """
+        INSERT INTO user_lang (user_id, lang)
+        VALUES (%s, %s)
+        ON CONFLICT (user_id)
+        DO UPDATE SET lang = EXCLUDED.lang;
+        """,
+        (user_id, lang_code)
+    )
+    conn.commit()
+    bot_logger.info(f"Language {lang_code} saved for user {user_id}")
+    
+    # Проверяем, давал ли пользователь согласие на политику конфиденциальности
+    cursor.execute("SELECT privacy_consent_given FROM user_main WHERE user_id = %s", (user_id,))
+    result = cursor.fetchone()
+    
+    if result and result[0]:
+        # Если уже давал согласие, переходим сразу к меню регистрации
+        bot_logger.info(f"User {user_id} already gave consent, showing registration menu")
+        await show_registration_menu(message, lang_code)
+        return
+    
+    # Если ещё не давал согласие, показываем политику конфиденциальности
+    try:
+        with open('PRIVACY_POLICY.txt', 'r', encoding='utf-8') as f:
+            privacy_text = f.read()
+        privacy_preview = privacy_text[:3500]
+        if len(privacy_text) > 3500:
+            privacy_preview += "\n\n... (полный текст доступен по команде /privacy)"
+    except:
+        privacy_preview = "Политика конфиденциальности доступна по запросу."
+
+    privacy_msg = (
+        "🎉 <b>Добро пожаловать в PROpitashka!</b>\n\n"
+        "Прежде чем начать, пожалуйста, ознакомьтесь с нашей политикой конфиденциальности "
+        "и условиями использования:\n\n"
+        "<i>(Краткая версия ниже)</i>\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>📋 ОСНОВНЫЕ ПОЛОЖЕНИЯ:</b>\n\n"
+        "✅ Мы собираем: возраст, вес, рост, данные о питании и тренировках\n"
+        "✅ Используем для: расчета калорий, ИМТ, персональных рекомендаций\n"
+        "✅ Защищаем: все данные хранятся в зашифрованной БД\n"
+        "✅ Не продаем ваши данные третьим лицам\n"
+        "✅ AI-функции используют Google Gemini (без передачи личных данных)\n\n"
+        "⚠️ <b>Важно:</b> Бот НЕ заменяет консультацию врача!\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "📄 Полный текст политики: /privacy\n\n"
+        "Нажимая «Принять», вы соглашаетесь с условиями использования."
+    )
+    
+    await message.answer(
+        privacy_msg,
+        reply_markup=kb.privacy_consent_keyboard(),
+        disable_web_page_preview=True
+    )
+
+
+async def show_registration_menu(message: Message, lang_code: str):
+    """Показывает меню регистрации/входа с картинкой"""
+    user_id = message.from_user.id
+    bot_logger.info(f"Showing registration menu to user {user_id}")
+    
+    # Словарь перевода языков
+    lang_names = {
+        'ru': 'Русский 🇷🇺',
+        'en': 'English 🇬🇧',
+        'de': 'Deutsch 🇩🇪',
+        'fr': 'Française 🇫🇷',
+        'es': 'Spanish 🇪🇸'
+    }
+    
+    # Тексты приветствия на разных языках
+    welcome_messages = {
+        'ru': (
+            f"✅ Выбран язык: {lang_names[lang_code]}\n\n"
+            f"👋 Привет, {message.from_user.first_name}!\n\n"
+            "Теперь давайте настроим ваш профиль.\n\n"
+            "• Нажмите <b>«Регистрация»</b>, чтобы указать ваши параметры "
+            "(рост, вес, цель), и я рассчитаю оптимальную норму калорий.\n\n"
+            "• Если вы уже регистрировались, нажмите <b>«Вход»</b>."
+        ),
+        'en': (
+            f"✅ Language selected: {lang_names[lang_code]}\n\n"
+            f"👋 Hello, {message.from_user.first_name}!\n\n"
+            "Now let's set up your profile.\n\n"
+            "• Press <b>\"Registration\"</b> to enter your parameters "
+            "(height, weight, goal), and I'll calculate your optimal calorie intake.\n\n"
+            "• If you've already registered, press <b>\"Entry\"</b>."
+        ),
+        'de': (
+            f"✅ Sprache ausgewählt: {lang_names[lang_code]}\n\n"
+            f"👋 Hallo, {message.from_user.first_name}!\n\n"
+            "Jetzt richten wir Ihr Profil ein.\n\n"
+            "• Drücken Sie <b>\"Anmeldung\"</b>, um Ihre Parameter einzugeben "
+            "(Größe, Gewicht, Ziel), und ich berechne Ihre optimale Kalorienaufnahme.\n\n"
+            "• Wenn Sie sich bereits registriert haben, drücken Sie <b>\"Eintrag\"</b>."
+        ),
+        'fr': (
+            f"✅ Langue sélectionnée: {lang_names[lang_code]}\n\n"
+            f"👋 Bonjour, {message.from_user.first_name}!\n\n"
+            "Maintenant, configurons votre profil.\n\n"
+            "• Appuyez sur <b>\"Enregistrement\"</b> pour saisir vos paramètres "
+            "(taille, poids, objectif), et je calculerai votre apport calorique optimal.\n\n"
+            "• Si vous êtes déjà inscrit, appuyez sur <b>\"Entrée\"</b>."
+        ),
+        'es': (
+            f"✅ Idioma seleccionado: {lang_names[lang_code]}\n\n"
+            f"👋 ¡Hola, {message.from_user.first_name}!\n\n"
+            "Ahora configuremos tu perfil.\n\n"
+            "• Presiona <b>\"Inscripción\"</b> para ingresar tus parámetros "
+            "(altura, peso, objetivo), y calcularé tu ingesta calórica óptima.\n\n"
+            "• Si ya te registraste, presiona <b>\"Entrada\"</b>."
+        )
+    }
+    
+    welcome_text = welcome_messages.get(lang_code, welcome_messages['en'])
+    
+    # Создаём клавиатуру
+    from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+    buttons_text = {
+        'ru': ['Регистрация', 'Вход'],
+        'en': ['Registration', 'Entry'],
+        'de': ['Anmeldung', 'Eintrag'],
+        'fr': ['Enregistrement', 'Entrée'],
+        'es': ['Inscripción', 'Entrada']
+    }
+    
+    lang_buttons = buttons_text.get(lang_code, buttons_text['en'])
+    start_menu_keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text=lang_buttons[0]), KeyboardButton(text=lang_buttons[1])]
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True
+    )
+    
+    # Отправляем фото с меню
+    try:
+        await bot.send_photo(
+            user_id,
+            photo=FSInputFile(path='/Users/VadimVthv/Desktop/PROpitashka/new_logo.jpg'),
+            caption=welcome_text,
+            reply_markup=start_menu_keyboard
+        )
+        bot_logger.info(f"Welcome message with photo sent to user {user_id}")
+    except Exception as e:
+        # Если фото не загружается, отправляем просто текст
+        bot_logger.error(f"Failed to send photo to user {user_id}: {e}")
+        print(f"Ошибка загрузки фото: {e}")
+        await bot.send_message(
+            user_id,
+            text=welcome_text,
+            reply_markup=start_menu_keyboard
+        )
+
+
+
+@dp.message(Command('privacy'))
+async def send_privacy_policy(message: Message):
+    """Отправляет полный текст политики конфиденциальности"""
+    try:
+        with open('PRIVACY_POLICY.txt', 'r', encoding='utf-8') as f:
+            privacy_text = f.read()
+        
+        # Разбиваем текст на части по 4000 символов (лимит Telegram)
+        max_length = 4000
+        parts = [privacy_text[i:i+max_length] for i in range(0, len(privacy_text), max_length)]
+        
+        await message.answer(
+            f"📄 <b>Политика конфиденциальности и условия использования</b>\n\n"
+            f"Всего частей: {len(parts)}"
+        )
+        
+        for i, part in enumerate(parts, 1):
+            await message.answer(
+                f"<i>Часть {i}/{len(parts)}</i>\n\n"
+                f"<pre>{part}</pre>"
+            )
+            await asyncio.sleep(0.5)  # Задержка между сообщениями
+            
+    except FileNotFoundError:
+        await message.answer(
+            "📄 Политика конфиденциальности временно недоступна. "
+            "Пожалуйста, свяжитесь с поддержкой через /support"
+        )
 
 
 @dp.message(F.text.in_({'Вход', 'Entry', 'Entrée', 'Entrada', 'Eintrag'}))
@@ -244,24 +524,42 @@ async def registration(message: Message, state: FSMContext):
 @dp.message(REG.height)
 async def height(message: Message, state: FSMContext):
     try:
-        await state.update_data(height=float(message.text))
+        height_value = float(message.text.replace(',', '.'))
+        
+        # Валидация: рост должен быть в диапазоне 100-250 см
+        if not (100 <= height_value <= 250):
+            await message.answer(
+                l.printer(message.from_user.id, 'height') + "\n\n⚠️ Введите реалистичное значение роста (100-250 см)."
+            )
+            return
+        
+        await state.update_data(height=height_value)
         await state.set_state(REG.age)
         await message.answer(l.printer(message.from_user.id, 'age'))
-    except:
+    except ValueError:
         await state.set_state(REG.height)
-        await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height'))
+        await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height') + "\n\n⚠️ Введите числовое значение.")
 
 
 @dp.message(REG.age)
 async def age(message: Message, state: FSMContext):
     try:
-        await state.update_data(age=int(message.text))
+        age_value = int(message.text)
+        
+        # Валидация: возраст должен быть в диапазоне 10-120 лет
+        if not (10 <= age_value <= 120):
+            await message.answer(
+                l.printer(message.from_user.id, 'age') + "\n\n⚠️ Введите реалистичный возраст (10-120 лет)."
+            )
+            return
+        
+        await state.update_data(age=age_value)
         await state.set_state(REG.sex)
         await message.answer(l.printer(message.from_user.id, 'sex'),
                              reply_markup=kb.keyboard(message.from_user.id, 'sex'))
-    except:
+    except ValueError:
         await state.set_state(REG.age)
-        await message.answer(l.printer(message.from_user.id, 'age'))
+        await message.answer(l.printer(message.from_user.id, 'age') + "\n\n⚠️ Введите числовое значение.")
 
 
 @dp.message(REG.sex)
@@ -281,48 +579,54 @@ async def want(message: Message, state: FSMContext):
 @dp.message(REG.weight)
 async def wei(message: Message, state: FSMContext):
     try:
-        await state.update_data(weight=message.text)
+        weight_text = message.text.replace(',', '.')
+        weight = float(weight_text)
+        
+        # Валидация: вес должен быть в диапазоне 30-300 кг
+        if not (30 <= weight <= 300):
+            await message.answer(
+                l.printer(message.from_user.id, 'weight') + "\n\n⚠️ Введите реалистичное значение веса (30-300 кг)."
+            )
+            return
+        
+        await state.update_data(weight=weight)
         data = await state.get_data()
-        height, sex, age, weight, aim = data['height'], data['sex'], data['age'], data['weight'], data['want']
-
-        if "," in weight:
-            we1 = message.text.split(",")
-            weight = int(we1[0]) + int(we1[1]) / 10 ** len(we1[1])
-        else:
-            weight = float(message.text)
+        height, sex, age, aim = data['height'], data['sex'], data['age'], data['want']
         height, sex, age = float(height), str(sex), int(age)
         imt = round(weight / ((height / 100) ** 2), 3)
         imt_using_words = calculate_imt_description(imt, message)
         cal = float(calculate_calories(sex, weight, height, age, message))
 
-        cursor.execute(f"""
-            INSERT INTO user_health (user_id,imt,imt_str,cal,date, weight, height) VALUES ({message.from_user.id},{imt},'{imt_using_words}',{cal},'{datetime.datetime.now().strftime('%Y-%m-%d')}', {weight}, {height} )
-            ;
-            DO $$
-            BEGIN
-
-                IF EXISTS (SELECT * FROM user_main WHERE user_id = {message.from_user.id}) THEN 
-                    UPDATE user_main SET user_sex = '{sex}'  WHERE user_id = {message.from_user.id};
-                ELSE
-                    INSERT INTO user_main 
-                    (user_id, user_name,user_sex,date_of_birth) VALUES ({message.from_user.id},'{message.from_user.first_name}','{sex}',{age})
-                    ;
-                END IF;
-
-                IF EXISTS (SELECT * FROM user_aims WHERE user_id = {message.from_user.id}) THEN 
-                    UPDATE user_aims SET (user_aim, daily_cal)=('{aim}',{cal})  WHERE user_id = {message.from_user.id};
-                ELSE
-                    INSERT INTO user_aims 
-                    (user_aim, daily_cal, user_id) VALUES ('{aim}',{cal}, {message.from_user.id})
-                    ;
-                END IF;
-
-            END;
-            $$
-
-            """)
+        # Сохраняем данные о здоровье
+        bot_logger.info(f"Inserting user_health: user_id={message.from_user.id}, imt={imt}, cal={cal}, weight={weight}, height={height}")
+        cursor.execute("""
+            INSERT INTO user_health (user_id, imt, imt_str, cal, date, weight, height) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (message.from_user.id, imt, imt_using_words, cal, datetime.datetime.now().strftime('%Y-%m-%d'), weight, height))
+        bot_logger.info("user_health inserted successfully")
+        
+        # Сохраняем данные пользователя в user_main (дата рождения вместо возраста)
+        bot_logger.info(f"Inserting/updating user_main: user_id={message.from_user.id}, sex={sex}, age={age}")
+        cursor.execute("""
+            INSERT INTO user_main (user_id, user_name, user_sex, date_of_birth)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id)
+            DO UPDATE SET user_sex = EXCLUDED.user_sex, date_of_birth = EXCLUDED.date_of_birth;
+            """, (message.from_user.id, message.from_user.first_name, sex, age))
+        bot_logger.info("user_main inserted/updated successfully")
+        
+        # Сохраняем цели пользователя в user_aims
+        bot_logger.info(f"Inserting/updating user_aims: user_id={message.from_user.id}, aim={aim}, cal={cal}")
+        cursor.execute("""
+            INSERT INTO user_aims (user_id, user_aim, daily_cal)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id)
+            DO UPDATE SET user_aim = EXCLUDED.user_aim, daily_cal = EXCLUDED.daily_cal;
+            """, (message.from_user.id, aim, cal))
+        bot_logger.info("user_aims inserted/updated successfully")
 
         conn.commit()
+        bot_logger.info(f"User {message.from_user.id} registered successfully: sex={sex}, age={age}, weight={weight}, height={height}, all data committed to DB")
         await bot.send_message(
             message.chat.id,
             text=l.printer(message.from_user.id, 'info').format(message.from_user.first_name, weight, height, imt,
@@ -332,9 +636,13 @@ async def wei(message: Message, state: FSMContext):
                              reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         await state.clear()
     except Exception as e:
-        print(e)
-        await state.set_state(REG.weight)
-        await message.answer(l.printer(message.from_user.id, 'weight'), reply_markup=types.ReplyKeyboardRemove())
+        bot_logger.error(f"Error during registration for user {message.from_user.id}: {e}")
+        print(f"Ошибка регистрации: {e}")
+        await message.answer(
+            "⚠️ Произошла ошибка при сохранении данных. Попробуйте снова или вернитесь в главное меню.",
+            reply_markup=kb.keyboard(message.from_user.id, 'main_menu')
+        )
+        await state.clear()
 
 
 def calculate_imt_description(imt, message: Message):
@@ -374,49 +682,36 @@ def is_not_none(variable):
     return 0 if variable is None else variable
 
 
-async def send_photo_to_deepseek(api_url, api_key, image_path, query):
+# DeepSeek удалён - функция больше не используется
+
+
+@async_retry(max_attempts=config.API_RETRY_ATTEMPTS, delay=config.API_RETRY_DELAY, exceptions=(Exception,))
+async def generate(zap, cache_key: str = None, cache_ttl: int = config.CACHE_TTL_AI_RESPONSES):
+    """
+    Генерирует ответ от AI через Google Gemini, используя кэширование.
+    """
+    # 1. Проверяем кэш
+    if cache_key:
+        cached_response = await get_from_cache(cache_key)
+        if cached_response:
+            print(f"Ответ найден в кэше: {cache_key}")
+            return cached_response
+
+    # 2. Если в кэше нет, генерируем новый ответ через Gemini
     try:
-        with open(image_path, 'rb') as image_file:
-            # Создаем словарь с данными для отправки
-            files = {
-                'file': (image_path, image_file, 'image/jpeg'),  # Указываем тип содержимого
-                'query': (None, query)  # Текстовый запрос
-            }
+        response = await asyncio.to_thread(gemini_model.generate_content, zap)
+        result = response.text
 
-            # Заголовки запроса (включая API-ключ)
-            headers = {
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'multipart/form-data'
-            }
+        # 3. Сохраняем в кэш
+        if cache_key and result:
+            await set_to_cache(cache_key, result, cache_ttl)
+            print(f"Ответ сохранен в кэш: {cache_key}")
 
-            # Отправляем POST-запрос на сервер
-            response = requests.post(api_url, headers=headers, files=files)
-            return response.text
-
-
+        return result
+        
     except Exception as e:
         print(f"Ошибка при генерации плана: {str(e)}")
-        return f"Ошибка при генерации плана: {e}"
-
-
-async def generate(zap):
-    try:
-
-        response = client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role": "system", "content": "You are a personal trainer"},
-                {"role": "user", "content": zap},
-            ]
-            ,
-            stream=False
-        )
-
-        return response.choices[0].message.content
-    except Exception as e:
-        print(f"Ошибка при генерации плана: {str(e)}")
-        return f"Ошибка при генерации плана: {e}"
-
+        raise  # Пробрасываем исключение для retry-декоратора
 
 @dp.message(F.text.in_(
     {'Добавить тренировки', "Añadir formación", 'Add training', 'Ajouter une formation', 'Ausbildung hinzufügen'}))
@@ -548,11 +843,12 @@ async def tren_len(message: Message, state: FSMContext):
     # 1) Проверяем корректность длительности
     try:
         time_min = int(data['length'])
-        if time_min <= 0:
-            await message.answer("Длительность должна быть больше 0 минут.")
+        # Валидация: длительность тренировки 1-300 минут
+        if not (1 <= time_min <= 300):
+            await message.answer("⚠️ Введите реалистичную длительность тренировки (1-300 минут).")
             return
     except (ValueError, KeyError):
-        await message.answer("Длительность должна быть числом (в минутах).")
+        await message.answer("⚠️ Длительность должна быть числом (в минутах).")
         return
 
     # 2) Пробуем получить вес на сегодня
@@ -656,24 +952,14 @@ async def handle_photo(message: Message, state: FSMContext):
     await state.clear()
     name_a = []
     file_info = await bot.get_file(photo.file_id)
-    downloaded_file = await bot.download_file(file_info.file_path)
+    
+    @async_retry(max_attempts=config.API_RETRY_ATTEMPTS, delay=config.API_RETRY_DELAY, exceptions=(Exception,))
+    async def download_file_with_retry(file_info):
+        return await bot.download_file(file_info.file_path)
+
+    downloaded_file = await download_file_with_retry(file_info)
     save_path = 'photo.jpg'
-    """
-    with open(save_path, 'wb') as new_file:
-        new_file.write(downloaded_file.read())
-    await bot.send_message(message.chat.id, l.printer(message.from_user.id, 'foto'))
-    img = tf.keras.utils.load_img("photo.jpg", target_size=(img_height, img_width))
-    img_array = tf.keras.utils.img_to_array(img)
-    img_array = tf.expand_dims(img_array, 0)
-    predictions = model.predict(img_array)
-    score = tf.nn.softmax(predictions[0])
-    lol = str(class_names[np.argmax(score)])
-    translator = Translator(from_lang="en", to_lang="ru")
-    name_a.append(translator.translate(lol).title())
-    await state.set_state(REG.grams1)
-    await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'gram'))
-    await state.update_data(food_list=name_a)
-"""
+
 
 @dp.message(F.text.in_(
     {'Присоединиться к чату', "Dem Chatraum beitreten", "Join the chat room", "Rejoindre le salon de discussion",
@@ -705,13 +991,31 @@ async def grams1(message: Message, state: FSMContext):
     try:
         await state.update_data(grams1=message.text)
         data = await state.get_data()
-        gram = data['grams1'].split(",")[0]
+        raw_grams = data.get('grams1')
         name_a = data['food_list']
-        cursor.execute(f"SELECT lang FROM user_lang WHERE user_id = {message.from_user.id}",
-                       )
+        cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (message.from_user.id,))
         ll = cursor.fetchone()[0]
         translator = Translator(from_lang="ru", to_lang=ll)
-        print(name_a, data, gram)
+
+        grams_list = [item.strip() for item in raw_grams.split(',') if item.strip()]
+        if len(grams_list) != len(name_a):
+            await message.answer(
+                l.printer(message.from_user.id, 'gram')
+                + "\n\n⚠️ Количество граммов должно соответствовать количеству продуктов."
+            )
+            await state.set_state(REG.grams1)
+            return
+
+        try:
+            grams_values = [float(item.replace(',', '.')) for item in grams_list]
+        except ValueError:
+            await message.answer(
+                l.printer(message.from_user.id, 'gram')
+                + "\n\n⚠️ Введите количество граммов числом (например: 120 или 120,5)."
+            )
+            await state.set_state(REG.grams1)
+            return
+
         a = '{"name":{cal:"",b:””, g:””, u:””}, }'
         prod_kbgu = await generate(
             f'Представь кбжу {name_a} в виде чисел в формате файла json {a}')
@@ -739,34 +1043,54 @@ async def grams1(message: Message, state: FSMContext):
         # Преобразование JSON-строки в словарь
         json_data = json.loads(result_json)
 
+        sanitized_names = [re.sub(r"\W+", "", dish.lower()) for dish in name_a]
+
         # Расчет БЖУ и калорий для каждого блюда
-        for m in range(len(name_a)):
-            dish_name = name_a[m]  # Название блюда
-            if dish_name in json_data:  # Проверка, есть ли блюдо в данных
-                b = round(float(json_data[dish_name]["b"]) * float(gram[m]) / 100, 3)
-                g = round(float(json_data[dish_name]["g"]) * float(gram[m]) / 100, 3)
-                u = round(float(json_data[dish_name]["u"]) * float(gram[m]) / 100, 3)
-                food_cal = round(float(json_data[dish_name]["cal"]) * float(gram[m]) / 100, 3)
-                print(b, g, u, food_cal, translator.translate(name_a[m]))
-                a = f"""INSERT INTO food
-                                                (
-                                                    user_id, 
-                                                    date, 
-                                                    name_of_food,
-                                                    b, g, u,
-                                                    cal
-                                                )
-                                                VALUES
-                                                (
-                                                    {message.from_user.id}, 
-                                                    '{datetime.datetime.now().strftime('%Y-%m-%d')}',
-                                                    '{translator.translate(name_a[m]).title()}',
-                                                    {b}, {g}, {u},
-                                                    {food_cal}
-                                                )
-                                            """
-                cursor.execute(a)
+        for dish_name, sanitized_key, weight in zip(name_a, sanitized_names, grams_values):
+            possible_keys = {
+                dish_name,
+                dish_name.lower(),
+                dish_name.replace(" ", ""),
+                dish_name.lower().replace(" ", ""),
+                sanitized_key,
+            }
+            nutrition_data = next((json_data.get(key) for key in possible_keys if key in json_data), None)
+            if nutrition_data:
+                b = round(float(nutrition_data["b"]) * weight / 100, 3)
+                g = round(float(nutrition_data["g"]) * weight / 100, 3)
+                u = round(float(nutrition_data["u"]) * weight / 100, 3)
+                food_cal = round(float(nutrition_data["cal"]) * weight / 100, 3)
+                try:
+                    translated_name = translator.translate(dish_name) or dish_name
+                except Exception:
+                    translated_name = dish_name
+                print(b, g, u, food_cal, translated_name)
+                cursor.execute(
+                    """
+                    INSERT INTO food (
+                        user_id,
+                        date,
+                        name_of_food,
+                        b,
+                        g,
+                        u,
+                        cal
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        message.from_user.id,
+                        datetime.datetime.now().strftime('%Y-%m-%d'),
+                        translated_name.title(),
+                        b,
+                        g,
+                        u,
+                        food_cal,
+                    ),
+                )
                 conn.commit()
+            else:
+                await message.answer(f"⚠️ Не удалось найти информацию о продукте: {dish_name}")
 
         await message.answer(text=l.printer(message.from_user.id, "InfoInBase"),
                              reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
@@ -781,74 +1105,120 @@ async def grams(message: Message, state: FSMContext):
     try:
         await state.update_data(grams=message.text)
         data = await state.get_data()
-        gram = data['grams'].split(",")
-        name_a = data['food_list']
-        name_a = [dish.strip() for dish in name_a]
-        name_b = [i.replace(" ", "") for i in name_a]
-        cursor.execute(f"SELECT lang FROM user_lang WHERE user_id = {message.from_user.id}",
-                       )
+        raw_grams = data['grams']
+        name_a = [dish.strip() for dish in data['food_list']]
+        cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (message.from_user.id,))
         ll = cursor.fetchone()[0]
         translator = Translator(from_lang=ll, to_lang="ru")
-        print(name_a, data, gram)
-        a = '{"name":{cal:"",b:””, g:””, u:””}, }'
-        prod_kbgu = await generate(f'Представь кбжу {name_b} в виде чисел в формате файла json {a}')
-        pattern = r'\"(\w+)\":\s*{\s*\"cal\":\s*(\d+\.?\d*),\s*\"b\":\s*(\d+\.?\d*),\s*\"g\":\s*(\d+\.?\d*),\s*\"u\":\s*(\d+\.?\d*)\s*}'
 
-        # Результирующий словарь
-        result = {}
+        grams_list = [item.strip() for item in raw_grams.split(',') if item.strip()]
+        if len(grams_list) != len(name_a):
+            await message.answer(
+                l.printer(message.from_user.id, 'gram')
+                + "\n\n⚠️ Количество граммов должно соответствовать количеству продуктов."
+            )
+            await state.set_state(REG.grams)
+            return
 
-        # Поиск всех совпадений
-        matches = re.findall(pattern, prod_kbgu)
-        for match in matches:
-            dish, cal, b, g, u = match
-            result[dish] = {
-                "cal": float(cal),
-                "b": float(b),
-                "g": float(g),
-                "u": float(u)
-            }
+        try:
+            grams_values = [float(item.replace(',', '.')) for item in grams_list]
+        except ValueError:
+            await message.answer(
+                l.printer(message.from_user.id, 'gram')
+                + "\n\n⚠️ Введите количество граммов числом (например: 120 или 120,5)."
+            )
+            await state.set_state(REG.grams)
+            return
 
-        # Преобразование в JSON
-        result_json = json.dumps(result, ensure_ascii=False, indent=4)
-        print("Извлеченные данные в формате JSON:")
-        print(result_json)
+        name_b = [re.sub(r"\W+", "", dish.lower()) for dish in name_a]
+        
+        # Пробуем получить данные от AI
+        try:
+            a = '{"name":{cal:"",b:"", g:"", u:""}, }'
+            prod_kbgu = await generate(f'Представь кбжу {name_b} в виде чисел в формате файла json {a}')
+            pattern = r'\"(\w+)\":\s*{\s*\"cal\":\s*(\d+\.?\d*),\s*\"b\":\s*(\d+\.?\d*),\s*\"g\":\s*(\d+\.?\d*),\s*\"u\":\s*(\d+\.?\d*)\s*}'
 
-        # Преобразование JSON-строки в словарь
-        json_data = json.loads(result_json)
+            # Результирующий словарь
+            result = {}
+
+            # Поиск всех совпадений
+            matches = re.findall(pattern, prod_kbgu)
+            for match in matches:
+                dish, cal, b, g, u = match
+                result[dish] = {
+                    "cal": float(cal),
+                    "b": float(b),
+                    "g": float(g),
+                    "u": float(u)
+                }
+
+            # Преобразование в JSON
+            result_json = json.dumps(result, ensure_ascii=False, indent=4)
+            print("Извлеченные данные в формате JSON:")
+            print(result_json)
+
+            # Преобразование JSON-строки в словарь
+            json_data = json.loads(result_json)
+        except Exception as e:
+            print(f"AI failed, using fallback database: {e}")
+            json_data = {}
+            # Fallback: используем локальную базу данных
+            for original_name, dish_name in zip(name_a, name_b):
+                fallback_data = food_db.find_food_in_database(original_name)
+                if not fallback_data:
+                    fallback_data = food_db.find_food_in_database(dish_name)
+                if fallback_data:
+                    json_data[dish_name] = fallback_data
+                    print(f"Found {original_name} in fallback database")
 
         # Расчет БЖУ и калорий для каждого блюда
-        for m in range(len(name_b)):
-            dish_name = name_b[m]  # Название блюда
-            if dish_name in json_data:  # Проверка, есть ли блюдо в данных
-                b = round(float(json_data[dish_name]["b"]) * float(gram[m]) / 100, 3)
-                g = round(float(json_data[dish_name]["g"]) * float(gram[m]) / 100, 3)
-                u = round(float(json_data[dish_name]["u"]) * float(gram[m]) / 100, 3)
-                food_cal = round(float(json_data[dish_name]["cal"]) * float(gram[m]) / 100, 3)
-                print(b, g, u, food_cal, translator.translate(name_a[m]))
-                a = f"""INSERT INTO food
-                                        (
-                                            user_id, 
-                                            date, 
-                                            name_of_food,
-                                            b, g, u,
-                                            cal
-                                        )
-                                        VALUES
-                                        (
-                                            {message.from_user.id}, 
-                                            '{datetime.datetime.now().strftime('%Y-%m-%d')}',
-                                            '{translator.translate(name_a[m]).title()}',
-                                            {b}, {g}, {u},
-                                            {food_cal}
-                                        )
-                                    """
-                cursor.execute(a)
+        for original_name, sanitized_key, weight in zip(name_a, name_b, grams_values):
+            
+            # Проверка в AI-данных или fallback-базе
+            nutrition_data = json_data.get(sanitized_key) or json_data.get(original_name) or json_data.get(original_name.lower())
+            if nutrition_data:
+                b = round(float(nutrition_data["b"]) * weight / 100, 3)
+                g = round(float(nutrition_data["g"]) * weight / 100, 3)
+                u = round(float(nutrition_data["u"]) * weight / 100, 3)
+                food_cal = round(float(nutrition_data["cal"]) * weight / 100, 3)
+                try:
+                    translated_name = translator.translate(original_name) or original_name
+                except Exception:
+                    translated_name = original_name
+                print(b, g, u, food_cal, translated_name)
+                cursor.execute(
+                    """
+                    INSERT INTO food (
+                        user_id,
+                        date,
+                        name_of_food,
+                        b,
+                        g,
+                        u,
+                        cal
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        message.from_user.id,
+                        datetime.datetime.now().strftime('%Y-%m-%d'),
+                        translated_name.title(),
+                        b,
+                        g,
+                        u,
+                        food_cal,
+                    ),
+                )
                 conn.commit()
+            else:
+                # Если продукт не найден ни в AI, ни в fallback
+                await message.answer(f"⚠️ Не удалось найти информацию о продукте: {original_name}")
 
         await message.answer(text=l.printer(message.from_user.id, "InfoInBase"),
                              reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         await state.clear()
-    except:
+    except Exception as e:
+        print(f"Error in grams handler: {e}")
         await message.answer(text=l.printer(message.from_user.id, 'SendMes'), reply_markup=types.ReplyKeyboardRemove())
         await state.set_state(REG.food_list)
 
@@ -877,10 +1247,17 @@ async def ai(message: Message, state: FSMContext):
     imt, weight, height = cursor.fetchone()
     aim, cal, sex, age, imt, weight, height = translator.translate(aim), cal, translator.translate(
         sex), age, imt, weight, height
+    
+    # Создаем уникальный ключ для кэша на основе параметров пользователя
+    cache_key_pit = f"plan:pit:{message.from_user.id}:{sex}:{height}:{age}:{imt}:{aim}"
+    
     zap_pit = l.printer(message.from_user.id, 'pitforweek').format(sex, height, age, imt, aim)
-    plan_pit = await generate(zap_pit)
+    plan_pit = await generate(zap_pit, cache_key=cache_key_pit, cache_ttl=config.CACHE_TTL_RECIPES)
+    
+    cache_key_tren = f"plan:tren:{message.from_user.id}:{sex}:{height}:{age}:{imt}:{aim}"
+
     zap_tren = l.printer(message.from_user.id, 'trenforweek').format(sex, height, age, imt, aim, plan_pit)
-    plan_train = await generate(zap_tren)
+    plan_train = await generate(zap_tren, cache_key=cache_key_tren, cache_ttl=config.CACHE_TTL_RECIPES)
 
     try:
         if plan_pit and plan_train:
@@ -923,7 +1300,10 @@ async def ai_food_meals(message: Message, state: FSMContext):
     meal = translator.translate(data['food_meals'])
     zap = l.printer(message.from_user.id, 'mealai').format(meal)
     await message.answer(text=l.printer(message.from_user.id, 'InProcess'))
-    plan_pit = await generate(zap)
+    
+    cache_key = f"recipe:{meal.replace(' ', '_').lower()}"
+
+    plan_pit = await generate(zap, cache_key=cache_key, cache_ttl=config.CACHE_TTL_RECIPES)
     try:
         if plan_pit:
             # Разделяем длинные сообщения на части
@@ -963,7 +1343,10 @@ async def train(message: Message, state: FSMContext):
         f"SELECT imt FROM user_health WHERE date = '{datetime.datetime.now().strftime('%Y-%m-%d')}' AND user_id = {message.from_user.id}")
     imt = float(cursor.fetchone()[0])
     zap = l.printer(message.from_user.id, 'trenai').format(type_tren, imt)
-    tren = await generate(zap)
+    
+    cache_key = f"training:{type_tren.replace(' ', '_').lower()}:{round(imt)}"
+
+    tren = await generate(zap, cache_key=cache_key, cache_ttl=config.CACHE_TTL_RECIPES)
     await state.update_data(tren_ai=tren)
 
     try:
@@ -1076,31 +1459,51 @@ async def new_he(message: Message, state: FSMContext):
 
 @dp.message(REG.svo)
 async def svodka(message: Message, state: FSMContext):
-    await state.update_data(tren_choiser=message.text)
-    data = await state.get_data()
-    mes = data['tren_choiser']
-    new_weight = data['new_weight']
-    new_height = float(data['new_height'])
-    if "," in new_weight:
-        we1 = message.text.split(",")
-        new_weight = int(we1[0]) + int(we1[1]) / 10 ** len(we1[1])
-    else:
-        new_weight = float(new_weight)
-    cursor.execute(f"""
-    SELECT * FROM user_main WHERE user_id = {message.from_user.id}
-    """)
-    data_sql = cursor.fetchall()[0]
-    sex, age = data_sql[1], int(data_sql[2])
-    await state.clear()
-    imt = round(new_weight / ((new_height / 100) ** 2), 3)
-    imt_using_words = calculate_imt_description(imt, message)
-    cal = float(calculate_calories(sex, new_weight, new_height, age, message))
+    try:
+        await state.update_data(tren_choiser=message.text)
+        data = await state.get_data()
+        mes = data['tren_choiser']
+        new_weight = data['new_weight']
+        new_height = float(data['new_height'])
+        if "," in str(new_weight):
+            we1 = str(new_weight).split(",")
+            new_weight = int(we1[0]) + int(we1[1]) / 10 ** len(we1[1])
+        else:
+            new_weight = float(new_weight)
+        
+        # Получаем пол и возраст пользователя
+        cursor.execute("""
+            SELECT user_sex, date_of_birth FROM user_main WHERE user_id = %s
+        """, (message.from_user.id,))
+        result = cursor.fetchone()
+        
+        if not result:
+            bot_logger.error(f"User {message.from_user.id} not found in user_main")
+            await message.answer("⚠️ Ошибка: данные пользователя не найдены. Пожалуйста, пройдите регистрацию заново.",
+                               reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
+            await state.clear()
+            return
+        
+        sex, age = result[0], int(result[1])
+        bot_logger.info(f"User {message.from_user.id} requesting summary: sex={sex}, age={age}")
+        
+        await state.clear()
+        imt = round(new_weight / ((new_height / 100) ** 2), 3)
+        imt_using_words = calculate_imt_description(imt, message)
+        cal = float(calculate_calories(sex, new_weight, new_height, age, message))
 
-    cursor.execute(f"""
-                    INSERT INTO user_health (user_id,imt,imt_str,cal,date, weight, height) VALUES ({message.from_user.id},{imt},'{imt_using_words}',{cal},'{datetime.datetime.now().strftime('%Y-%m-%d')}', {new_weight}, {new_height} )
-                    ;
-    """)
-    conn.commit()
+        cursor.execute(f"""
+                        INSERT INTO user_health (user_id,imt,imt_str,cal,date, weight, height) VALUES ({message.from_user.id},{imt},'{imt_using_words}',{cal},'{datetime.datetime.now().strftime('%Y-%m-%d')}', {new_weight}, {new_height} )
+                        ;
+        """)
+        conn.commit()
+    except Exception as e:
+        bot_logger.error(f"Error in svodka for user {message.from_user.id}: {e}")
+        await message.answer("⚠️ Произошла ошибка. Попробуйте снова или вернитесь в главное меню.",
+                           reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
+        await state.clear()
+        return
+    
     try:
         if mes == 'День' or mes == "Day" or mes == "Jour" or mes == "Tag" or mes == "Día":
             cursor.execute("SELECT SUM(training_cal) FROM user_training WHERE date = '{}' AND user_id = {}".format(
@@ -1359,6 +1762,8 @@ async def svodka(message: Message, state: FSMContext):
 
 
 async def main():
+    # Register middleware
+    dp.update.middleware(PrivacyConsentMiddleware())
     await dp.start_polling(bot)
 
 
