@@ -27,26 +27,56 @@ import functools
 import redis.asyncio as redis
 import food_database_fallback as food_db
 import google.generativeai as genai
+import google.genai as genai_new
 from logger_setup import bot_logger
 
 # ============================================
-# Google Gemini Setup
+# Google Gemini Setup (новый API)
 # ============================================
-genai.configure(api_key=config.GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-pro')
+if config.GEMINI_API_KEY:
+    import os
+    os.environ['GOOGLE_API_KEY'] = config.GEMINI_API_KEY
+    # Создаём клиент Gemini (новый API)
+    gemini_client = genai_new.Client(api_key=config.GEMINI_API_KEY)
+    bot_logger.info("Gemini API configured successfully with gemini-2.5-flash model (new API)")
+else:
+    bot_logger.error("GEMINI_API_KEY not found in .env file!")
+    gemini_client = None
+
 
 # ============================================
-# Redis Cache Setup
+# Redis Cache Setup (опциональный)
 # ============================================
-redis_client = redis.from_url(config.get_redis_url(), decode_responses=True)
+try:
+    redis_client = redis.from_url(config.get_redis_url(), decode_responses=True)
+    REDIS_AVAILABLE = True
+    bot_logger.info("Redis connection configured successfully")
+except Exception as e:
+    redis_client = None
+    REDIS_AVAILABLE = False
+    bot_logger.warning(f"Redis not available, caching disabled: {e}")
 
 async def get_from_cache(key: str):
-    """Get data from Redis cache."""
-    return await redis_client.get(key)
+    """Get data from Redis cache (optional)."""
+    if not REDIS_AVAILABLE or redis_client is None:
+        return None
+    try:
+        return await redis_client.get(key)
+    except Exception as e:
+        bot_logger.warning(f"Redis get error for key {key}: {e}")
+        return None
 
 async def set_to_cache(key: str, value: str, ttl: int):
-    """Set data to Redis cache with a TTL."""
-    await redis_client.set(key, value, ex=ttl)
+    """Set data to Redis cache with a TTL (optional)."""
+    if not REDIS_AVAILABLE or redis_client is None:
+        return False
+    try:
+        await redis_client.set(key, value, ex=ttl)
+        return True
+    except Exception as e:
+        bot_logger.warning(f"Redis set error for key {key}: {e}")
+        return False
+
 
 # ============================================
 # Retry Decorator
@@ -132,7 +162,9 @@ dp = Dispatcher(storage=storage)
 dp.update.middleware(PrivacyConsentMiddleware())
 
 conn = psycopg2.connect(**config.get_db_config())
+conn.autocommit = True  # Включаем автокоммит для немедленного сохранения данных
 cursor = conn.cursor()
+bot_logger.info("Database connection established with autocommit enabled")
 
 
 class REG(StatesGroup):
@@ -484,35 +516,56 @@ async def send_privacy_policy(message: Message):
 
 @dp.message(F.text.in_({'Вход', 'Entry', 'Entrée', 'Entrada', 'Eintrag'}))
 async def entrance(message: Message, state: FSMContext):
+    """Обработчик входа - показывает информацию о пользователе из БД"""
+    user_id = message.from_user.id
+    bot_logger.info(f"User {user_id} requesting entrance")
+    
     try:
-        cursor.execute(f"""SELECT 
-        *
-        FROM user_health 
-        WHERE user_id = {message.from_user.id} """)
-        user_data = cursor.fetchall()[0]
-
-        # AND date = '{datetime.datetime.now().strftime('%Y-%m-%d')}'
-
-        imt, imt_str, cal, weight, height = float(user_data[1]), user_data[2], float(user_data[3]), user_data[6], \
-        user_data[7]
-        conn.commit()
-        if weight and imt and imt_str and cal and height:
-            await bot.send_message(
-                message.chat.id,
-                text=l.printer(message.from_user.id, 'info').format(message.from_user.first_name, weight, height, imt,
-                                                                    imt_str)
-            )
+        # Используем параметризованный запрос для безопасности
+        cursor.execute("""
+            SELECT imt, imt_str, cal, weight, height 
+            FROM user_health 
+            WHERE user_id = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """, (user_id,))
+        user_data = cursor.fetchone()
+        
+        if not user_data:
+            bot_logger.warning(f"User {user_id} tried to login but no data found in user_health")
             await message.answer(
-                l.printer(message.from_user.id, 'SuccesfulEntrance'),
-                reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
-
-
-        else:
-            await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'MissedReg'),
-                                   reply_markup=kb.keyboard(message.from_user.id, 'reRig'))
-    except:
-        await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'MissedReg'),
-                               reply_markup=kb.keyboard(message.from_user.id, 'reRig'))
+                l.printer(user_id, 'noData') if hasattr(l.printer(user_id, 'noData'), '__call__') 
+                else "⚠️ Данные не найдены. Пожалуйста, пройдите регистрацию.",
+                reply_markup=kb.keyboard(user_id, 'main_menu')
+            )
+            return
+        
+        # Распаковываем данные
+        imt, imt_str, cal, weight, height = float(user_data[0]), user_data[1], float(user_data[2]), float(user_data[3]), float(user_data[4])
+        bot_logger.info(f"User {user_id} entrance successful: weight={weight}, height={height}, imt={imt}")
+        
+        # Отправляем информацию пользователю
+        await bot.send_message(
+            message.chat.id,
+            text=l.printer(user_id, 'info').format(
+                message.from_user.first_name, 
+                weight, 
+                height, 
+                imt,
+                imt_str
+            )
+        )
+        await message.answer(
+            text=l.printer(user_id, 'SuccesfulReg'),
+            reply_markup=kb.keyboard(user_id, 'main_menu')
+        )
+        
+    except Exception as e:
+        bot_logger.error(f"Error during entrance for user {user_id}: {e}")
+        await message.answer(
+            "⚠️ Произошла ошибка при получении данных. Попробуйте снова или пройдите регистрацию.",
+            reply_markup=kb.keyboard(user_id, 'main_menu')
+        )
 
 
 @dp.message(F.text.in_({'Регистрация', "Anmeldung", 'Registration', 'Enregistrement', 'Inscripción'}))
@@ -665,6 +718,36 @@ def calculate_calories(sex, weight, height, age, message):
         return (10 * weight) + (6.25 * height) - (5 * age) - 161
 
 
+def markdown_to_telegram_html(text):
+    """
+    Преобразует Markdown в HTML-форматирование Telegram
+    """
+    import re
+    
+    # Заменяем ## заголовки на жирный текст с переносами
+    text = re.sub(r'##\s*(.+?)(?:\n|$)', r'\n<b>\1</b>\n\n', text)
+    
+    # Заменяем ### заголовки на жирный текст
+    text = re.sub(r'###\s*(.+?)(?:\n|$)', r'\n<b>\1</b>\n', text)
+    
+    # Заменяем **жирный** на <b>жирный</b>
+    text = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    
+    # Заменяем *курсив* на <i>курсив</i> (только одиночные звездочки, не в начале строки для списков)
+    text = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'<i>\1</i>', text)
+    
+    # Заменяем разделители --- на переносы
+    text = re.sub(r'\n---\n', r'\n\n', text)
+    
+    # Заменяем `код` на <code>код</code>
+    text = re.sub(r'`(.+?)`', r'<code>\1</code>', text)
+    
+    # Убираем множественные переносы (больше 2 подряд)
+    text = re.sub(r'\n{3,}', r'\n\n', text)
+    
+    return text.strip()
+
+
 def split_message(text, user_id):
     a = list(text.split("\n"))
     cursor.execute("SELECT lang FROM user_lang WHERE user_id = {}".format(user_id))
@@ -674,8 +757,11 @@ def split_message(text, user_id):
     for i in range(len(a)):
         b = b + translator.translate(a[i]) + '\n'
 
+    # Применяем форматирование Markdown -> HTML
+    formatted_text = markdown_to_telegram_html(text)
+    
     max_length = 4096
-    return [text[i:i + max_length] for i in range(0, len(text), max_length)]
+    return [formatted_text[i:i + max_length] for i in range(0, len(formatted_text), max_length)]
 
 
 def is_not_none(variable):
@@ -697,9 +783,14 @@ async def generate(zap, cache_key: str = None, cache_ttl: int = config.CACHE_TTL
             print(f"Ответ найден в кэше: {cache_key}")
             return cached_response
 
-    # 2. Если в кэше нет, генерируем новый ответ через Gemini
+    # 2. Если в кэше нет, генерируем новый ответ через Gemini (новый API)
     try:
-        response = await asyncio.to_thread(gemini_model.generate_content, zap)
+        # Используем новый API с gemini-2.5-flash
+        response = await asyncio.to_thread(
+            gemini_client.models.generate_content,
+            model="gemini-2.5-flash",
+            contents=zap
+        )
         result = response.text
 
         # 3. Сохраняем в кэш
@@ -1263,10 +1354,10 @@ async def ai(message: Message, state: FSMContext):
         if plan_pit and plan_train:
             # Разделяем длинные сообщения на части
             for part in split_message(plan_pit, message.from_user.id):
-                await message.answer(part)
+                await message.answer(part, parse_mode='HTML')
 
             for part in split_message(plan_train, message.from_user.id):
-                await message.answer(part)
+                await message.answer(part, parse_mode='HTML')
 
             await message.answer(
                 text=l.printer(message.from_user.id, 'recommend'),
@@ -1309,7 +1400,8 @@ async def ai_food_meals(message: Message, state: FSMContext):
             # Разделяем длинные сообщения на части
             for part in split_message(plan_pit, message.from_user.id):
                 await bot.send_message(message.chat.id, text=part,
-                                       reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
+                                       reply_markup=kb.keyboard(message.from_user.id, 'main_menu'),
+                                       parse_mode='HTML')
         else:
             await bot.send_message(message.chat.id, text="Не удалось получить данные пользователя.",
                                    reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
@@ -1353,7 +1445,8 @@ async def train(message: Message, state: FSMContext):
         if tren:
             for part in split_message(tren, message.from_user.id):
                 await bot.send_message(message.chat.id, text=part,
-                                       reply_markup=kb.keyboard(message.from_user.id, 'tren_choise'))
+                                       reply_markup=kb.keyboard(message.from_user.id, 'tren_choise'),
+                                       parse_mode='HTML')
                 await state.set_state(REG.tren_choiser)
 
 
@@ -1438,8 +1531,46 @@ async def start2(message: Message, state: FSMContext):
 
 @dp.message(F.text.in_({'Сводка', "Resumen", "Zusammenfassung", "Résumé", "Summary"}))
 async def svod(message: Message, state: FSMContext):
-    await state.set_state(REG.new_weight)
-    await message.answer(l.printer(message.from_user.id, 'weight'), reply_markup=types.ReplyKeyboardRemove())
+    """Обработчик сводки - проверяет наличие веса/роста в БД"""
+    user_id = message.from_user.id
+    
+    # Проверяем, есть ли данные о весе и росте за сегодня
+    cursor.execute("""
+        SELECT weight, height FROM user_health 
+        WHERE user_id = %s AND date = %s
+        ORDER BY date DESC LIMIT 1
+    """, (user_id, datetime.datetime.now().strftime('%Y-%m-%d')))
+    today_data = cursor.fetchone()
+    
+    if today_data and today_data[0] and today_data[1]:
+        # Если есть данные за сегодня, используем их
+        bot_logger.info(f"User {user_id} has weight/height data for today: weight={today_data[0]}, height={today_data[1]}")
+        await state.update_data(new_weight=today_data[0], new_height=today_data[1])
+        await message.answer(text=l.printer(user_id, 'svoPERIOD'),
+                           reply_markup=kb.keyboard(user_id, 'svo'))
+        await state.set_state(REG.svo)
+    else:
+        # Если нет данных за сегодня, проверяем данные за текущий месяц
+        cursor.execute("""
+            SELECT weight, height FROM user_health 
+            WHERE user_id = %s AND date >= DATE_TRUNC('month', CURRENT_DATE)
+            ORDER BY date DESC LIMIT 1
+        """, (user_id,))
+        month_data = cursor.fetchone()
+        
+        if month_data and month_data[0] and month_data[1]:
+            # Есть данные за месяц, используем их
+            bot_logger.info(f"User {user_id} has weight/height data for this month: weight={month_data[0]}, height={month_data[1]}")
+            await state.update_data(new_weight=month_data[0], new_height=month_data[1])
+            await message.answer(text=l.printer(user_id, 'svoPERIOD'),
+                               reply_markup=kb.keyboard(user_id, 'svo'))
+            await state.set_state(REG.svo)
+        else:
+            # Нет данных, запрашиваем у пользователя
+            bot_logger.info(f"User {user_id} has no weight/height data, requesting input")
+            await state.set_state(REG.new_weight)
+            await message.answer(l.printer(user_id, 'weight'), reply_markup=types.ReplyKeyboardRemove())
+
 
 
 @dp.message(REG.new_weight)
