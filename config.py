@@ -19,11 +19,9 @@ class Config:
     TELEGRAM_TOKEN: str = os.getenv('TOKEN', '')
     
     # ============================================
-    # AI Services Configuration
+    # AI Services Configuration (Google Gemini only)
     # ============================================
     GEMINI_API_KEY: str = os.getenv('GEMINI_API_KEY', '')
-    GIGACHAT_CREDENTIALS: str = os.getenv('GIGA', '')
-    YANDEX_GPT_API_KEY: str = os.getenv('gpt', '')
     
     # ============================================
     # Database Configuration
@@ -99,9 +97,7 @@ class Config:
         if not cls.TELEGRAM_TOKEN:
             errors.append("TELEGRAM_TOKEN is required")
         
-        if not cls.GEMINI_API_KEY:
-            errors.append("GEMINI_API_KEY is required")
-        
+
         if not cls.DB_PASSWORD:
             errors.append("DB_PASSWORD is required")
         

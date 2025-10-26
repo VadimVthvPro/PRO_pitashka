@@ -4,6 +4,7 @@ from enum import Enum
 import psycopg2
 from aiogram import types
 import gettext
+from config import config
 
 
 lenguages = {'Русский 🇷🇺':'ru', 'English 🇬🇧':'en', 'Deutsch 🇩🇪':'de','Française 🇫🇷':'fr', 'Spanish 🇪🇸':'es'}
@@ -31,8 +32,23 @@ def starter(k):
     kb = {'lenguage': lenguage}
     return kb[k]
 
+def privacy_consent_keyboard():
+    """Creates an inline keyboard for privacy consent."""
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Принять", callback_data="accept_privacy"),
+                InlineKeyboardButton(text="❌ Отклонить", callback_data="decline_privacy"),
+            ],
+            [
+                InlineKeyboardButton(text="📜 Читать политику", url="http://example.com/privacy")
+            ]
+        ]
+    )
+    return keyboard
+
 def keyboard(user_id, k):
-    conn = psycopg2.connect(dbname='propitashka', user='postgres', password='Vadamahjkl1', host='localhost', port="5432")
+    conn = psycopg2.connect(**config.get_db_config())
     cursor = conn.cursor()
     cursor.execute(
         "SELECT lang FROM user_lang WHERE user_id = {}".format(int(user_id))

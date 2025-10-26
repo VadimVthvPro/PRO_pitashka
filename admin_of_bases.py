@@ -4,6 +4,7 @@ import psycopg2
 from datetime import datetime
 import sys
 import os
+import bcrypt
 
 # Add parent directory to path to import config
 sys.path.insert(0, os.path.dirname(__file__))
@@ -97,31 +98,42 @@ class Application:
 
     def submit(self):
         """Функция для обработки входа пользователя."""
-        name = self.entry_name.get()
-        pas = self.entry_pas.get()
-        print(f"Имя: {name}")
-        print(f"Пароль: {pas}")
+        username = self.entry_name.get()
+        password = self.entry_pas.get()
+
+        if not username or not password:
+            self.error_label.config(text="Имя пользователя и пароль не могут быть пустыми", foreground="red")
+            return
+
+        conn = get_db_connection()
+        if not conn:
+            return  # Сообщение об ошибке уже показано в get_db_connection
 
         try:
-            conn = get_db_connection(name, pas)
-            if conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM user_main")
-                data = cursor.fetchall()
+            cursor = conn.cursor()
+            cursor.execute("SELECT password_hash FROM admin_users WHERE username = %s", (username,))
+            result = cursor.fetchone()
 
-                if data:
+            if result:
+                password_hash = result[0]
+                if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
+                    # Пароль верный, обновляем last_login_at
+                    cursor.execute("UPDATE admin_users SET last_login_at = NOW() WHERE username = %s", (username,))
+                    conn.commit()
                     self.show_main_window()
                 else:
                     self.error_label.config(text="Неверное имя пользователя или пароль", foreground="red")
-
-                cursor.close()
-                conn.close()
             else:
-                self.error_label.config(text="Не удалось подключиться к базе данных", foreground="red")
+                self.error_label.config(text="Неверное имя пользователя или пароль", foreground="red")
+
+            cursor.close()
+            conn.close()
 
         except Exception as e:
-            self.error_label.config(text="Неверное имя пользователя или пароль", foreground="red")
+            self.error_label.config(text=f"Ошибка аутентификации: {e}", foreground="red")
             print(f"Ошибка: {str(e)}")
+            if conn:
+                conn.close()
 
     def show_main_window(self):
         """Функция для отображения главного окна с вкладками."""
