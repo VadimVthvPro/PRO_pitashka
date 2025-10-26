@@ -368,6 +368,22 @@ msgid "kbsvo3"
 msgstr "Jahr"
 
 
+msgid "ai_thinking"
+msgstr "🤔 KI denkt über Ihre Antwort nach..."
+
+
+msgid "ai_chat_system"
+msgstr "Sie sind ein KI-Assistent für den PROpitashka-Bot und helfen Benutzern bei Fragen zu gesunder Ernährung, Training und gesundem Lebensstil.\n\nBENUTZERINFORMATIONEN:\n{}\n\nKONTEXT DER LETZTEN NACHRICHTEN:\n{}\n\nIHRE AUFGABE:\n1. Beantworten Sie Benutzerfragen freundlich und professionell\n2. Verwenden Sie Benutzerdaten (Alter, Geschlecht, BMI, Ziel) für personalisierte Ratschläge\n3. Wenn die Frage nichts mit Gesundheit/Ernährung/Sport zu tun hat - erinnern Sie höflich daran, dass Sie sich auf diese Themen spezialisiert haben\n4. Geben Sie praktische Ratschläge unter Berücksichtigung verfügbarer Produkte und Übungen\n5. Wenn eine medizinische Beratung erforderlich ist - empfehlen Sie die Konsultation eines Spezialisten\n6. Verwenden Sie Formatierung: ## für Überschriften, **fett**, Listen\n\nBENUTZERFRAGE:\n{}"
+
+
+msgid "food_recognition_prompt"
+msgstr "Analysieren Sie das Lebensmittelfoto und geben Sie folgende Informationen:\n\n1. Was ist auf dem Foto zu sehen (Gericht/Produktname)\n2. Ungefähres Portionsgewicht in Gramm\n3. Kalorien (kcal)\n4. Makros (Protein/Fett/Kohlenhydrate in Gramm)\n5. Kurze Empfehlungen zu diesem Gericht\n\nFormatieren Sie die Antwort schön mit:\n- ## für Überschriften\n- **fetter Text** für wichtige Werte\n- Listen zur Strukturierung\n\nSeien Sie genau bei der Berechnung von Makros und Kalorien."
+
+
+msgid "food_saved"
+msgstr "✅ Lebensmittelinformationen erhalten! Die Daten werden NICHT automatisch in der Datenbank gespeichert.\n\nWenn Sie dieses Lebensmittel zu Ihrem Tagebuch hinzufügen möchten, verwenden Sie die manuelle Eingabe."
+
+
 msgid "kbtype1"
 msgstr "Strom"
 

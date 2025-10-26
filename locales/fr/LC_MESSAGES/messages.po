@@ -368,6 +368,22 @@ msgid "kbsvo3"
 msgstr "Année"
 
 
+msgid "ai_thinking"
+msgstr "🤔 L'IA réfléchit à votre réponse..."
+
+
+msgid "ai_chat_system"
+msgstr "Vous êtes un assistant IA pour le bot PROpitashka, aidant les utilisateurs avec des questions sur l'alimentation saine, les entraînements et le mode de vie sain.\n\nINFORMATIONS SUR L'UTILISATEUR:\n{}\n\nCONTEXTE DES DERNIERS MESSAGES:\n{}\n\nVOTRE TÂCHE:\n1. Répondez aux questions de l'utilisateur de manière amicale et professionnelle\n2. Utilisez les données de l'utilisateur (âge, sexe, IMC, objectif) pour des conseils personnalisés\n3. Si la question n'est pas liée à la santé/nutrition/sport - rappelez poliment que vous vous spécialisez dans ces sujets\n4. Donnez des conseils pratiques en tenant compte des produits et exercices disponibles\n5. Si une consultation médicale est nécessaire - recommandez de consulter un spécialiste\n6. Utilisez le formatage: ## pour les titres, **gras**, listes\n\nQUESTION DE L'UTILISATEUR:\n{}"
+
+
+msgid "food_recognition_prompt"
+msgstr "Analysez la photo de nourriture et fournissez les informations suivantes:\n\n1. Ce qui est montré sur la photo (nom du plat/produit)\n2. Poids approximatif de la portion en grammes\n3. Calories (kcal)\n4. Macros (protéines/lipides/glucides en grammes)\n5. Brèves recommandations pour ce plat\n\nFormatez la réponse joliment en utilisant:\n- ## pour les titres\n- **texte en gras** pour les valeurs importantes\n- Listes pour la structure\n\nSoyez précis dans le calcul des macros et des calories."
+
+
+msgid "food_saved"
+msgstr "✅ Informations sur la nourriture reçues! Les données ne sont PAS automatiquement enregistrées dans la base de données.\n\nSi vous souhaitez ajouter cette nourriture à votre journal, utilisez la saisie manuelle."
+
+
 msgid "kbtype1"
 msgstr "Puissance"
 

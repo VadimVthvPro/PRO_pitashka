@@ -198,6 +198,10 @@ async def command_start(message: Message, state: FSMContext):
     user_id = message.from_user.id
     bot_logger.info(f"User {user_id} (@{message.from_user.username}) sent /start")
     
+    # ВАЖНО: Очищаем состояние FSM при старте
+    await state.clear()
+    bot_logger.info(f"FSM state cleared for user {user_id} on /start")
+    
     # Извлекаем и парсим deep link параметры
     start_payload = message.text.split(' ')[1] if len(message.text.split(' ')) > 1 else None
     utm_source, utm_medium, utm_campaign, ref_code = None, None, None, None
@@ -605,6 +609,10 @@ async def entrance(message: Message, state: FSMContext):
     user_id = message.from_user.id
     bot_logger.info(f"User {user_id} requesting entrance")
     
+    # ВАЖНО: Очищаем состояние FSM при входе
+    await state.clear()
+    bot_logger.info(f"FSM state cleared for user {user_id}")
+    
     try:
         # Используем параметризованный запрос для безопасности
         cursor.execute("""
@@ -685,6 +693,10 @@ async def entrance(message: Message, state: FSMContext):
 
 @dp.message(F.text.in_({'Регистрация', "Anmeldung", 'Registration', 'Enregistrement', 'Inscripción'}))
 async def registration(message: Message, state: FSMContext):
+    # Очищаем предыдущее состояние перед началом новой регистрации
+    await state.clear()
+    bot_logger.info(f"FSM state cleared for user {message.from_user.id} before registration")
+    
     await state.set_state(REG.height)
     await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height'))
 
@@ -1253,6 +1265,9 @@ def replace_none_with_zero_in_list(lst, index):
 @dp.message(F.text.in_({'Ввести еду за день', "Das Essen des Tages einführen", "Enter a day's worth of food",
                         "Introducir la comida del día", 'Présenter les aliments du jour'}))
 async def food1(message: Message, state: FSMContext):
+    # Очищаем состояние при входе в раздел
+    await state.clear()
+    
     await message.answer(text=l.printer(message.from_user.id, 'ChooseTheWay'),
                          reply_markup=kb.keyboard(message.from_user.id, 'food'))
     await state.set_state(REG.food)
@@ -1282,20 +1297,98 @@ async def names(message: Message, state: FSMContext):
 
 @dp.message(REG.food_photo)
 async def handle_photo(message: Message, state: FSMContext):
-    await state.update_data(food_photo=message.photo)
-    data = await state.get_data()
-    photo = data['food_photo'][-1]
-
-    await state.clear()
-    name_a = []
-    file_info = await bot.get_file(photo.file_id)
+    """Обработчик фото еды - распознаёт что на фото и считает БЖУ"""
+    user_id = message.from_user.id
+    bot_logger.info(f"User {user_id} sent food photo for recognition")
     
-    @async_retry(max_attempts=config.API_RETRY_ATTEMPTS, delay=config.API_RETRY_DELAY, exceptions=(Exception,))
-    async def download_file_with_retry(file_info):
-        return await bot.download_file(file_info.file_path)
+    try:
+        # Проверяем что это фото
+        if not message.photo:
+            await message.answer("⚠️ Пожалуйста, отправьте фото еды.")
+            return
+        
+        await state.update_data(food_photo=message.photo)
+        data = await state.get_data()
+        photo = data['food_photo'][-1]
 
-    downloaded_file = await download_file_with_retry(file_info)
-    save_path = 'photo.jpg'
+        # Показываем что обрабатываем
+        processing_msg = await message.answer("🔍 Анализирую фото еды...")
+        
+        # Скачиваем фото
+        file_info = await bot.get_file(photo.file_id)
+        
+        @async_retry(max_attempts=config.API_RETRY_ATTEMPTS, delay=config.API_RETRY_DELAY, exceptions=(Exception,))
+        async def download_file_with_retry(file_info):
+            return await bot.download_file(file_info.file_path)
+
+        downloaded_file = await download_file_with_retry(file_info)
+        save_path = f'photo_{user_id}.jpg'
+        
+        # Сохраняем файл
+        with open(save_path, 'wb') as photo_file:
+            photo_file.write(downloaded_file.read())
+        
+        bot_logger.info(f"Photo saved for user {user_id}: {save_path}")
+        
+        # Загружаем фото в Gemini
+        try:
+            # Используем новый API Gemini для загрузки файла
+            import google.generativeai as genai
+            
+            uploaded_file = genai.upload_file(save_path)
+            bot_logger.info(f"Photo uploaded to Gemini: {uploaded_file.uri}")
+            
+            # Создаём промпт для распознавания
+            prompt = l.printer(user_id, 'food_recognition_prompt')
+            
+            # Генерируем ответ с фото
+            model = genai.GenerativeModel('gemini-2.5-flash')
+            response = model.generate_content([prompt, uploaded_file])
+            
+            if response and response.text:
+                ai_response = response.text
+                bot_logger.info(f"Food recognition successful for user {user_id}")
+                
+                # Удаляем сообщение "Анализирую..."
+                await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
+                
+                # Форматируем и отправляем ответ
+                formatted_response = markdown_to_telegram_html(ai_response)
+                await message.answer(formatted_response, parse_mode='HTML')
+                
+                # Показываем главное меню
+                await message.answer(
+                    l.printer(user_id, 'food_saved'),
+                    reply_markup=kb.keyboard(user_id, 'main_menu')
+                )
+            else:
+                await message.answer(
+                    "⚠️ Не удалось распознать еду на фото. Попробуйте сделать фото поближе и чётче.",
+                    reply_markup=kb.keyboard(user_id, 'main_menu')
+                )
+            
+            # Удаляем файл
+            import os
+            if os.path.exists(save_path):
+                os.remove(save_path)
+                
+        except Exception as e:
+            bot_logger.error(f"Error recognizing food photo for user {user_id}: {e}")
+            await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
+            await message.answer(
+                "⚠️ Произошла ошибка при распознавании фото. Попробуйте ещё раз или введите еду вручную.",
+                reply_markup=kb.keyboard(user_id, 'main_menu')
+            )
+        
+        await state.clear()
+        
+    except Exception as e:
+        bot_logger.error(f"Error handling food photo for user {user_id}: {e}")
+        await message.answer(
+            "⚠️ Произошла ошибка. Попробуйте снова.",
+            reply_markup=kb.keyboard(user_id, 'main_menu')
+        )
+        await state.clear()
 
 
 @dp.message(F.text.in_(
@@ -1784,6 +1877,9 @@ async def svod(message: Message, state: FSMContext):
     """Обработчик сводки - проверяет наличие веса/роста в БД"""
     user_id = message.from_user.id
     
+    # Очищаем состояние при входе в раздел
+    await state.clear()
+    
     # Проверяем, есть ли данные о весе и росте за сегодня
     cursor.execute("""
         SELECT weight, height FROM user_health 
@@ -1952,82 +2048,102 @@ async def svodka(message: Message, state: FSMContext):
             sr_cal = []
             sr_w = []
             sr_tren = []
+            sr_food_cal = []  # Добавляем калории еды
+            
             for i in range(1, 32):
                 datee = f'{str(datetime.datetime.now().year)}-{str(datetime.datetime.now().month).zfill(2)}-{str(i).zfill(2)}'
+                
+                # Вес (только один раз берём данные)
                 cursor.execute(
-                    "SELECT weight FROM user_health WHERE user_id = {} AND date = '{}' ".format(message.from_user.id,
-                                                                                                datetime.datetime.now().strftime(
-                                                                                                    '%Y-%m-%d')))
+                    "SELECT weight FROM user_health WHERE user_id = {} AND date = '{}' ".format(message.from_user.id, datee))
                 weight_data = cursor.fetchall()
                 if weight_data:
                     weight_month.append(weight_data)
+                
+                # БЖУ
                 cursor.execute(
                     "SELECT sum(b) FROM food WHERE user_id = {} AND date = '{}'".format(message.from_user.id, datee))
                 b_data = cursor.fetchone()
-                if b_data:
+                if b_data and b_data[0] is not None:
                     sr_b.append(b_data[0])
+                    
                 cursor.execute(
                     "SELECT sum(g) FROM food WHERE user_id = {} AND date = '{}'".format(message.from_user.id, datee))
                 g_data = cursor.fetchone()
-                if g_data:
+                if g_data and g_data[0] is not None:
                     sr_g.append(g_data[0])
+                    
                 cursor.execute(
                     "SELECT sum(u) FROM food WHERE user_id = {} AND date = '{}'".format(message.from_user.id, datee))
                 u_data = cursor.fetchone()
-                if u_data:
+                if u_data and u_data[0] is not None:
                     sr_u.append(u_data[0])
+                
+                # Калории еды
                 cursor.execute(
-                    "SELECT sum(count) FROM water WHERE user_id = {} AND data = '{}'".format(message.from_user.id,
-                                                                                             datee))
+                    "SELECT sum(cal) FROM food WHERE user_id = {} AND date = '{}'".format(message.from_user.id, datee))
+                food_cal_data = cursor.fetchone()
+                if food_cal_data and food_cal_data[0] is not None:
+                    sr_food_cal.append(food_cal_data[0])
+                
+                # Вода
+                cursor.execute(
+                    "SELECT sum(count) FROM water WHERE user_id = {} AND data = '{}'".format(message.from_user.id, datee))
                 w_data = cursor.fetchone()
-                if w_data:
+                if w_data and w_data[0] is not None:
                     sr_w.append(w_data[0])
-                cursor.execute("SELECT sum(training_cal) FROM user_training WHERE user_id = {} AND date = '{}'".format(
-                    message.from_user.id, datee))
+                
+                # Калории тренировок
+                cursor.execute(
+                    "SELECT sum(training_cal) FROM user_training WHERE user_id = {} AND date = '{}'".format(
+                        message.from_user.id, datee))
                 cal_data = cursor.fetchone()
-                if cal_data:
+                if cal_data and cal_data[0] is not None:
                     sr_cal.append(cal_data[0])
-                cursor.execute("SELECT sum(tren_time) FROM user_training WHERE user_id = {} AND date = '{}'".format(
-                    message.from_user.id, datee))
+                
+                # Время тренировок
+                cursor.execute(
+                    "SELECT sum(tren_time) FROM user_training WHERE user_id = {} AND date = '{}'".format(
+                        message.from_user.id, datee))
                 time_data = cursor.fetchone()
-                if time_data:
+                if time_data and time_data[0] is not None:
                     sr_tren.append(time_data[0])
-            if weight_month and sr_b and sr_g and sr_u and sr_cal and sr_tren and sr_w:
+            
+            # Фильтруем None значения
+            new_sr_b = list(filter(is_not_none, sr_b))
+            new_sr_g = list(filter(is_not_none, sr_g))
+            new_sr_u = list(filter(is_not_none, sr_u))
+            new_sr_w = list(filter(is_not_none, sr_w))
+            new_sr_cal = list(filter(is_not_none, sr_cal))
+            new_sr_tren = list(filter(is_not_none, sr_tren))
+            new_sr_food_cal = list(filter(is_not_none, sr_food_cal))
+            
+            # Вычисляем средние значения (только по дням когда были данные)
+            avg_b = round(sum(new_sr_b) / len(new_sr_b), 3) if new_sr_b and len(new_sr_b) > 0 else 0
+            avg_g = round(sum(new_sr_g) / len(new_sr_g), 3) if new_sr_g and len(new_sr_g) > 0 else 0
+            avg_u = round(sum(new_sr_u) / len(new_sr_u), 3) if new_sr_u and len(new_sr_u) > 0 else 0
+            avg_w = round(sum(new_sr_w) / len(new_sr_w) * 300, 1) if new_sr_w and len(new_sr_w) > 0 else 0
+            avg_food_cal = round(sum(new_sr_food_cal) / len(new_sr_food_cal), 1) if new_sr_food_cal and len(new_sr_food_cal) > 0 else 0
+            
+            # Безопасный расчёт среднего времени тренировок
+            avg_training_time = round(sum(new_sr_tren) / len(new_sr_tren), 3) if new_sr_tren and len(new_sr_tren) > 0 else 0
+            
+            # Безопасный расчёт среднего числа сожжённых калорий
+            avg_calories_burned = round(sum(new_sr_cal) / len(new_sr_cal), 3) if new_sr_cal and len(new_sr_cal) > 0 else 0
+            
+            # Вес
+            if weight_month:
                 weig_1 = weight_month[0][0]
                 weig_2 = new_weight
-                new_sr_b = list(filter(is_not_none, sr_b))
-                new_sr_g = list(filter(is_not_none, sr_g))
-                new_sr_u = list(filter(is_not_none, sr_u))
-                new_sr_w = list(filter(is_not_none, sr_w))
-                new_sr_cal = list(filter(is_not_none, sr_cal))
-                new_sr_tren = list(filter(is_not_none, sr_tren))
-                if sum(new_sr_b) > 0:
-                    avg_b = round(sum(new_sr_b) / len(new_sr_b), 3)
-                else:
-                    avg_b = 0
-                if sum(new_sr_g) > 0:
-                    avg_g = round(sum(new_sr_g) / len(new_sr_g), 3)
-                else:
-                    avg_g = 0
-                if sum(new_sr_u) > 0:
-                    avg_u = round(sum(new_sr_u) / len(new_sr_u), 3)
-                else:
-                    avg_u = 0
-                if sum(new_sr_w) > 0:
-                    avg_w = sum(new_sr_w) / len(new_sr_w) * 300
-                else:
-                    avg_w = 0
-
-                avg_training_time = round(sum(new_sr_tren) / len(new_sr_tren), 3) if round(
-                    sum(new_sr_tren) / len(new_sr_tren), 3) else 0  # Расчет среднего времени тренировок
-                avg_calories_burned = round(sum(new_sr_cal) / len(new_sr_cal), 3) if round(
-                    sum(new_sr_cal) / len(new_sr_cal), 3) else 0  # Расчет среднего числа сожжённых калорий
-                await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'svoMONTH').format(
-                    message.from_user.first_name, weig_1[0], weig_2, avg_training_time, avg_calories_burned, avg_b,
-                    avg_g, avg_u, avg_w),
-                                       reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
             else:
-                await bot.send_message(message.chat.id, "Нет данных за этот месяц.")
+                weig_1 = new_weight
+                weig_2 = new_weight
+            
+            # Формируем сообщение
+            await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'svoMONTH').format(
+                message.from_user.first_name, weig_1[0] if isinstance(weig_1, tuple) else weig_1, weig_2, 
+                avg_training_time, avg_calories_burned, avg_food_cal, avg_b, avg_g, avg_u, avg_w),
+                                   reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         elif mes == 'Год' or mes == "Year" or mes == "Année" or mes == "Jahr" or mes == "Año":
             all_data = []
             total_food_cal = 0
@@ -2037,6 +2153,7 @@ async def svodka(message: Message, state: FSMContext):
             total_w = 0
             weight_data_all = []
             food_months_with_data = set()
+            water_months_with_data = []  # Массив для месяцев с данными о воде
 
             current_date = datetime.datetime.now()
 
@@ -2062,6 +2179,7 @@ async def svodka(message: Message, state: FSMContext):
                     first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
                     message.from_user.id))
                 result_food = cursor.fetchone()
+                
                 cursor.execute("""
                               SELECT SUM(count)
                               FROM water
@@ -2070,25 +2188,26 @@ async def svodka(message: Message, state: FSMContext):
                     first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
                     message.from_user.id))
                 result_wat = cursor.fetchone()
+                
                 if result_food and result_food[0]:
                     all_data.append(result_food)
                     total_food_cal += result_food[0]
-                    total_b += result_food[1]
-                    total_g += result_food[2]
-                    total_u += result_food[3]
+                    total_b += result_food[1] if result_food[1] else 0
+                    total_g += result_food[2] if result_food[2] else 0
+                    total_u += result_food[3] if result_food[3] else 0
                     food_months_with_data.add((current_year, current_month))
+                    
                 if result_wat and result_wat[0]:
                     total_w += result_wat[0]
+                    water_months_with_data.append(result_wat[0])
 
-                    #
                 cursor.execute("""
-                        SELECT weight 
-                        FROM user_health
-                        WHERE date >= '{}' AND date <= '{}' AND user_id = {}
-
-                        ORDER BY date ASC
-                    """.format(first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
-                               message.from_user.id))
+                    SELECT weight 
+                    FROM user_health
+                    WHERE date >= '{}' AND date <= '{}' AND user_id = {}
+                    ORDER BY date ASC
+                """.format(first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
+                           message.from_user.id))
                 weight_data = cursor.fetchall()
 
                 if weight_data:
@@ -2114,35 +2233,38 @@ async def svodka(message: Message, state: FSMContext):
             avg_b = round(total_b / len(food_months_with_data), 3) if food_months_with_data else 0
             avg_g = round(total_g / len(food_months_with_data), 3) if food_months_with_data else 0
             avg_u = round(total_u / len(food_months_with_data), 3) if food_months_with_data else 0
+            
+            # Считаем среднее воды только по месяцам когда пили
+            avg_w = round((sum(water_months_with_data) / len(water_months_with_data)) * 300, 1) if water_months_with_data else 0
+            
             all_data = list(filter(is_not_none, all_data))
+            
+            # Безопасное получение данных из all_data
+            if all_data and len(all_data) > 0:
+                last_food_cal = round(float(all_data[-1][0]), 3) if all_data[-1][0] else 0
+                first_food_cal = round(float(all_data[0][0]), 3) if all_data[0][0] else 0
+                last_b = round(all_data[-1][1], 3) if all_data[-1][1] else 0
+                last_g = round(all_data[-1][2], 3) if all_data[-1][2] else 0
+                last_u = round(all_data[-1][3], 3) if all_data[-1][3] else 0
+                first_b = round(all_data[0][1], 3) if all_data[0][1] else 0
+                first_g = round(all_data[0][2], 3) if all_data[0][2] else 0
+                first_u = round(all_data[0][3], 3) if all_data[0][3] else 0
+            else:
+                last_food_cal = first_food_cal = 0
+                last_b = last_g = last_u = 0
+                first_b = first_g = first_u = 0
+            
             await bot.send_message(message.chat.id,
                                    text=l.printer(message.from_user.id, 'svoYEAR').format('\n', start_weight,
                                                                                           end_weight, '\n',
                                                                                           round(avg_train_cal, 3), '\n',
                                                                                           round(avg_food_cal, 3), '\n',
-                                                                                          round(float(all_data[-1][0]),
-                                                                                                3) if round(
-                                                                                              float(all_data[-1][0]),
-                                                                                              3) else 0,
-                                                                                          round(float(all_data[0][0]),
-                                                                                                3) if round(
-                                                                                              float(all_data[0][0]),
-                                                                                              3) else 0, avg_b, avg_g,
-                                                                                          avg_u, round(all_data[-1][1],
-                                                                                                       3) if round(
-                                           all_data[-1][1], 3) else 0, round(all_data[-1][2], 3) if round(
-                                           all_data[-1][2], 3) else 0, round(all_data[-1][3], 3) if round(
-                                           all_data[-1][3], 3) else 0, round(all_data[0][1], 3) if round(all_data[0][1],
-                                                                                                         3) else 0,
-                                                                                          round(all_data[0][2],
-                                                                                                3) if round(
-                                                                                              all_data[0][2], 3) else 0,
-                                                                                          round(all_data[0][3],
-                                                                                                3) if round(
-                                                                                              all_data[0][3], 3) else 0,
-                                                                                          total_w / len(
-                                                                                              food_months_with_data) * 300 if total_w / len(
-                                                                                              food_months_with_data) * 300 else 0),
+                                                                                          last_food_cal,
+                                                                                          first_food_cal,
+                                                                                          avg_b, avg_g, avg_u,
+                                                                                          last_b, last_g, last_u,
+                                                                                          first_b, first_g, first_u,
+                                                                                          avg_w),
                                    reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
     except Exception as e:
         print(f"Ошибка при генерации плана: {str(e)}")
@@ -2153,6 +2275,250 @@ async def svodka(message: Message, state: FSMContext):
 #       await state.set_state(REG.new_weight)
 #       await message.answer(l.printer(message.from_user.id, 'weight'), reply_markup=types.ReplyKeyboardRemove())
 
+
+# ============================================
+# AI Chat Functions - Контекстное общение с ИИ
+# ============================================
+
+async def save_message_to_history(user_id: int, message_type: str, message_text: str):
+    """
+    Сохраняет сообщение в историю чата
+    
+    Args:
+        user_id: ID пользователя
+        message_type: 'user' или 'bot'
+        message_text: Текст сообщения
+    """
+    try:
+        cursor.execute("""
+            INSERT INTO chat_history (user_id, message_type, message_text)
+            VALUES (%s, %s, %s)
+        """, (user_id, message_type, message_text))
+        conn.commit()
+    except Exception as e:
+        bot_logger.error(f"Error saving message to history for user {user_id}: {e}")
+
+
+async def get_chat_context(user_id: int, limit: int = 10) -> str:
+    """
+    Получает последние N сообщений из истории для контекста
+    
+    Args:
+        user_id: ID пользователя
+        limit: Количество последних сообщений
+    
+    Returns:
+        Отформатированная строка с историей сообщений
+    """
+    try:
+        cursor.execute("""
+            SELECT message_type, message_text, created_at
+            FROM chat_history
+            WHERE user_id = %s
+            ORDER BY created_at DESC
+            LIMIT %s
+        """, (user_id, limit))
+        
+        messages = cursor.fetchall()
+        
+        if not messages:
+            return "История сообщений пуста."
+        
+        # Переворачиваем список, чтобы показать старые сообщения первыми
+        messages.reverse()
+        
+        context = []
+        for msg_type, msg_text, created_at in messages:
+            if msg_type == 'user':
+                context.append(f"👤 Пользователь: {msg_text}")
+            else:
+                context.append(f"🤖 Бот: {msg_text[:100]}{'...' if len(msg_text) > 100 else ''}")
+        
+        return "\n".join(context)
+        
+    except Exception as e:
+        bot_logger.error(f"Error getting chat context for user {user_id}: {e}")
+        return "История сообщений недоступна."
+
+
+async def get_user_info_for_ai(user_id: int) -> str:
+    """
+    Собирает информацию о пользователе для передачи ИИ
+    
+    Args:
+        user_id: ID пользователя
+    
+    Returns:
+        Отформатированная строка с данными пользователя
+    """
+    try:
+        info_parts = []
+        
+        # Получаем основные данные
+        cursor.execute("""
+            SELECT user_sex, date_of_birth 
+            FROM user_main 
+            WHERE user_id = %s
+        """, (user_id,))
+        user_main = cursor.fetchone()
+        
+        if user_main:
+            sex, birthdate = user_main
+            if birthdate:
+                age = calculate_age_from_birthdate(birthdate)
+                info_parts.append(f"• Возраст: {age} лет")
+            if sex:
+                info_parts.append(f"• Пол: {sex}")
+        
+        # Получаем данные о здоровье
+        cursor.execute("""
+            SELECT imt, weight, height
+            FROM user_health
+            WHERE user_id = %s
+            ORDER BY date DESC
+            LIMIT 1
+        """, (user_id,))
+        health = cursor.fetchone()
+        
+        if health:
+            imt, weight, height = health
+            if imt:
+                info_parts.append(f"• ИМТ: {imt}")
+            if weight:
+                info_parts.append(f"• Вес: {weight} кг")
+            if height:
+                info_parts.append(f"• Рост: {height} см")
+        
+        # Получаем цели
+        cursor.execute("""
+            SELECT user_aim, daily_cal
+            FROM user_aims
+            WHERE user_id = %s
+        """, (user_id,))
+        aims = cursor.fetchone()
+        
+        if aims:
+            aim, cal = aims
+            if aim:
+                info_parts.append(f"• Цель: {aim}")
+            if cal:
+                info_parts.append(f"• Дневная норма калорий: {cal} ккал")
+        
+        if not info_parts:
+            return "Данные пользователя отсутствуют (возможно, пользователь не прошёл регистрацию)."
+        
+        return "\n".join(info_parts)
+        
+    except Exception as e:
+        bot_logger.error(f"Error getting user info for AI for user {user_id}: {e}")
+        return "Ошибка получения данных пользователя."
+
+
+async def handle_ai_chat(message: Message):
+    """
+    Обрабатывает произвольные текстовые сообщения через AI-чат
+    
+    Args:
+        message: Сообщение от пользователя
+    """
+    user_id = message.from_user.id
+    user_text = message.text
+    
+    bot_logger.info(f"User {user_id} sent free-form message to AI chat: {user_text[:50]}...")
+    
+    try:
+        # Сохраняем сообщение пользователя в историю
+        await save_message_to_history(user_id, 'user', user_text)
+        
+        # Показываем "думает..."
+        thinking_msg = await message.answer(l.printer(user_id, 'ai_thinking'))
+        
+        # Собираем данные пользователя
+        user_info = await get_user_info_for_ai(user_id)
+        
+        # Получаем контекст последних сообщений
+        chat_context = await get_chat_context(user_id, limit=10)
+        
+        # Формируем системный промпт
+        system_prompt = l.printer(user_id, 'ai_chat_system').format(
+            user_info,
+            chat_context,
+            user_text
+        )
+        
+        # Создаём ключ кэша для этого запроса
+        cache_key = f"ai_chat:{user_id}:{hash(user_text)}"
+        
+        # Генерируем ответ через ИИ
+        ai_response = await generate(system_prompt, cache_key=cache_key, cache_ttl=1800)  # 30 минут кэш
+        
+        if not ai_response:
+            await message.answer("⚠️ Не удалось получить ответ от нейросети. Попробуйте позже.")
+            await bot.delete_message(chat_id=message.chat.id, message_id=thinking_msg.message_id)
+            return
+        
+        # Удаляем "думает..."
+        await bot.delete_message(chat_id=message.chat.id, message_id=thinking_msg.message_id)
+        
+        # Сохраняем ответ бота в историю
+        await save_message_to_history(user_id, 'bot', ai_response)
+        
+        # Отправляем ответ с форматированием
+        formatted_response = markdown_to_telegram_html(ai_response)
+        
+        # Разбиваем на части если слишком длинный
+        max_length = 4096
+        if len(formatted_response) <= max_length:
+            await message.answer(formatted_response, parse_mode='HTML')
+        else:
+            # Отправляем по частям
+            parts = [formatted_response[i:i + max_length] for i in range(0, len(formatted_response), max_length)]
+            for part in parts:
+                await message.answer(part, parse_mode='HTML')
+        
+        bot_logger.info(f"AI chat response sent to user {user_id}")
+        
+    except Exception as e:
+        bot_logger.error(f"Error in AI chat for user {user_id}: {e}")
+        await message.answer(
+            "⚠️ Произошла ошибка при обработке вашего сообщения. Пожалуйста, попробуйте позже.",
+            reply_markup=kb.keyboard(user_id, 'main_menu')
+        )
+
+
+# ============================================
+# Catch-All Handler - AI Chat для необработанных сообщений
+# ============================================
+
+@dp.message(F.text)
+async def catch_all_text_messages(message: Message, state: FSMContext):
+    """
+    Обрабатывает все необработанные текстовые сообщения через AI-чат
+    Это должен быть ПОСЛЕДНИЙ обработчик сообщений
+    """
+    current_state = await state.get_state()
+    
+    # Если пользователь находится в каком-то состоянии FSM - не перехватываем
+    if current_state is not None:
+        return
+    
+    # Проверяем что пользователь зарегистрирован
+    try:
+        cursor.execute("SELECT user_id FROM user_main WHERE user_id = %s", (message.from_user.id,))
+        if not cursor.fetchone():
+            bot_logger.info(f"User {message.from_user.id} sent message but not registered, ignoring")
+            return
+    except Exception as e:
+        bot_logger.error(f"Error checking user registration: {e}")
+        return
+    
+    # Передаём в AI-чат
+    await handle_ai_chat(message)
+
+
+# ============================================
+# Main Function
+# ============================================
 
 async def main():
     # Register middleware
