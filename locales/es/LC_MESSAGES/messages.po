@@ -39,7 +39,7 @@ msgstr "Introduzca su estatura en centímetros:"
 
 
 msgid "age"
-msgstr "Introduce tu edad:"
+msgstr "Introduce tu fecha de nacimiento en formato DD-MM-AAAA:\n\nPor ejemplo: 15-05-1990"
 
 
 msgid "sex"
@@ -396,21 +396,21 @@ msgstr "Se ha modificado la redacción 🇪🇸"
 
 
 msgid "pitforweek"
-msgstr "Diseña un plan de comidas variado y personalizado para una semana para {}, cuya estatura es {}, edad es {}, IMC es {} y objetivo es {}"
+msgstr "Eres un nutricionista experimentado. Crea un plan de comidas detallado para una semana (7 días) para una persona con los siguientes parámetros: sexo - {}, altura - {} cm, edad - {} años, IMC - {}, objetivo - {}.\\n\\nREQUISITOS IMPORTANTES:\\n1. Usa SOLO productos simples y asequibles que se pueden comprar en cualquier tienda o mercado regular (pollo, carne de res, pescado, huevos, productos lácteos, verduras, cereales, pasta, pan)\\n2. SIN ingredientes exóticos (quinoa, aguacate, chía, garbanzos, etc.)\\n3. Las recetas deben ser SIMPLES y rápidas de preparar (máximo 30-40 minutos)\\n4. Los platos deben ser tradicionales y familiares para la gente común\\n5. Ten en cuenta el objetivo del usuario al calcular calorías y macros\\n6. Para cada día especifica: desayuno, almuerzo, cena, 2 meriendas\\n7. Para cada plato indica las calorías aproximadas y los macros\\n8. Agrega una lista de compras para la semana\\n\\nFormatea la respuesta de manera bonita con encabezados (usa ##), texto en negrita (**texto**) y listas."
 
 
 
 msgid "trenforweek"
-msgstr "Diseña un plan de entrenamiento semanal personalizado para {}, cuya altura es {}, edad es {}, cuyo IMC es {} cuyo objetivo es {} y cuyo plan de nutrición personalizado es {}."
+msgstr "Eres un entrenador de fitness profesional. Crea un plan de entrenamiento detallado para una semana (7 días) para una persona con los siguientes parámetros: sexo - {}, altura - {} cm, edad - {} años, IMC - {}, objetivo - {}.\\n\\nTen en cuenta el plan de alimentación: {}\\n\\nRequisitos:\\n1. Ten en cuenta el nivel de condición física según el IMC\\n2. Los entrenamientos deben ser realistas y realizables en casa o en un gimnasio regular\\n3. Especifica series, repeticiones y tiempo de descanso\\n4. Agrega calentamiento y enfriamiento para cada día\\n5. Alterna grupos musculares y tipos de carga\\n6. Ten en cuenta el objetivo del usuario (ganancia de masa / pérdida de peso / mantenimiento)\\n7. Para cada ejercicio, proporciona una breve descripción de la técnica adecuada\\n\\nFormatea la respuesta de manera bonita con encabezados (usa ##), texto en negrita (**texto**) y listas."
 
 
 msgid "mealai"
-msgstr "Inventa una nueva receta en {} con trucos de cocina"
+msgstr "Eres un cocinero casero experimentado. Crea una receta SIMPLE y SABROSA para una comida \\\"{}\\\".\\n\\nREQUISITOS IMPORTANTES:\\n1. Usa SOLO productos simples y asequibles de una tienda regular (pollo, pescado, huevos, leche, verduras, cereales, pasta)\\n2. SIN ingredientes exóticos (quinoa, aguacate, chía, bulgur, garbanzos, etc.)\\n3. La receta debe ser comprensible incluso para un cocinero principiante\\n4. Tiempo de preparación - no más de 40 minutos\\n5. El plato debe ser delicioso, satisfactorio y saludable\\n6. Indica las calorías y los macros por porción\\n7. Da instrucciones de cocción paso a paso\\n8. Agrega consejos útiles de cocina\\n\\nFormatea la respuesta de manera bonita:\\n- Usa ## para encabezados\\n- **texto en negrita** para puntos importantes\\n- Listas numeradas para instrucciones\\n- Listas con viñetas para ingredientes"
 
 
 
 msgid "trenai"
-msgstr "Propón un entrenamiento {} con recomendaciones para una persona con un IMC igual a {}"
+msgstr "Eres un entrenador de fitness profesional. Crea un entrenamiento detallado sobre el tema \\\"{}\\\" para una persona con IMC {}.\\n\\nRequisitos:\\n1. Ten en cuenta el nivel de condición física según el IMC\\n2. El entrenamiento debe ser realizable en casa o en un gimnasio regular\\n3. Especifica series, repeticiones, tiempo de descanso\\n4. Agrega calentamiento (5-10 minutos) y enfriamiento/estiramientos (5-10 minutos)\\n5. Para cada ejercicio describe:\\n   - Técnica de ejecución adecuada\\n   - Qué músculos trabajan\\n   - Errores comunes y cómo evitarlos\\n6. Indica la duración total del entrenamiento\\n7. Da consejos para principiantes y avanzados\\n\\nFormatea la respuesta de manera bonita con encabezados (##), texto en negrita (**texto**) y listas."
 
 
 

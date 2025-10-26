@@ -39,7 +39,7 @@ msgstr "Entrez votre taille en centimètres :"
 
 
 msgid "age"
-msgstr "Entrez votre âge :"
+msgstr "Entrez votre date de naissance au format JJ-MM-AAAA :\n\nPar exemple : 15-05-1990"
 
 
 msgid "sex"
@@ -394,21 +394,21 @@ msgstr "La langue a été modifiée 🇫🇷"
 
 
 msgid "pitforweek"
-msgstr "Élaborer un programme personnalisé de repas variés pour une semaine pour {}, dont la taille est {}, l'âge est {}, l'IMC est {} et l'objectif est {}."
+msgstr "Vous êtes un nutritionniste expérimenté. Créez un plan alimentaire détaillé pour une semaine (7 jours) pour une personne avec les paramètres suivants: sexe - {}, taille - {} cm, âge - {} ans, IMC - {}, objectif - {}.\\n\\nEXIGENCES IMPORTANTES:\\n1. Utilisez UNIQUEMENT des produits simples et abordables que l'on peut acheter dans n'importe quel magasin ou marché (poulet, bœuf, poisson, œufs, produits laitiers, légumes, céréales, pâtes, pain)\\n2. AUCUN ingrédient exotique (quinoa, avocat, chia, pois chiches, etc.)\\n3. Les recettes doivent être SIMPLES et rapides à préparer (30-40 minutes maximum)\\n4. Les plats doivent être traditionnels et familiers aux gens ordinaires\\n5. Tenez compte de l'objectif de l'utilisateur lors du calcul des calories et des macros\\n6. Pour chaque jour, indiquez: petit-déjeuner, déjeuner, dîner, 2 collations\\n7. Pour chaque plat, indiquez les calories approximatives et les macros\\n8. Ajoutez une liste de courses pour la semaine\\n\\nFormatez la réponse joliment avec des titres (utilisez ##), du texte en gras (**texte**) et des listes."
 
 
 
 msgid "trenforweek"
-msgstr "Concevoir un programme d'entraînement hebdomadaire personnalisé pour {} dont la taille est {}, l'âge est {}, l'IMC est {}, l'objectif est {} et le programme nutritionnel personnalisé est {}. dont l'objectif est {} et dont le plan de nutrition personnalisé est {}."
+msgstr "Vous êtes un entraîneur de fitness professionnel. Créez un plan d'entraînement détaillé pour une semaine (7 jours) pour une personne avec les paramètres suivants: sexe - {}, taille - {} cm, âge - {} ans, IMC - {}, objectif - {}.\\n\\nTenez compte du plan alimentaire: {}\\n\\nExigences:\\n1. Tenez compte du niveau de condition physique basé sur l'IMC\\n2. Les entraînements doivent être réalistes et réalisables à domicile ou dans une salle de sport ordinaire\\n3. Indiquez les séries, les répétitions et le temps de repos\\n4. Ajoutez un échauffement et un retour au calme pour chaque jour\\n5. Alternez les groupes musculaires et les types de charge\\n6. Tenez compte de l'objectif de l'utilisateur (prise de masse / perte de poids / maintien)\\n7. Pour chaque exercice, donnez une brève description de la technique appropriée\\n\\nFormatez la réponse joliment avec des titres (utilisez ##), du texte en gras (**texte**) et des listes."
 
 
 msgid "mealai"
-msgstr "Inventer une nouvelle recette sur {} avec des conseils de cuisine"
+msgstr "Vous êtes un cuisinier à domicile expérimenté. Créez une recette SIMPLE et SAVOUREUSE pour un repas \\\"{}\\\".\\n\\nEXIGENCES IMPORTANTES:\\n1. Utilisez UNIQUEMENT des produits simples et abordables d'un magasin ordinaire (poulet, poisson, œufs, lait, légumes, céréales, pâtes)\\n2. AUCUN ingrédient exotique (quinoa, avocat, chia, bulgur, pois chiches, etc.)\\n3. La recette doit être compréhensible même pour un cuisinier débutant\\n4. Temps de préparation - pas plus de 40 minutes\\n5. Le plat doit être délicieux, rassasiant et sain\\n6. Indiquez les calories et les macros par portion\\n7. Donnez des instructions de cuisson étape par étape\\n8. Ajoutez des conseils de cuisson utiles\\n\\nFormatez la réponse joliment:\\n- Utilisez ## pour les titres\\n- **texte en gras** pour les points importants\\n- Listes numérotées pour les instructions\\n- Listes à puces pour les ingrédients"
 
 
 
 msgid "trenai"
-msgstr "Élaborez un programme d'entraînement {} avec des recommandations pour une personne dont l'IMC est égal à {}."
+msgstr "Vous êtes un entraîneur de fitness professionnel. Créez un entraînement détaillé sur le thème \\\"{}\\\" pour une personne avec un IMC de {}.\\n\\nExigences:\\n1. Tenez compte du niveau de condition physique basé sur l'IMC\\n2. L'entraînement doit être réalisable à domicile ou dans une salle de sport ordinaire\\n3. Indiquez les séries, les répétitions, le temps de repos\\n4. Ajoutez un échauffement (5-10 minutes) et un retour au calme/étirements (5-10 minutes)\\n5. Pour chaque exercice, décrivez:\\n   - La technique d'exécution appropriée\\n   - Quels muscles travaillent\\n   - Les erreurs courantes et comment les éviter\\n6. Indiquez la durée totale de l'entraînement\\n7. Donnez des conseils pour les débutants et les avancés\\n\\nFormatez la réponse joliment avec des titres (##), du texte en gras (**texte**) et des listes."
 
 
 

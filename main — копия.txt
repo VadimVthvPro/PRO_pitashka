@@ -711,23 +711,23 @@ async def height(message: Message, state: FSMContext):
 
 @dp.message(REG.age)
 async def age(message: Message, state: FSMContext):
-    """Обработчик даты рождения пользователя в формате ДД-ММ-ГГГГ"""
-    birthdate_str = message.text.strip()
-    
-    # Валидируем дату рождения с локализованными сообщениями
-    is_valid, error_msg = validate_birthdate(birthdate_str, message.from_user.id)
-    
-    if not is_valid:
-        await message.answer(
-            l.printer(message.from_user.id, 'age') + f"\n\n⚠️ {error_msg}"
-        )
-        return
-    
-    # Сохраняем дату рождения
-    await state.update_data(age=birthdate_str)
-    await state.set_state(REG.sex)
-    await message.answer(l.printer(message.from_user.id, 'sex'),
-                         reply_markup=kb.keyboard(message.from_user.id, 'sex'))
+    try:
+        age_value = int(message.text)
+        
+        # Валидация: возраст должен быть в диапазоне 10-120 лет
+        if not (10 <= age_value <= 120):
+            await message.answer(
+                l.printer(message.from_user.id, 'age') + "\n\n⚠️ Введите реалистичный возраст (10-120 лет)."
+            )
+            return
+        
+        await state.update_data(age=age_value)
+        await state.set_state(REG.sex)
+        await message.answer(l.printer(message.from_user.id, 'sex'),
+                             reply_markup=kb.keyboard(message.from_user.id, 'sex'))
+    except ValueError:
+        await state.set_state(REG.age)
+        await message.answer(l.printer(message.from_user.id, 'age') + "\n\n⚠️ Введите числовое значение.")
 
 
 @dp.message(REG.sex)
@@ -759,12 +759,8 @@ async def wei(message: Message, state: FSMContext):
         
         await state.update_data(weight=weight)
         data = await state.get_data()
-        height, sex, birthdate, aim = data['height'], data['sex'], data['age'], data['want']
-        height, sex = float(height), str(sex)
-        
-        # Вычисляем текущий возраст из даты рождения
-        age = calculate_age_from_birthdate(birthdate)
-        
+        height, sex, age, aim = data['height'], data['sex'], data['age'], data['want']
+        height, sex, age = float(height), str(sex), int(age)
         imt = round(weight / ((height / 100) ** 2), 3)
         imt_using_words = calculate_imt_description(imt, message)
         cal = float(calculate_calories(sex, weight, height, age, message))
@@ -777,14 +773,14 @@ async def wei(message: Message, state: FSMContext):
             """, (message.from_user.id, imt, imt_using_words, cal, datetime.datetime.now().strftime('%Y-%m-%d'), weight, height))
         bot_logger.info("user_health inserted successfully")
         
-        # Сохраняем данные пользователя в user_main (дата рождения в формате ДД-ММ-ГГГГ)
-        bot_logger.info(f"Inserting/updating user_main: user_id={message.from_user.id}, sex={sex}, birthdate={birthdate}")
+        # Сохраняем данные пользователя в user_main (дата рождения вместо возраста)
+        bot_logger.info(f"Inserting/updating user_main: user_id={message.from_user.id}, sex={sex}, age={age}")
         cursor.execute("""
             INSERT INTO user_main (user_id, user_name, user_sex, date_of_birth)
             VALUES (%s, %s, %s, %s)
             ON CONFLICT (user_id)
             DO UPDATE SET user_sex = EXCLUDED.user_sex, date_of_birth = EXCLUDED.date_of_birth;
-            """, (message.from_user.id, message.from_user.first_name, sex, birthdate))
+            """, (message.from_user.id, message.from_user.first_name, sex, age))
         bot_logger.info("user_main inserted/updated successfully")
         
         # Сохраняем цели пользователя в user_aims
@@ -798,7 +794,7 @@ async def wei(message: Message, state: FSMContext):
         bot_logger.info("user_aims inserted/updated successfully")
 
         conn.commit()
-        bot_logger.info(f"User {message.from_user.id} registered successfully: sex={sex}, birthdate={birthdate}, age={age}, weight={weight}, height={height}, all data committed to DB")
+        bot_logger.info(f"User {message.from_user.id} registered successfully: sex={sex}, age={age}, weight={weight}, height={height}, all data committed to DB")
         await bot.send_message(
             message.chat.id,
             text=l.printer(message.from_user.id, 'info').format(message.from_user.first_name, weight, height, imt,
@@ -881,133 +877,6 @@ def split_message(text, user_id):
     
     max_length = 4096
     return [formatted_text[i:i + max_length] for i in range(0, len(formatted_text), max_length)]
-
-
-def calculate_age_from_birthdate(birthdate: str) -> int:
-    """
-    Вычисляет текущий возраст из даты рождения в формате ДД-ММ-ГГГГ
-    
-    Args:
-        birthdate: Дата рождения в формате 'ДД-ММ-ГГГГ' (строка)
-    
-    Returns:
-        Текущий возраст в годах
-    """
-    try:
-        # Парсим дату рождения
-        birth_day, birth_month, birth_year = map(int, birthdate.split('-'))
-        birth_date = datetime.datetime(birth_year, birth_month, birth_day)
-        
-        # Получаем текущую дату
-        today = datetime.datetime.now()
-        
-        # Вычисляем возраст
-        age = today.year - birth_date.year
-        
-        # Проверяем, был ли уже день рождения в этом году
-        if (today.month, today.day) < (birth_date.month, birth_date.day):
-            age -= 1
-            
-        return age
-    except Exception as e:
-        bot_logger.error(f"Error calculating age from birthdate {birthdate}: {e}")
-        return 0
-
-
-def validate_birthdate(birthdate_str: str, user_id: int) -> tuple[bool, str]:
-    """
-    Валидирует дату рождения с локализованными сообщениями об ошибках
-    
-    Args:
-        birthdate_str: Дата в формате ДД-ММ-ГГГГ
-        user_id: ID пользователя для локализации
-    
-    Returns:
-        (is_valid, error_message)
-    """
-    try:
-        # Получаем язык пользователя
-        cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (user_id,))
-        lang_result = cursor.fetchone()
-        lang_code = lang_result[0] if lang_result else 'ru'
-        
-        # Словари с сообщениями об ошибках
-        error_messages = {
-            'format': {
-                'ru': "Неверный формат. Используйте ДД-ММ-ГГГГ (например, 15-05-1990)",
-                'en': "Invalid format. Use DD-MM-YYYY (e.g., 15-05-1990)",
-                'de': "Ungültiges Format. Verwenden Sie TT-MM-JJJJ (z.B. 15-05-1990)",
-                'fr': "Format invalide. Utilisez JJ-MM-AAAA (par exemple, 15-05-1990)",
-                'es': "Formato inválido. Use DD-MM-AAAA (por ejemplo, 15-05-1990)"
-            },
-            'day': {
-                'ru': "День должен быть от 1 до 31",
-                'en': "Day must be between 1 and 31",
-                'de': "Tag muss zwischen 1 und 31 liegen",
-                'fr': "Le jour doit être entre 1 et 31",
-                'es': "El día debe estar entre 1 y 31"
-            },
-            'month': {
-                'ru': "Месяц должен быть от 1 до 12",
-                'en': "Month must be between 1 and 12",
-                'de': "Monat muss zwischen 1 und 12 liegen",
-                'fr': "Le mois doit être entre 1 et 12",
-                'es': "El mes debe estar entre 1 y 12"
-            },
-            'year': {
-                'ru': "Год должен быть в диапазоне {}-{}",
-                'en': "Year must be between {} and {}",
-                'de': "Jahr muss zwischen {} und {} liegen",
-                'fr': "L'année doit être entre {} et {}",
-                'es': "El año debe estar entre {} y {}"
-            },
-            'invalid': {
-                'ru': "Такой даты не существует в календаре",
-                'en': "This date does not exist in the calendar",
-                'de': "Dieses Datum existiert nicht im Kalender",
-                'fr': "Cette date n'existe pas dans le calendrier",
-                'es': "Esta fecha no existe en el calendario"
-            },
-            'numbers': {
-                'ru': "Дата должна содержать только цифры",
-                'en': "Date must contain only numbers",
-                'de': "Datum darf nur Zahlen enthalten",
-                'fr': "La date ne doit contenir que des chiffres",
-                'es': "La fecha debe contener solo números"
-            }
-        }
-        
-        # Проверяем формат
-        parts = birthdate_str.split('-')
-        if len(parts) != 3:
-            return False, error_messages['format'].get(lang_code, error_messages['format']['en'])
-        
-        day, month, year = map(int, parts)
-        
-        # Проверяем диапазоны
-        if not (1 <= day <= 31):
-            return False, error_messages['day'].get(lang_code, error_messages['day']['en'])
-        if not (1 <= month <= 12):
-            return False, error_messages['month'].get(lang_code, error_messages['month']['en'])
-        
-        current_year = datetime.datetime.now().year
-        min_year = current_year - 120  # Максимум 120 лет
-        max_year = current_year - 10   # Минимум 10 лет
-        
-        if not (min_year <= year <= max_year):
-            msg_template = error_messages['year'].get(lang_code, error_messages['year']['en'])
-            return False, msg_template.format(min_year, max_year)
-        
-        # Проверяем, что дата существует
-        try:
-            datetime.datetime(year, month, day)
-        except ValueError:
-            return False, error_messages['invalid'].get(lang_code, error_messages['invalid']['en'])
-        
-        return True, ""
-        
-    except ValueError:
-        return False, error_messages['numbers'].get(lang_code, error_messages['numbers']['en'])
 
 
 def is_not_none(variable):
@@ -1577,15 +1446,11 @@ async def ai(message: Message, state: FSMContext):
     cursor.execute(
         f"SELECT user_sex, date_of_birth FROM user_main WHERE user_id = {message.from_user.id} "
     )
-    sex, birthdate = cursor.fetchone()
+    sex, age = cursor.fetchone()
     cursor.execute(
         f"SELECT imt, weight, height FROM user_health WHERE user_id = {message.from_user.id}"
     )
     imt, weight, height = cursor.fetchone()
-    
-    # Вычисляем текущий возраст из даты рождения
-    age = calculate_age_from_birthdate(birthdate)
-    
     aim, cal, sex, age, imt, weight, height = translator.translate(aim), cal, translator.translate(
         sex), age, imt, weight, height
     
@@ -1865,20 +1730,8 @@ async def svodka(message: Message, state: FSMContext):
             await state.clear()
             return
         
-        sex = result[0]
-        birthdate = result[1]
-        
-        # Проверяем что пол и дата рождения не None
-        if not sex or not birthdate:
-            bot_logger.error(f"User {message.from_user.id} has incomplete data: sex={sex}, birthdate={birthdate}")
-            await message.answer("⚠️ Ошибка: не все данные заполнены. Пожалуйста, пройдите регистрацию заново.",
-                               reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
-            await state.clear()
-            return
-            
-        # Вычисляем текущий возраст из даты рождения
-        age = calculate_age_from_birthdate(birthdate)
-        bot_logger.info(f"User {message.from_user.id} requesting summary: sex={sex}, birthdate={birthdate}, age={age}")
+        sex, age = result[0], int(result[1])
+        bot_logger.info(f"User {message.from_user.id} requesting summary: sex={sex}, age={age}")
         
         await state.clear()
         imt = round(new_weight / ((new_height / 100) ** 2), 3)

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS user_main (
     user_id BIGINT PRIMARY KEY,
     user_name VARCHAR(255),
     user_sex VARCHAR(50),
-    date_of_birth INTEGER,
+    date_of_birth VARCHAR(10),
     created_at TIMESTAMPTZ DEFAULT NOW(),
     privacy_consent_given BOOLEAN DEFAULT FALSE,
     privacy_consent_at TIMESTAMPTZ,
@@ -125,6 +125,7 @@ COMMENT ON TABLE admin_users IS 'Учетные записи администр�
 
 COMMENT ON COLUMN user_main.privacy_consent_given IS 'Дал ли пользователь согласие на обработку данных';
 COMMENT ON COLUMN user_main.privacy_consent_at IS 'Дата и время предоставления согласия';
+COMMENT ON COLUMN user_main.date_of_birth IS 'Дата рождения в формате ДД-ММ-ГГГГ';
 COMMENT ON COLUMN user_main.utm_source IS 'Источник трафика (например, blogger_name)';
 COMMENT ON COLUMN user_main.utm_medium IS 'Канал (например, telegram, instagram)';
 COMMENT ON COLUMN user_main.utm_campaign IS 'Название кампании';

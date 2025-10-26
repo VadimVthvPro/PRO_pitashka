@@ -39,7 +39,7 @@ msgstr "Enter your height in centimeters:"
 
 
 msgid "age"
-msgstr "Enter your age:"
+msgstr "Enter your date of birth in DD-MM-YYYY format:\n\nFor example: 15-05-1990"
 
 
 msgid "sex"
@@ -341,21 +341,21 @@ msgstr "Language changed 🇬🇧"
 
 
 msgid "pitforweek"
-msgstr "Devise a personalized, varied meal plan for a week for {}, whose height is {}, age is {}, BMI is {}, and goal is {}"
+msgstr "You are an experienced nutritionist. Create a detailed meal plan for a week (7 days) for a person with the following parameters: gender - {}, height - {} cm, age - {} years, BMI - {}, goal - {}.\n\nIMPORTANT REQUIREMENTS:\n1. Use ONLY simple, affordable products that can be bought in any regular store or market (chicken, beef, fish, eggs, dairy, vegetables, cereals, pasta, bread)\n2. NO exotic ingredients (quinoa, avocado, chia, chickpeas, etc.)\n3. Recipes should be SIMPLE and quick to prepare (30-40 minutes maximum)\n4. Dishes should be traditional and familiar to ordinary people\n5. VARIETY is key! Use different types of meat, fish, and grains. Don't repeat the same dishes. Combine products creatively but simply. For example: not just buckwheat with chicken, but also baked fish with vegetables, omelet with mushrooms, pasta with meatballs, rice porridge with pumpkin\n6. Consider the user's goal when calculating calories and macros\n7. For each day specify: breakfast, lunch, dinner, 2 snacks\n8. For each dish indicate approximate calories and macros\n9. Add a grocery list for the week\n\nFormat the answer nicely with headings (use ##), bold text (**text**) and lists."
 
 
 
 msgid "trenforweek"
-msgstr "Devise a personalized weekly workout plan for {}, whose height is {}, age is {}, and whose BMI is {} whose goal is {} and whose personalized nutrition plan is {}"
+msgstr "You are a professional fitness trainer. Create a detailed workout plan for a week (7 days) for a person with the following parameters: gender - {}, height - {} cm, age - {} years, BMI - {}, goal - {}.\n\nConsider the user's meal plan: {}\n\nRequirements:\n1. Consider fitness level based on BMI\n2. Workouts should be realistic and doable at home or in a regular gym\n3. Specify sets, reps, and rest time\n4. Add warm-up and cool-down for each day\n5. Alternate muscle groups and types of load\n6. Consider user's goal (mass gain / weight loss / maintenance)\n7. For each exercise provide a brief description of proper technique\n\nFormat the answer nicely with headings (use ##), bold text (**text**) and lists."
 
 
 msgid "mealai"
-msgstr "Come up with a new recipe on {} with cooking tips"
+msgstr "You are an experienced home cook. Create a SIMPLE and TASTY recipe for a meal \"{}\".\n\nIMPORTANT REQUIREMENTS:\n1. Use ONLY simple, affordable products from a regular store (chicken, fish, eggs, milk, vegetables, cereals, pasta)\n2. NO exotic ingredients (quinoa, avocado, chia, bulgur, chickpeas, etc.)\n3. Recipe should be understandable even for a beginner cook\n4. Cooking time - no more than 40 minutes\n5. Dish should be delicious, filling and healthy\n6. IMPORTANT: Come up with an interesting but simple option! Not the most banal dish (not just \"buckwheat with chicken\"), but something a bit more creative, but made from simple products. For example: chicken rolls with cheese and herbs, baked fish with vegetables in sour cream, frittata with mushrooms\n7. Indicate calories and macros per serving\n8. Give step-by-step cooking instructions\n9. Add useful cooking tips\n\nFormat the answer nicely:\n- Use ## for headings\n- **bold text** for important points\n- Numbered lists for instructions\n- Bulleted lists for ingredients"
 
 
 
 msgid "trenai"
-msgstr "Come up with a workout {} with recommendations for a person with a BMI equal to {}"
+msgstr "You are a professional fitness trainer. Create a detailed workout on the topic \"{}\" for a person with BMI {}.\n\nRequirements:\n1. Consider fitness level based on BMI\n2. Workout should be doable at home or in a regular gym\n3. Specify sets, reps, rest time\n4. Add warm-up (5-10 minutes) and cool-down/stretching (5-10 minutes)\n5. For each exercise describe:\n   - Proper execution technique\n   - Which muscles are working\n   - Common mistakes and how to avoid them\n6. Indicate total workout duration\n7. Give tips for beginners and advanced\n\nFormat the answer nicely with headings (##), bold text (**text**) and lists."
 
 
 
