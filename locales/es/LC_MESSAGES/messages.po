@@ -370,6 +370,22 @@ msgid "kbsvo3"
 msgstr "Año"
 
 
+msgid "ai_thinking"
+msgstr "🤔 La IA está pensando en tu respuesta..."
+
+
+msgid "ai_chat_system"
+msgstr "Eres un asistente de IA para el bot PROpitashka, ayudando a los usuarios con preguntas sobre alimentación saludable, entrenamientos y estilo de vida saludable.\n\nINFORMACIÓN DEL USUARIO:\n{}\n\nCONTEXTO DE LOS ÚLTIMOS MENSAJES:\n{}\n\nTU TAREA:\n1. Responde a las preguntas del usuario de manera amigable y profesional\n2. Usa los datos del usuario (edad, sexo, IMC, objetivo) para consejos personalizados\n3. Si la pregunta no está relacionada con salud/nutrición/deporte - recuerda amablemente que te especializas en estos temas\n4. Da consejos prácticos considerando productos y ejercicios disponibles\n5. Si se necesita consulta médica - recomienda consultar a un especialista\n6. Usa formato: ## para encabezados, **negrita**, listas\n\nPREGUNTA DEL USUARIO:\n{}"
+
+
+msgid "food_recognition_prompt"
+msgstr "Analiza la foto de comida y proporciona la siguiente información:\n\n1. Qué se muestra en la foto (nombre del plato/producto)\n2. Peso aproximado de la porción en gramos\n3. Calorías (kcal)\n4. Macros (proteína/grasa/carbohidratos en gramos)\n5. Breves recomendaciones para este plato\n\nFormatea la respuesta de manera bonita usando:\n- ## para encabezados\n- **texto en negrita** para valores importantes\n- Listas para estructurar\n\nSé preciso en el cálculo de macros y calorías."
+
+
+msgid "food_saved"
+msgstr "✅ ¡Información de comida recibida! Los datos NO se guardan automáticamente en la base de datos.\n\nSi deseas agregar esta comida a tu diario, usa la entrada manual."
+
+
 msgid "kbtype1"
 msgstr "Potencia"
 

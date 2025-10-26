@@ -358,6 +358,21 @@ msgid "trenai"
 msgstr "You are a professional fitness trainer. Create a detailed workout on the topic \"{}\" for a person with BMI {}.\n\nRequirements:\n1. Consider fitness level based on BMI\n2. Workout should be doable at home or in a regular gym\n3. Specify sets, reps, rest time\n4. Add warm-up (5-10 minutes) and cool-down/stretching (5-10 minutes)\n5. For each exercise describe:\n   - Proper execution technique\n   - Which muscles are working\n   - Common mistakes and how to avoid them\n6. Indicate total workout duration\n7. Give tips for beginners and advanced\n\nFormat the answer nicely with headings (##), bold text (**text**) and lists."
 
 
+msgid "ai_thinking"
+msgstr "🤔 AI is thinking about your answer..."
+
+
+msgid "ai_chat_system"
+msgstr "You are an AI assistant for the PROpitashka bot, helping users with questions about healthy eating, workouts, and healthy lifestyle.\n\nUSER INFORMATION:\n{}\n\nCONTEXT OF RECENT MESSAGES:\n{}\n\nYOUR TASK:\n1. Answer user questions in a friendly and professional manner\n2. Use user data (age, gender, BMI, goal) for personalized advice\n3. If the question is not related to health/nutrition/sports - politely remind that you specialize in these topics\n4. Give practical advice considering available products and exercises\n5. If medical consultation is needed - recommend consulting a specialist\n6. Use formatting: ## for headings, **bold**, lists\n\nUSER QUESTION:\n{}"
+
+
+msgid "food_recognition_prompt"
+msgstr "Analyze the food photo and provide the following information:\n\n1. What is shown in the photo (dish/product name)\n2. Approximate portion weight in grams\n3. Calories (kcal)\n4. Macros (protein/fat/carbs in grams)\n5. Brief recommendations for this dish\n\nFormat the response beautifully using:\n- ## for headers\n- **bold text** for important values\n- Lists for structuring\n\nBe accurate in calculating macros and calories."
+
+
+msgid "food_saved"
+msgstr "✅ Food information received! Data is NOT automatically saved to the database.\n\nIf you want to add this food to your diary, use manual entry."
+
 
 msgid "correct_tech"
 msgstr "The correct technique for performing the exercise: {}"
