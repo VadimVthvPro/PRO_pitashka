@@ -1,0 +1,64 @@
+POLITIQUE DE CONFIDENTIALITÉ
+PROpitashka Bot
+
+Dernière mise à jour : 27 octobre 2025
+
+1. INTRODUCTION
+
+Bienvenue sur PROpitashka Bot ! Nous prenons au sérieux la protection de vos données personnelles et de votre vie privée. Cette Politique de confidentialité explique quelles données nous collectons, comment nous les utilisons et quels sont vos droits.
+
+2. DONNÉES COLLECTÉES
+
+Nous collectons et traitons les informations suivantes :
+
+• ID Telegram et nom d'utilisateur
+• Données de santé : taille, poids, âge, sexe
+• Objectifs de fitness et de nutrition
+• Historique d'entraînement et de nutrition
+• Photos d'aliments (si vous les envoyez)
+• Messages et requêtes au bot
+
+3. UTILISATION DES DONNÉES
+
+Vos données sont utilisées pour :
+
+• Fournir des plans de repas et d'entraînement personnalisés
+• Suivre les progrès et atteindre les objectifs
+• Calculer les calories et la valeur nutritionnelle
+• Générer des recommandations alimentées par l'IA
+• Améliorer la qualité du service
+
+4. STOCKAGE ET PROTECTION DES DONNÉES
+
+• Les données sont stockées sur des serveurs sécurisés
+• Le cryptage est utilisé pour protéger la transmission des données
+• Seuls les systèmes autorisés ont accès aux données
+• Nous ne partageons pas vos données avec des tiers sans votre consentement
+
+5. VOS DROITS
+
+Vous avez le droit de :
+
+• Demander une copie de vos données
+• Supprimer vos données à tout moment
+• Retirer votre consentement au traitement des données
+• Corriger les informations inexactes
+
+6. UTILISATION DE L'IA
+
+Le bot utilise Google Gemini AI pour générer des recommandations. Vos demandes sont traitées conformément à la politique de confidentialité de Google.
+
+7. COOKIES ET MISE EN CACHE
+
+Nous utilisons Redis pour la mise en cache des réponses de l'IA afin d'améliorer les performances. Le cache est automatiquement effacé après un certain temps.
+
+8. MODIFICATIONS DE LA POLITIQUE
+
+Nous pouvons mettre à jour cette politique. Nous vous informerons via le bot de tout changement important.
+
+9. CONTACT
+
+Si vous avez des questions concernant la politique de confidentialité, contactez-nous via le bot ou par e-mail.
+
+En utilisant ce bot, vous acceptez les termes de cette Politique de confidentialité.
+

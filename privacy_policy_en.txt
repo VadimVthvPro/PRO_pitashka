@@ -1,0 +1,64 @@
+PRIVACY POLICY
+PROpitashka Bot
+
+Last updated: October 27, 2025
+
+1. INTRODUCTION
+
+Welcome to PROpitashka Bot! We take the protection of your personal data and privacy seriously. This Privacy Policy explains what data we collect, how we use it, and what rights you have.
+
+2. DATA COLLECTED
+
+We collect and process the following information:
+
+• Telegram ID and username
+• Health data: height, weight, age, gender
+• Fitness and nutrition goals
+• Training and nutrition history
+• Food photos (if you send them)
+• Messages and requests to the bot
+
+3. DATA USAGE
+
+Your data is used for:
+
+• Providing personalized meal and training plans
+• Tracking progress and achieving goals
+• Calculating calories and nutritional value
+• Generating AI-powered recommendations
+• Improving service quality
+
+4. DATA STORAGE AND PROTECTION
+
+• Data is stored on secure servers
+• Encryption is used to protect data transmission
+• Only authorized systems have access to data
+• We do not share your data with third parties without your consent
+
+5. YOUR RIGHTS
+
+You have the right to:
+
+• Request a copy of your data
+• Delete your data at any time
+• Withdraw consent for data processing
+• Correct inaccurate information
+
+6. AI USAGE
+
+The bot uses Google Gemini AI to generate recommendations. Your requests are processed according to Google's privacy policy.
+
+7. COOKIES AND CACHING
+
+We use Redis for caching AI responses to improve performance. The cache is automatically cleared after a certain time.
+
+8. POLICY CHANGES
+
+We may update this policy. We will notify you through the bot of any significant changes.
+
+9. CONTACT
+
+If you have questions about the privacy policy, contact us through the bot or by email.
+
+By using this bot, you agree to the terms of this Privacy Policy.
+

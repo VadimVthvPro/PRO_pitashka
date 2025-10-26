@@ -1,0 +1,64 @@
+POLÍTICA DE PRIVACIDAD
+PROpitashka Bot
+
+Última actualización: 27 de octubre de 2025
+
+1. INTRODUCCIÓN
+
+¡Bienvenido a PROpitashka Bot! Nos tomamos en serio la protección de sus datos personales y privacidad. Esta Política de privacidad explica qué datos recopilamos, cómo los usamos y qué derechos tiene.
+
+2. DATOS RECOPILADOS
+
+Recopilamos y procesamos la siguiente información:
+
+• ID de Telegram y nombre de usuario
+• Datos de salud: altura, peso, edad, género
+• Objetivos de fitness y nutrición
+• Historial de entrenamiento y nutrición
+• Fotos de alimentos (si las envía)
+• Mensajes y solicitudes al bot
+
+3. USO DE DATOS
+
+Sus datos se utilizan para:
+
+• Proporcionar planes de alimentación y entrenamiento personalizados
+• Seguir el progreso y lograr objetivos
+• Calcular calorías y valor nutricional
+• Generar recomendaciones impulsadas por IA
+• Mejorar la calidad del servicio
+
+4. ALMACENAMIENTO Y PROTECCIÓN DE DATOS
+
+• Los datos se almacenan en servidores seguros
+• Se utiliza cifrado para proteger la transmisión de datos
+• Solo los sistemas autorizados tienen acceso a los datos
+• No compartimos sus datos con terceros sin su consentimiento
+
+5. SUS DERECHOS
+
+Tiene derecho a:
+
+• Solicitar una copia de sus datos
+• Eliminar sus datos en cualquier momento
+• Retirar el consentimiento para el procesamiento de datos
+• Corregir información inexacta
+
+6. USO DE IA
+
+El bot utiliza Google Gemini AI para generar recomendaciones. Sus solicitudes se procesan de acuerdo con la política de privacidad de Google.
+
+7. COOKIES Y ALMACENAMIENTO EN CACHÉ
+
+Utilizamos Redis para almacenar en caché las respuestas de IA para mejorar el rendimiento. La caché se borra automáticamente después de un tiempo determinado.
+
+8. CAMBIOS EN LA POLÍTICA
+
+Podemos actualizar esta política. Le notificaremos a través del bot sobre cualquier cambio significativo.
+
+9. CONTACTO
+
+Si tiene preguntas sobre la política de privacidad, contáctenos a través del bot o por correo electrónico.
+
+Al usar este bot, acepta los términos de esta Política de privacidad.
+

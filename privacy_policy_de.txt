@@ -1,0 +1,64 @@
+DATENSCHUTZRICHTLINIE
+PROpitashka Bot
+
+Letzte Aktualisierung: 27. Oktober 2025
+
+1. EINFÜHRUNG
+
+Willkommen bei PROpitashka Bot! Wir nehmen den Schutz Ihrer persönlichen Daten und Privatsphäre ernst. Diese Datenschutzrichtlinie erklärt, welche Daten wir sammeln, wie wir sie verwenden und welche Rechte Sie haben.
+
+2. GESAMMELTE DATEN
+
+Wir sammeln und verarbeiten folgende Informationen:
+
+• Telegram-ID und Benutzername
+• Gesundheitsdaten: Größe, Gewicht, Alter, Geschlecht
+• Fitness- und Ernährungsziele
+• Trainings- und Ernährungshistorie
+• Lebensmittelfotos (wenn Sie sie senden)
+• Nachrichten und Anfragen an den Bot
+
+3. DATENNUTZUNG
+
+Ihre Daten werden verwendet für:
+
+• Bereitstellung personalisierter Ernährungs- und Trainingspläne
+• Verfolgung von Fortschritten und Erreichung von Zielen
+• Berechnung von Kalorien und Nährwerten
+• Generierung von KI-gestützten Empfehlungen
+• Verbesserung der Servicequalität
+
+4. DATENSPEICHERUNG UND -SCHUTZ
+
+• Daten werden auf sicheren Servern gespeichert
+• Verschlüsselung wird zum Schutz der Datenübertragung verwendet
+• Nur autorisierte Systeme haben Zugriff auf Daten
+• Wir geben Ihre Daten nicht ohne Ihre Zustimmung an Dritte weiter
+
+5. IHRE RECHTE
+
+Sie haben das Recht:
+
+• Eine Kopie Ihrer Daten anzufordern
+• Ihre Daten jederzeit zu löschen
+• Die Einwilligung zur Datenverarbeitung zu widerrufen
+• Unrichtige Informationen zu korrigieren
+
+6. KI-NUTZUNG
+
+Der Bot verwendet Google Gemini AI zur Generierung von Empfehlungen. Ihre Anfragen werden gemäß der Datenschutzrichtlinie von Google verarbeitet.
+
+7. COOKIES UND CACHING
+
+Wir verwenden Redis zum Caching von KI-Antworten zur Verbesserung der Leistung. Der Cache wird nach einer bestimmten Zeit automatisch gelöscht.
+
+8. ÄNDERUNGEN DER RICHTLINIE
+
+Wir können diese Richtlinie aktualisieren. Bei wesentlichen Änderungen werden wir Sie über den Bot benachrichtigen.
+
+9. KONTAKT
+
+Wenn Sie Fragen zur Datenschutzrichtlinie haben, kontaktieren Sie uns über den Bot oder per E-Mail.
+
+Durch die Nutzung dieses Bots stimmen Sie den Bedingungen dieser Datenschutzrichtlinie zu.
+

@@ -270,6 +270,11 @@ async def handle_privacy_consent(callback_query: CallbackQuery, state: FSMContex
     """Handles user's response to the privacy policy."""
     user_id = callback_query.from_user.id
     
+    # Получаем язык пользователя
+    cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (user_id,))
+    result = cursor.fetchone()
+    lang_code = result[0] if result else 'en'
+    
     if callback_query.data == 'accept_privacy':
         # Пользователь согласился
         cursor.execute(
@@ -283,26 +288,41 @@ async def handle_privacy_consent(callback_query: CallbackQuery, state: FSMContex
         conn.commit()
         bot_logger.info(f"User {user_id} accepted privacy policy")
         
-        # Получаем язык пользователя
-        cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (user_id,))
-        result = cursor.fetchone()
-        lang_code = result[0] if result else 'en'
-        
         # Удаляем старое сообщение с политикой
         try:
             await callback_query.message.delete()
         except:
             pass
         
-        # Создаём Message объект для передачи в show_registration_menu
-        from aiogram.types import Message as MessageType
-        # Используем callback_query.message как основу
-        await show_registration_menu(callback_query.message, lang_code)
+        # Используем callback_query.message как основу, но передаем правильный user_id
+        await show_registration_menu(callback_query.message, lang_code, user_id_override=user_id)
     else:
-        # Пользователь отказался
+        # Пользователь отказался - показываем сообщение на его языке
+        decline_messages = {
+            'ru': (
+                "❌ К сожалению, без вашего согласия на обработку данных использование бота невозможно.\n\n"
+                "Если вы передумаете, просто отправьте команду /start снова."
+            ),
+            'en': (
+                "❌ Unfortunately, without your consent to data processing, using the bot is not possible.\n\n"
+                "If you change your mind, just send the /start command again."
+            ),
+            'de': (
+                "❌ Leider ist die Nutzung des Bots ohne Ihre Zustimmung zur Datenverarbeitung nicht möglich.\n\n"
+                "Wenn Sie Ihre Meinung ändern, senden Sie einfach den Befehl /start erneut."
+            ),
+            'fr': (
+                "❌ Malheureusement, sans votre consentement au traitement des données, l'utilisation du bot n'est pas possible.\n\n"
+                "Si vous changez d'avis, envoyez simplement la commande /start à nouveau."
+            ),
+            'es': (
+                "❌ Desafortunadamente, sin su consentimiento para el procesamiento de datos, no es posible usar el bot.\n\n"
+                "Si cambia de opinión, simplemente envíe el comando /start nuevamente."
+            )
+        }
+        
         await callback_query.message.edit_text(
-            "К сожалению, без вашего согласия на обработку данных использование бота невозможно. "
-            "Если вы передумаете, просто отправьте команду /start снова.",
+            decline_messages.get(lang_code, decline_messages['en']),
             reply_markup=None
         )
     
@@ -349,44 +369,101 @@ async def handle_language_selection(message: Message, state: FSMContext):
         await show_registration_menu(message, lang_code)
         return
     
-    # Если ещё не давал согласие, показываем политику конфиденциальности
+    # Если ещё не давал согласие, показываем политику конфиденциальности на выбранном языке
+    privacy_file = f'privacy_policy_{lang_code}.txt'
     try:
-        with open('PRIVACY_POLICY.txt', 'r', encoding='utf-8') as f:
+        with open(privacy_file, 'r', encoding='utf-8') as f:
             privacy_text = f.read()
+        # Берём первые 3500 символов для отображения
         privacy_preview = privacy_text[:3500]
         if len(privacy_text) > 3500:
-            privacy_preview += "\n\n... (полный текст доступен по команде /privacy)"
-    except:
-        privacy_preview = "Политика конфиденциальности доступна по запросу."
+            truncate_msg = {
+                'ru': "\n\n... (полный текст выше)",
+                'en': "\n\n... (full text above)",
+                'de': "\n\n... (vollständiger Text oben)",
+                'fr': "\n\n... (texte complet ci-dessus)",
+                'es': "\n\n... (texto completo arriba)"
+            }
+            privacy_preview += truncate_msg.get(lang_code, "\n\n... (full text above)")
+    except Exception as e:
+        bot_logger.warning(f"Could not load privacy policy file {privacy_file}: {e}")
+        privacy_preview = {
+            'ru': "Политика конфиденциальности доступна по запросу.",
+            'en': "Privacy policy available upon request.",
+            'de': "Datenschutzrichtlinie auf Anfrage verfügbar.",
+            'fr': "Politique de confidentialité disponible sur demande.",
+            'es': "Política de privacidad disponible bajo petición."
+        }.get(lang_code, "Privacy policy available upon request.")
 
+    # Тексты приветствия на разных языках
+    welcome_texts = {
+        'ru': (
+            "🎉 <b>Добро пожаловать в PROpitashka!</b>\n\n"
+            "Прежде чем начать, пожалуйста, ознакомьтесь с нашей политикой конфиденциальности:\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        ),
+        'en': (
+            "🎉 <b>Welcome to PROpitashka!</b>\n\n"
+            "Before we start, please review our privacy policy:\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        ),
+        'de': (
+            "🎉 <b>Willkommen bei PROpitashka!</b>\n\n"
+            "Bevor wir beginnen, lesen Sie bitte unsere Datenschutzrichtlinie:\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        ),
+        'fr': (
+            "🎉 <b>Bienvenue sur PROpitashka!</b>\n\n"
+            "Avant de commencer, veuillez consulter notre politique de confidentialité:\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        ),
+        'es': (
+            "🎉 <b>¡Bienvenido a PROpitashka!</b>\n\n"
+            "Antes de comenzar, revise nuestra política de privacidad:\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+    }
+    
+    footer_texts = {
+        'ru': (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Нажимая «✅ Принять», вы соглашаетесь с условиями использования."
+        ),
+        'en': (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "By clicking «✅ Accept», you agree to the terms of use."
+        ),
+        'de': (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Durch Klicken auf «✅ Akzeptieren» stimmen Sie den Nutzungsbedingungen zu."
+        ),
+        'fr': (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "En cliquant sur «✅ Accepter», vous acceptez les conditions d'utilisation."
+        ),
+        'es': (
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "Al hacer clic en «✅ Aceptar», acepta los términos de uso."
+        )
+    }
+    
     privacy_msg = (
-        "🎉 <b>Добро пожаловать в PROpitashka!</b>\n\n"
-        "Прежде чем начать, пожалуйста, ознакомьтесь с нашей политикой конфиденциальности "
-        "и условиями использования:\n\n"
-        "<i>(Краткая версия ниже)</i>\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "<b>📋 ОСНОВНЫЕ ПОЛОЖЕНИЯ:</b>\n\n"
-        "✅ Мы собираем: возраст, вес, рост, данные о питании и тренировках\n"
-        "✅ Используем для: расчета калорий, ИМТ, персональных рекомендаций\n"
-        "✅ Защищаем: все данные хранятся в зашифрованной БД\n"
-        "✅ Не продаем ваши данные третьим лицам\n"
-        "✅ AI-функции используют Google Gemini (без передачи личных данных)\n\n"
-        "⚠️ <b>Важно:</b> Бот НЕ заменяет консультацию врача!\n\n"
-        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-        "📄 Полный текст политики: /privacy\n\n"
-        "Нажимая «Принять», вы соглашаетесь с условиями использования."
+        welcome_texts.get(lang_code, welcome_texts['en']) +
+        privacy_preview +
+        footer_texts.get(lang_code, footer_texts['en'])
     )
     
     await message.answer(
         privacy_msg,
-        reply_markup=kb.privacy_consent_keyboard(),
+        reply_markup=kb.privacy_consent_keyboard(lang_code),
         disable_web_page_preview=True
     )
 
 
-async def show_registration_menu(message: Message, lang_code: str):
+async def show_registration_menu(message: Message, lang_code: str, user_id_override=None):
     """Показывает меню регистрации/входа с картинкой"""
-    user_id = message.from_user.id
+    # Используем переданный user_id если он есть, иначе берем из message
+    user_id = user_id_override if user_id_override else message.from_user.id
     bot_logger.info(f"Showing registration menu to user {user_id}")
     
     # Словарь перевода языков
@@ -398,11 +475,19 @@ async def show_registration_menu(message: Message, lang_code: str):
         'es': 'Spanish 🇪🇸'
     }
     
+    # Получаем имя пользователя
+    try:
+        from aiogram.types import User
+        user_info = await bot.get_chat(user_id)
+        first_name = user_info.first_name or "друг"
+    except:
+        first_name = "друг"
+    
     # Тексты приветствия на разных языках
     welcome_messages = {
         'ru': (
             f"✅ Выбран язык: {lang_names[lang_code]}\n\n"
-            f"👋 Привет, {message.from_user.first_name}!\n\n"
+            f"👋 Привет, {first_name}!\n\n"
             "Теперь давайте настроим ваш профиль.\n\n"
             "• Нажмите <b>«Регистрация»</b>, чтобы указать ваши параметры "
             "(рост, вес, цель), и я рассчитаю оптимальную норму калорий.\n\n"
@@ -410,7 +495,7 @@ async def show_registration_menu(message: Message, lang_code: str):
         ),
         'en': (
             f"✅ Language selected: {lang_names[lang_code]}\n\n"
-            f"👋 Hello, {message.from_user.first_name}!\n\n"
+            f"👋 Hello, {first_name}!\n\n"
             "Now let's set up your profile.\n\n"
             "• Press <b>\"Registration\"</b> to enter your parameters "
             "(height, weight, goal), and I'll calculate your optimal calorie intake.\n\n"
@@ -418,7 +503,7 @@ async def show_registration_menu(message: Message, lang_code: str):
         ),
         'de': (
             f"✅ Sprache ausgewählt: {lang_names[lang_code]}\n\n"
-            f"👋 Hallo, {message.from_user.first_name}!\n\n"
+            f"👋 Hallo, {first_name}!\n\n"
             "Jetzt richten wir Ihr Profil ein.\n\n"
             "• Drücken Sie <b>\"Anmeldung\"</b>, um Ihre Parameter einzugeben "
             "(Größe, Gewicht, Ziel), und ich berechne Ihre optimale Kalorienaufnahme.\n\n"
@@ -426,7 +511,7 @@ async def show_registration_menu(message: Message, lang_code: str):
         ),
         'fr': (
             f"✅ Langue sélectionnée: {lang_names[lang_code]}\n\n"
-            f"👋 Bonjour, {message.from_user.first_name}!\n\n"
+            f"👋 Bonjour, {first_name}!\n\n"
             "Maintenant, configurons votre profil.\n\n"
             "• Appuyez sur <b>\"Enregistrement\"</b> pour saisir vos paramètres "
             "(taille, poids, objectif), et je calculerai votre apport calorique optimal.\n\n"
@@ -434,7 +519,7 @@ async def show_registration_menu(message: Message, lang_code: str):
         ),
         'es': (
             f"✅ Idioma seleccionado: {lang_names[lang_code]}\n\n"
-            f"👋 ¡Hola, {message.from_user.first_name}!\n\n"
+            f"👋 ¡Hola, {first_name}!\n\n"
             "Ahora configuremos tu perfil.\n\n"
             "• Presiona <b>\"Inscripción\"</b> para ingresar tus parámetros "
             "(altura, peso, objetivo), y calcularé tu ingesta calórica óptima.\n\n"
@@ -533,10 +618,40 @@ async def entrance(message: Message, state: FSMContext):
         
         if not user_data:
             bot_logger.warning(f"User {user_id} tried to login but no data found in user_health")
+            
+            # Получаем язык пользователя для правильного сообщения
+            cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (user_id,))
+            lang_result = cursor.fetchone()
+            lang_code = lang_result[0] if lang_result else 'ru'
+            
+            # Сообщения на разных языках
+            no_data_messages = {
+                'ru': "⚠️ Данные не найдены.\n\nПохоже, вы ещё не прошли регистрацию.\nПожалуйста, нажмите кнопку <b>«Регистрация»</b> ниже.",
+                'en': "⚠️ No data found.\n\nIt seems you haven't registered yet.\nPlease press the <b>\"Registration\"</b> button below.",
+                'de': "⚠️ Keine Daten gefunden.\n\nEs scheint, dass Sie sich noch nicht registriert haben.\nBitte drücken Sie die Schaltfläche <b>\"Anmeldung\"</b> unten.",
+                'fr': "⚠️ Aucune donnée trouvée.\n\nIl semble que vous ne vous soyez pas encore inscrit.\nVeuillez appuyer sur le bouton <b>\"Enregistrement\"</b> ci-dessous.",
+                'es': "⚠️ No se encontraron datos.\n\nParece que aún no te has registrado.\nPor favor, presiona el botón <b>\"Inscripción\"</b> a continuación."
+            }
+            
+            # Создаём клавиатуру с кнопкой регистрации
+            from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+            registration_buttons = {
+                'ru': 'Регистрация',
+                'en': 'Registration',
+                'de': 'Anmeldung',
+                'fr': 'Enregistrement',
+                'es': 'Inscripción'
+            }
+            
+            reg_keyboard = ReplyKeyboardMarkup(
+                keyboard=[[KeyboardButton(text=registration_buttons.get(lang_code, 'Registration'))]],
+                resize_keyboard=True,
+                one_time_keyboard=True
+            )
+            
             await message.answer(
-                l.printer(user_id, 'noData') if hasattr(l.printer(user_id, 'noData'), '__call__') 
-                else "⚠️ Данные не найдены. Пожалуйста, пройдите регистрацию.",
-                reply_markup=kb.keyboard(user_id, 'main_menu')
+                no_data_messages.get(lang_code, no_data_messages['en']),
+                reply_markup=reg_keyboard
             )
             return
         
