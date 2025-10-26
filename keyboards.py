@@ -32,16 +32,39 @@ def starter(k):
     kb = {'lenguage': lenguage}
     return kb[k]
 
-def privacy_consent_keyboard():
-    """Creates an inline keyboard for privacy consent."""
+def privacy_consent_keyboard(lang_code='ru'):
+    """Creates an inline keyboard for privacy consent in different languages."""
+    
+    button_texts = {
+        'ru': {
+            'accept': '✅ Принять',
+            'decline': '❌ Отклонить'
+        },
+        'en': {
+            'accept': '✅ Accept',
+            'decline': '❌ Decline'
+        },
+        'de': {
+            'accept': '✅ Akzeptieren',
+            'decline': '❌ Ablehnen'
+        },
+        'fr': {
+            'accept': '✅ Accepter',
+            'decline': '❌ Refuser'
+        },
+        'es': {
+            'accept': '✅ Aceptar',
+            'decline': '❌ Rechazar'
+        }
+    }
+    
+    texts = button_texts.get(lang_code, button_texts['en'])
+    
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="✅ Принять", callback_data="accept_privacy"),
-                InlineKeyboardButton(text="❌ Отклонить", callback_data="decline_privacy"),
-            ],
-            [
-                InlineKeyboardButton(text="📜 Читать политику", url="http://example.com/privacy")
+                InlineKeyboardButton(text=texts['accept'], callback_data="accept_privacy"),
+                InlineKeyboardButton(text=texts['decline'], callback_data="decline_privacy"),
             ]
         ]
     )
