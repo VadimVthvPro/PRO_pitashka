@@ -40,7 +40,7 @@ msgstr "Geben Sie Ihre Körpergröße in Zentimetern an:"
 
 
 msgid "age"
-msgstr "Geben Sie Ihr Alter ein:"
+msgstr "Geben Sie Ihr Geburtsdatum im Format TT-MM-JJJJ ein:\n\nZum Beispiel: 15-05-1990"
 
 
 msgid "sex"
@@ -393,21 +393,21 @@ msgstr "Die Sprache wurde geändert 🇩🇪"
 
 
 msgid "pitforweek"
-msgstr "Erstellen Sie einen persönlichen, abwechslungsreichen Essensplan für eine Woche für {}, dessen Größe {}, Alter {}, BMI {} und Ziel {} ist"
+msgstr "Sie sind ein erfahrener Ernährungsberater. Erstellen Sie einen detaillierten Ernährungsplan für eine Woche (7 Tage) für eine Person mit folgenden Parametern: Geschlecht - {}, Größe - {} cm, Alter - {} Jahre, BMI - {}, Ziel - {}.\\n\\nWICHTIGE ANFORDERUNGEN:\\n1. Verwenden Sie NUR einfache, erschwingliche Produkte, die in jedem Geschäft oder Markt gekauft werden können (Huhn, Rindfleisch, Fisch, Eier, Milchprodukte, Gemüse, Getreide, Nudeln, Brot)\\n2. KEINE exotischen Zutaten (Quinoa, Avocado, Chia, Kichererbsen usw.)\\n3. Rezepte sollten EINFACH und schnell zuzubereiten sein (maximal 30-40 Minuten)\\n4. Gerichte sollten traditionell und gewöhnlichen Menschen vertraut sein\\n5. Berücksichtigen Sie das Ziel des Benutzers bei der Berechnung von Kalorien und Makros\\n6. Geben Sie für jeden Tag an: Frühstück, Mittagessen, Abendessen, 2 Snacks\\n7. Geben Sie für jedes Gericht ungefähre Kalorien und Makros an\\n8. Fügen Sie eine Einkaufsliste für die Woche hinzu\\n\\nFormatieren Sie die Antwort schön mit Überschriften (verwenden Sie ##), fettem Text (**Text**) und Listen."
 
 
 
 msgid "trenforweek"
-msgstr "Erstellen Sie einen persönlichen wöchentlichen Trainingsplan für {}, der {} groß ist, {} alt ist, dessen BMI {} ist dessen Ziel {} ist und dessen persönlicher Ernährungsplan {} ist"
+msgstr "Sie sind ein professioneller Fitnesstrainer. Erstellen Sie einen detaillierten Trainingsplan für eine Woche (7 Tage) für eine Person mit folgenden Parametern: Geschlecht - {}, Größe - {} cm, Alter - {} Jahre, BMI - {}, Ziel - {}.\\n\\nBerücksichtigen Sie den Ernährungsplan: {}\\n\\nAnforderungen:\\n1. Berücksichtigen Sie das Fitnessniveau basierend auf dem BMI\\n2. Trainings sollten realistisch und zu Hause oder im normalen Fitnessstudio durchführbar sein\\n3. Geben Sie Sätze, Wiederholungen und Ruhezeit an\\n4. Fügen Sie Aufwärmen und Abkühlen für jeden Tag hinzu\\n5. Wechseln Sie Muskelgruppen und Belastungsarten ab\\n6. Berücksichtigen Sie das Ziel des Benutzers (Massezunahme / Gewichtsverlust / Erhaltung)\\n7. Geben Sie für jede Übung eine kurze Beschreibung der richtigen Technik\\n\\nFormatieren Sie die Antwort schön mit Überschriften (verwenden Sie ##), fettem Text (**Text**) und Listen."
 
 
 msgid "mealai"
-msgstr "Erfinde ein neues Rezept auf {} mit Kochtipps"
+msgstr "Sie sind ein erfahrener Hauskoch. Erstellen Sie ein EINFACHES und LECKERES Rezept für eine Mahlzeit \\\"{}\\\".\\n\\nWICHTIGE ANFORDERUNGEN:\\n1. Verwenden Sie NUR einfache, erschwingliche Produkte aus dem normalen Geschäft (Huhn, Fisch, Eier, Milch, Gemüse, Getreide, Nudeln)\\n2. KEINE exotischen Zutaten (Quinoa, Avocado, Chia, Bulgur, Kichererbsen usw.)\\n3. Das Rezept sollte auch für einen Anfänger verständlich sein\\n4. Zubereitungszeit - nicht mehr als 40 Minuten\\n5. Das Gericht sollte lecker, sättigend und gesund sein\\n6. Geben Sie Kalorien und Makros pro Portion an\\n7. Geben Sie eine schrittweise Anleitung\\n8. Fügen Sie nützliche Kochtipps hinzu\\n\\nFormatieren Sie die Antwort schön:\\n- Verwenden Sie ## für Überschriften\\n- **fetter Text** für wichtige Punkte\\n- Nummerierte Listen für Anweisungen\\n- Aufzählungslisten für Zutaten"
 
 
 
 msgid "trenai"
-msgstr "Erstellen Sie ein Workout {} mit Empfehlungen für eine Person mit einem BMI von {}"
+msgstr "Sie sind ein professioneller Fitnesstrainer. Erstellen Sie ein detailliertes Training zum Thema \\\"{}\\\" für eine Person mit BMI {}.\\n\\nAnforderungen:\\n1. Berücksichtigen Sie das Fitnessniveau basierend auf dem BMI\\n2. Das Training sollte zu Hause oder im normalen Fitnessstudio durchführbar sein\\n3. Geben Sie Sätze, Wiederholungen, Ruhezeit an\\n4. Fügen Sie Aufwärmen (5-10 Minuten) und Abkühlen/Dehnen (5-10 Minuten) hinzu\\n5. Beschreiben Sie für jede Übung:\\n   - Richtige Ausführungstechnik\\n   - Welche Muskeln arbeiten\\n   - Häufige Fehler und wie man sie vermeidet\\n6. Geben Sie die Gesamtdauer des Trainings an\\n7. Geben Sie Tipps für Anfänger und Fortgeschrittene\\n\\nFormatieren Sie die Antwort schön mit Überschriften (##), fettem Text (**Text**) und Listen."
 
 
 
