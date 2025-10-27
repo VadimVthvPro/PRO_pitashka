@@ -31,13 +31,18 @@ import google.genai as genai_new
 from logger_setup import bot_logger
 
 # ============================================
-# Google Gemini Setup (новый API)
+# Google Gemini Setup
 # ============================================
 if config.GEMINI_API_KEY:
     import os
     os.environ['GOOGLE_API_KEY'] = config.GEMINI_API_KEY
-    # Создаём клиент Gemini (новый API)
+    
+    # Для текстовой генерации используем старый API
+    genai.configure(api_key=config.GEMINI_API_KEY)
+    
+    # Для загрузки файлов (фото) используем новый API
     gemini_client = genai_new.Client(api_key=config.GEMINI_API_KEY)
+    
     bot_logger.info("Gemini API configured successfully with gemini-2.5-flash model (new API)")
 else:
     bot_logger.error("GEMINI_API_KEY not found in .env file!")
@@ -1038,28 +1043,28 @@ async def generate(zap, cache_key: str = None, cache_ttl: int = config.CACHE_TTL
     if cache_key:
         cached_response = await get_from_cache(cache_key)
         if cached_response:
-            print(f"Ответ найден в кэше: {cache_key}")
+            bot_logger.info(f"Response found in cache: {cache_key}")
             return cached_response
 
-    # 2. Если в кэше нет, генерируем новый ответ через Gemini (новый API)
+    # 2. Если в кэше нет, генерируем новый ответ через Gemini
     try:
-        # Используем новый API с gemini-2.5-flash
+        # Используем старый API для текстовой генерации
+        model = genai.GenerativeModel('gemini-2.5-flash')
         response = await asyncio.to_thread(
-            gemini_client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=zap
+            model.generate_content,
+            zap
         )
         result = response.text
 
         # 3. Сохраняем в кэш
         if cache_key and result:
             await set_to_cache(cache_key, result, cache_ttl)
-            print(f"Ответ сохранен в кэш: {cache_key}")
+            bot_logger.info(f"Response saved to cache: {cache_key}")
 
         return result
         
     except Exception as e:
-        print(f"Ошибка при генерации плана: {str(e)}")
+        bot_logger.error(f"Error generating AI response: {str(e)}")
         raise  # Пробрасываем исключение для retry-декоратора
 
 @dp.message(F.text.in_(
@@ -1649,9 +1654,14 @@ async def grams(message: Message, state: FSMContext):
         
         # Пробуем получить данные от AI
         try:
-            a = '{"name":{cal:"",b:"", g:"", u:""}, }'
-            prod_kbgu = await generate(f'Представь кбжу {name_b} в виде чисел в формате файла json {a}')
-            pattern = r'\"(\w+)\":\s*{\s*\"cal\":\s*(\d+\.?\d*),\s*\"b\":\s*(\d+\.?\d*),\s*\"g\":\s*(\d+\.?\d*),\s*\"u\":\s*(\d+\.?\d*)\s*}'
+            # Используем локализованный промпт
+            food_list_str = ", ".join(name_a)
+            prompt = l.printer(message.from_user.id, 'food_kbju_prompt').format(food_list_str)
+            prod_kbgu = await generate(prompt)
+            
+            bot_logger.info(f"AI response for food KBJU: {prod_kbgu[:200]}...")
+            
+            pattern = r'\"(\w+)\":\s*\{\s*\"cal\":\s*(\d+\.?\d*),\s*\"b\":\s*(\d+\.?\d*),\s*\"g\":\s*(\d+\.?\d*),\s*\"u\":\s*(\d+\.?\d*)\s*\}'
 
             # Результирующий словарь
             result = {}
@@ -1669,13 +1679,12 @@ async def grams(message: Message, state: FSMContext):
 
             # Преобразование в JSON
             result_json = json.dumps(result, ensure_ascii=False, indent=4)
-            print("Извлеченные данные в формате JSON:")
-            print(result_json)
+            bot_logger.info(f"Extracted JSON data: {result_json}")
 
             # Преобразование JSON-строки в словарь
             json_data = json.loads(result_json)
         except Exception as e:
-            print(f"AI failed, using fallback database: {e}")
+            bot_logger.warning(f"AI failed, using fallback database: {e}")
             json_data = {}
             # Fallback: используем локальную базу данных
             for original_name, dish_name in zip(name_a, name_b):
@@ -1684,7 +1693,7 @@ async def grams(message: Message, state: FSMContext):
                     fallback_data = food_db.find_food_in_database(dish_name)
                 if fallback_data:
                     json_data[dish_name] = fallback_data
-                    print(f"Found {original_name} in fallback database")
+                    bot_logger.info(f"Found {original_name} in fallback database")
 
         # Расчет БЖУ и калорий для каждого блюда
         for original_name, sanitized_key, weight in zip(name_a, name_b, grams_values):
@@ -2177,6 +2186,7 @@ async def svodka(message: Message, state: FSMContext):
                 w_data = cursor.fetchone()
                 if w_data and w_data[0] is not None:
                     sr_w.append(w_data[0])
+                    bot_logger.info(f"User {message.from_user.id} - water for {datee}: {w_data[0]} glasses")
                 
                 # Калории тренировок
                 cursor.execute(
@@ -2210,6 +2220,8 @@ async def svodka(message: Message, state: FSMContext):
             avg_w = round(sum(new_sr_w) / len(new_sr_w) * 300, 1) if new_sr_w and len(new_sr_w) > 0 else 0
             avg_food_cal = round(sum(new_sr_food_cal) / len(new_sr_food_cal), 1) if new_sr_food_cal and len(new_sr_food_cal) > 0 else 0
             
+            bot_logger.info(f"User {message.from_user.id} monthly water calc: sr_w={sr_w}, new_sr_w={new_sr_w}, sum={sum(new_sr_w) if new_sr_w else 0}, len={len(new_sr_w) if new_sr_w else 0}, avg_w={avg_w}ml")
+            
             # Безопасный расчёт среднего времени тренировок
             avg_training_time = round(sum(new_sr_tren) / len(new_sr_tren), 3) if new_sr_tren and len(new_sr_tren) > 0 else 0
             
@@ -2225,6 +2237,7 @@ async def svodka(message: Message, state: FSMContext):
                 weig_2 = new_weight
             
             # Формируем сообщение
+            bot_logger.info(f"Monthly summary for user {message.from_user.id}: w_days={len(new_sr_w)}, avg_w={avg_w}ml")
             await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'svoMONTH').format(
                 message.from_user.first_name, weig_1[0] if isinstance(weig_1, tuple) else weig_1, weig_2, 
                 avg_training_time, avg_calories_burned, avg_food_cal, avg_b, avg_g, avg_u, avg_w),
@@ -2235,10 +2248,10 @@ async def svodka(message: Message, state: FSMContext):
             total_b = 0
             total_g = 0
             total_u = 0
-            total_w = 0
+            total_w_glasses = 0  # Общее количество стаканов
+            water_days_count = 0  # Количество дней с водой
             weight_data_all = []
             food_months_with_data = set()
-            water_months_with_data = []  # Массив для месяцев с данными о воде
 
             current_date = datetime.datetime.now()
 
@@ -2265,14 +2278,16 @@ async def svodka(message: Message, state: FSMContext):
                     message.from_user.id))
                 result_food = cursor.fetchone()
                 
+                # Считаем воду по дням, а не общую сумму за месяц
                 cursor.execute("""
-                              SELECT SUM(count)
-                              FROM water
-                              WHERE data >= '{}' AND data <= '{}' AND user_id = {}
-                          """.format(
+                    SELECT data, SUM(count) 
+                    FROM water
+                    WHERE data >= '{}' AND data <= '{}' AND user_id = {}
+                    GROUP BY data
+                """.format(
                     first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
                     message.from_user.id))
-                result_wat = cursor.fetchone()
+                water_days = cursor.fetchall()
                 
                 if result_food and result_food[0]:
                     all_data.append(result_food)
@@ -2282,9 +2297,11 @@ async def svodka(message: Message, state: FSMContext):
                     total_u += result_food[3] if result_food[3] else 0
                     food_months_with_data.add((current_year, current_month))
                     
-                if result_wat and result_wat[0]:
-                    total_w += result_wat[0]
-                    water_months_with_data.append(result_wat[0])
+                # Подсчитываем воду по дням
+                if water_days:
+                    for day_water in water_days:
+                        total_w_glasses += day_water[1]  # Сумма стаканов
+                        water_days_count += 1  # Количество дней
 
                 cursor.execute("""
                     SELECT weight 
@@ -2319,8 +2336,10 @@ async def svodka(message: Message, state: FSMContext):
             avg_g = round(total_g / len(food_months_with_data), 3) if food_months_with_data else 0
             avg_u = round(total_u / len(food_months_with_data), 3) if food_months_with_data else 0
             
-            # Считаем среднее воды только по месяцам когда пили
-            avg_w = round((sum(water_months_with_data) / len(water_months_with_data)) * 300, 1) if water_months_with_data else 0
+            # Считаем среднее воды по ДНЯМ когда пили (а не по месяцам!)
+            avg_w = round((total_w_glasses / water_days_count) * 300, 1) if water_days_count > 0 else 0
+            
+            bot_logger.info(f"Yearly summary for user {message.from_user.id}: water_days={water_days_count}, total_glasses={total_w_glasses}, avg_w={avg_w}ml")
             
             all_data = list(filter(is_not_none, all_data))
             

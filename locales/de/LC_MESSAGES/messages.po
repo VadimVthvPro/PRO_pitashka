@@ -392,6 +392,10 @@ msgid "food_data_error"
 msgstr "⚠️ Lebensmitteldaten konnten nicht aus der KI-Antwort extrahiert werden.\n\nBitte geben Sie an: Welches Gericht ist auf dem Foto und ungefähres Gewicht?"
 
 
+msgid "food_kbju_prompt"
+msgstr "Sie sind ein Ernährungsexperte. Geben Sie KBJU (Kalorien, Protein, Fett, Kohlenhydrate) pro 100 Gramm für folgende Produkte an: {}\n\nMUSS Daten STRENG im JSON-Format zurückgeben:\n{{\n  \"produkt1\": {{\"cal\": zahl, \"b\": zahl, \"g\": zahl, \"u\": zahl}},\n  \"produkt2\": {{\"cal\": zahl, \"b\": zahl, \"g\": zahl, \"u\": zahl}}\n}}\n\nWo:\n- cal = Kalorien pro 100g\n- b = Protein in Gramm pro 100g\n- g = Fett in Gramm pro 100g\n- u = Kohlenhydrate in Gramm pro 100g\n\nVerwenden Sie Produktnamen GENAU wie in der obigen Liste. Nur JSON, kein zusätzlicher Text."
+
+
 msgid "kbtype1"
 msgstr "Strom"
 

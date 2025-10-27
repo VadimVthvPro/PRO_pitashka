@@ -392,6 +392,10 @@ msgid "food_data_error"
 msgstr "⚠️ Impossible d'extraire les données alimentaires de la réponse IA.\n\nVeuillez préciser: quel plat est sur la photo et poids approximatif?"
 
 
+msgid "food_kbju_prompt"
+msgstr "Vous êtes un expert en nutrition. Fournissez KBJU (calories, protéines, lipides, glucides) pour 100 grammes des produits suivants: {}\n\nDOIT retourner les données STRICTEMENT au format JSON:\n{{\n  \"produit1\": {{\"cal\": nombre, \"b\": nombre, \"g\": nombre, \"u\": nombre}},\n  \"produit2\": {{\"cal\": nombre, \"b\": nombre, \"g\": nombre, \"u\": nombre}}\n}}\n\nOù:\n- cal = calories pour 100g\n- b = protéines en grammes pour 100g\n- g = lipides en grammes pour 100g\n- u = glucides en grammes pour 100g\n\nUtilisez les noms de produits EXACTEMENT comme dans la liste ci-dessus. Seulement JSON, pas de texte supplémentaire."
+
+
 msgid "kbtype1"
 msgstr "Puissance"
 

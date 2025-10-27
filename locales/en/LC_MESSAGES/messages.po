@@ -382,6 +382,10 @@ msgid "food_data_error"
 msgstr "⚠️ Failed to extract food data from AI response.\n\nPlease specify: what dish is in the photo and approximate weight?"
 
 
+msgid "food_kbju_prompt"
+msgstr "You are a nutrition expert. Provide KBJU (calories, protein, fat, carbohydrates) per 100 grams for the following products: {}\n\nMUST return data STRICTLY in JSON format:\n{{\n  \"product1\": {{\"cal\": number, \"b\": number, \"g\": number, \"u\": number}},\n  \"product2\": {{\"cal\": number, \"b\": number, \"g\": number, \"u\": number}}\n}}\n\nWhere:\n- cal = calories per 100g\n- b = protein in grams per 100g\n- g = fat in grams per 100g\n- u = carbohydrates in grams per 100g\n\nUse product names EXACTLY as in the list above. Only JSON, no additional text."
+
+
 msgid "correct_tech"
 msgstr "The correct technique for performing the exercise: {}"
 
