@@ -367,11 +367,19 @@ msgstr "You are an AI assistant for the PROpitashka bot, helping users with ques
 
 
 msgid "food_recognition_prompt"
-msgstr "Analyze the food photo and provide the following information:\n\n1. What is shown in the photo (dish/product name)\n2. Approximate portion weight in grams\n3. Calories (kcal)\n4. Macros (protein/fat/carbs in grams)\n5. Brief recommendations for this dish\n\nFormat the response beautifully using:\n- ## for headers\n- **bold text** for important values\n- Lists for structuring\n\nBe accurate in calculating macros and calories."
+msgstr "Analyze the food photo and provide the following information:\n\n1. What is shown in the photo (dish/product name)\n2. Approximate portion weight in grams\n3. Calories (kcal)\n4. Macros (protein/fat/carbs in grams)\n5. Brief recommendations for this dish\n\nFormat the response beautifully using:\n- ## for headers\n- **bold text** for important values\n- Lists for structuring\n\nBe accurate in calculating macros and calories.\n\n**IMPORTANT:** At the very end of the response, add a JSON_DATA block in this format:\n```json\n[\n  {\n    \"name\": \"Dish name\",\n    \"weight\": weight_in_grams,\n    \"b\": protein_per_100g,\n    \"g\": fat_per_100g,\n    \"u\": carbs_per_100g,\n    \"cal\": calories_per_100g\n  }\n]\n```\nIf there are multiple dishes in the photo - add each as a separate object in the array.\nSpecify macros and calories per 100 grams of product."
 
 
 msgid "food_saved"
-msgstr "✅ Food information received! Data is NOT automatically saved to the database.\n\nIf you want to add this food to your diary, use manual entry."
+msgstr "✅ Data successfully saved to database!\n\n📊 Dishes added: {}\n🔥 Total calories: {} kcal"
+
+
+msgid "food_save_confirm"
+msgstr "💾 Save this data to your food diary?"
+
+
+msgid "food_data_error"
+msgstr "⚠️ Failed to extract food data from AI response.\n\nPlease specify: what dish is in the photo and approximate weight?"
 
 
 msgid "correct_tech"

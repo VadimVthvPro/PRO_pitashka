@@ -377,11 +377,19 @@ msgstr "Vous êtes un assistant IA pour le bot PROpitashka, aidant les utilisate
 
 
 msgid "food_recognition_prompt"
-msgstr "Analysez la photo de nourriture et fournissez les informations suivantes:\n\n1. Ce qui est montré sur la photo (nom du plat/produit)\n2. Poids approximatif de la portion en grammes\n3. Calories (kcal)\n4. Macros (protéines/lipides/glucides en grammes)\n5. Brèves recommandations pour ce plat\n\nFormatez la réponse joliment en utilisant:\n- ## pour les titres\n- **texte en gras** pour les valeurs importantes\n- Listes pour la structure\n\nSoyez précis dans le calcul des macros et des calories."
+msgstr "Analysez la photo de nourriture et fournissez les informations suivantes:\n\n1. Ce qui est montré sur la photo (nom du plat/produit)\n2. Poids approximatif de la portion en grammes\n3. Calories (kcal)\n4. Macros (protéines/lipides/glucides en grammes)\n5. Brèves recommandations pour ce plat\n\nFormatez la réponse joliment en utilisant:\n- ## pour les titres\n- **texte en gras** pour les valeurs importantes\n- Listes pour la structure\n\nSoyez précis dans le calcul des macros et des calories.\n\n**IMPORTANT:** À la fin de la réponse, ajoutez un bloc JSON_DATA dans ce format:\n```json\n[\n  {\n    \"name\": \"Nom du plat\",\n    \"weight\": poids_en_grammes,\n    \"b\": protéines_pour_100g,\n    \"g\": lipides_pour_100g,\n    \"u\": glucides_pour_100g,\n    \"cal\": calories_pour_100g\n  }\n]\n```\nS'il y a plusieurs plats sur la photo - ajoutez chacun comme objet séparé dans le tableau.\nSpécifiez les macros et les calories pour 100 grammes de produit."
 
 
 msgid "food_saved"
-msgstr "✅ Informations sur la nourriture reçues! Les données ne sont PAS automatiquement enregistrées dans la base de données.\n\nSi vous souhaitez ajouter cette nourriture à votre journal, utilisez la saisie manuelle."
+msgstr "✅ Données enregistrées avec succès dans la base de données!\n\n📊 Plats ajoutés: {}\n🔥 Calories totales: {} kcal"
+
+
+msgid "food_save_confirm"
+msgstr "💾 Enregistrer ces données dans votre journal alimentaire?"
+
+
+msgid "food_data_error"
+msgstr "⚠️ Impossible d'extraire les données alimentaires de la réponse IA.\n\nVeuillez préciser: quel plat est sur la photo et poids approximatif?"
 
 
 msgid "kbtype1"

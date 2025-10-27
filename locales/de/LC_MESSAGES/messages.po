@@ -377,11 +377,19 @@ msgstr "Sie sind ein KI-Assistent für den PROpitashka-Bot und helfen Benutzern 
 
 
 msgid "food_recognition_prompt"
-msgstr "Analysieren Sie das Lebensmittelfoto und geben Sie folgende Informationen:\n\n1. Was ist auf dem Foto zu sehen (Gericht/Produktname)\n2. Ungefähres Portionsgewicht in Gramm\n3. Kalorien (kcal)\n4. Makros (Protein/Fett/Kohlenhydrate in Gramm)\n5. Kurze Empfehlungen zu diesem Gericht\n\nFormatieren Sie die Antwort schön mit:\n- ## für Überschriften\n- **fetter Text** für wichtige Werte\n- Listen zur Strukturierung\n\nSeien Sie genau bei der Berechnung von Makros und Kalorien."
+msgstr "Analysieren Sie das Lebensmittelfoto und geben Sie folgende Informationen:\n\n1. Was ist auf dem Foto zu sehen (Gericht/Produktname)\n2. Ungefähres Portionsgewicht in Gramm\n3. Kalorien (kcal)\n4. Makros (Protein/Fett/Kohlenhydrate in Gramm)\n5. Kurze Empfehlungen zu diesem Gericht\n\nFormatieren Sie die Antwort schön mit:\n- ## für Überschriften\n- **fetter Text** für wichtige Werte\n- Listen zur Strukturierung\n\nSeien Sie genau bei der Berechnung von Makros und Kalorien.\n\n**WICHTIG:** Am Ende der Antwort fügen Sie einen JSON_DATA-Block in diesem Format hinzu:\n```json\n[\n  {\n    \"name\": \"Gerichtname\",\n    \"weight\": Gewicht_in_Gramm,\n    \"b\": Protein_pro_100g,\n    \"g\": Fett_pro_100g,\n    \"u\": Kohlenhydrate_pro_100g,\n    \"cal\": Kalorien_pro_100g\n  }\n]\n```\nWenn mehrere Gerichte auf dem Foto sind - fügen Sie jedes als separates Objekt im Array hinzu.\nGeben Sie Makros und Kalorien pro 100 Gramm Produkt an."
 
 
 msgid "food_saved"
-msgstr "✅ Lebensmittelinformationen erhalten! Die Daten werden NICHT automatisch in der Datenbank gespeichert.\n\nWenn Sie dieses Lebensmittel zu Ihrem Tagebuch hinzufügen möchten, verwenden Sie die manuelle Eingabe."
+msgstr "✅ Daten erfolgreich in der Datenbank gespeichert!\n\n📊 Gerichte hinzugefügt: {}\n🔥 Gesamtkalorien: {} kcal"
+
+
+msgid "food_save_confirm"
+msgstr "💾 Diese Daten in Ihr Ernährungstagebuch speichern?"
+
+
+msgid "food_data_error"
+msgstr "⚠️ Lebensmitteldaten konnten nicht aus der KI-Antwort extrahiert werden.\n\nBitte geben Sie an: Welches Gericht ist auf dem Foto und ungefähres Gewicht?"
 
 
 msgid "kbtype1"
