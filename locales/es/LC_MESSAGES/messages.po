@@ -379,11 +379,19 @@ msgstr "Eres un asistente de IA para el bot PROpitashka, ayudando a los usuarios
 
 
 msgid "food_recognition_prompt"
-msgstr "Analiza la foto de comida y proporciona la siguiente información:\n\n1. Qué se muestra en la foto (nombre del plato/producto)\n2. Peso aproximado de la porción en gramos\n3. Calorías (kcal)\n4. Macros (proteína/grasa/carbohidratos en gramos)\n5. Breves recomendaciones para este plato\n\nFormatea la respuesta de manera bonita usando:\n- ## para encabezados\n- **texto en negrita** para valores importantes\n- Listas para estructurar\n\nSé preciso en el cálculo de macros y calorías."
+msgstr "Analiza la foto de comida y proporciona la siguiente información:\n\n1. Qué se muestra en la foto (nombre del plato/producto)\n2. Peso aproximado de la porción en gramos\n3. Calorías (kcal)\n4. Macros (proteína/grasa/carbohidratos en gramos)\n5. Breves recomendaciones para este plato\n\nFormatea la respuesta de manera bonita usando:\n- ## para encabezados\n- **texto en negrita** para valores importantes\n- Listas para estructurar\n\nSé preciso en el cálculo de macros y calorías.\n\n**IMPORTANTE:** Al final de la respuesta, agrega un bloque JSON_DATA en este formato:\n```json\n[\n  {\n    \"name\": \"Nombre del plato\",\n    \"weight\": peso_en_gramos,\n    \"b\": proteína_por_100g,\n    \"g\": grasa_por_100g,\n    \"u\": carbohidratos_por_100g,\n    \"cal\": calorías_por_100g\n  }\n]\n```\nSi hay varios platos en la foto - agrega cada uno como objeto separado en el array.\nEspecifica macros y calorías por 100 gramos de producto."
 
 
 msgid "food_saved"
-msgstr "✅ ¡Información de comida recibida! Los datos NO se guardan automáticamente en la base de datos.\n\nSi deseas agregar esta comida a tu diario, usa la entrada manual."
+msgstr "✅ ¡Datos guardados exitosamente en la base de datos!\n\n📊 Platos agregados: {}\n🔥 Calorías totales: {} kcal"
+
+
+msgid "food_save_confirm"
+msgstr "💾 ¿Guardar estos datos en tu diario de alimentación?"
+
+
+msgid "food_data_error"
+msgstr "⚠️ No se pudieron extraer los datos de comida de la respuesta de IA.\n\nPor favor especifica: ¿qué plato está en la foto y peso aproximado?"
 
 
 msgid "kbtype1"

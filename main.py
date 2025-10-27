@@ -1297,7 +1297,7 @@ async def names(message: Message, state: FSMContext):
 
 @dp.message(REG.food_photo)
 async def handle_photo(message: Message, state: FSMContext):
-    """Обработчик фото еды - распознаёт что на фото и считает БЖУ"""
+    """Обработчик фото еды - распознаёт что на фото, считает БЖУ и сохраняет в БД"""
     user_id = message.from_user.id
     bot_logger.info(f"User {user_id} sent food photo for recognition")
     
@@ -1334,6 +1334,8 @@ async def handle_photo(message: Message, state: FSMContext):
         try:
             # Используем новый API Gemini для загрузки файла
             import google.generativeai as genai
+            import json
+            import re
             
             uploaded_file = genai.upload_file(save_path)
             bot_logger.info(f"Photo uploaded to Gemini: {uploaded_file.uri}")
@@ -1352,15 +1354,95 @@ async def handle_photo(message: Message, state: FSMContext):
                 # Удаляем сообщение "Анализирую..."
                 await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
                 
-                # Форматируем и отправляем ответ
-                formatted_response = markdown_to_telegram_html(ai_response)
+                # Извлекаем JSON из ответа
+                json_data = None
+                user_message = ai_response
+                
+                # Ищем JSON блок в ответе
+                json_match = re.search(r'```json\s*(\[.*?\])\s*```', ai_response, re.DOTALL)
+                if json_match:
+                    try:
+                        json_str = json_match.group(1)
+                        json_data = json.loads(json_str)
+                        # Убираем JSON из сообщения пользователю
+                        user_message = ai_response[:json_match.start()].strip()
+                        bot_logger.info(f"Extracted JSON data for user {user_id}: {json_data}")
+                    except json.JSONDecodeError as e:
+                        bot_logger.error(f"Failed to parse JSON for user {user_id}: {e}")
+                
+                # Форматируем и отправляем ответ пользователю
+                formatted_response = markdown_to_telegram_html(user_message)
                 await message.answer(formatted_response, parse_mode='HTML')
                 
-                # Показываем главное меню
-                await message.answer(
-                    l.printer(user_id, 'food_saved'),
-                    reply_markup=kb.keyboard(user_id, 'main_menu')
-                )
+                # Если JSON данные извлечены - сохраняем в БД
+                if json_data and isinstance(json_data, list) and len(json_data) > 0:
+                    total_cal = 0
+                    dishes_count = 0
+                    
+                    for item in json_data:
+                        try:
+                            name = item.get('name', 'Неизвестное блюдо')
+                            weight = float(item.get('weight', 0))
+                            b_per_100 = float(item.get('b', 0))
+                            g_per_100 = float(item.get('g', 0))
+                            u_per_100 = float(item.get('u', 0))
+                            cal_per_100 = float(item.get('cal', 0))
+                            
+                            # Пересчитываем на фактический вес
+                            b = round(b_per_100 * weight / 100, 3)
+                            g = round(g_per_100 * weight / 100, 3)
+                            u = round(u_per_100 * weight / 100, 3)
+                            food_cal = round(cal_per_100 * weight / 100, 3)
+                            
+                            # Сохраняем в БД
+                            cursor.execute("""
+                                INSERT INTO food (
+                                    user_id,
+                                    date,
+                                    name_of_food,
+                                    b,
+                                    g,
+                                    u,
+                                    cal
+                                )
+                                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                            """, (
+                                user_id,
+                                datetime.datetime.now().strftime('%Y-%m-%d'),
+                                name,
+                                b,
+                                g,
+                                u,
+                                food_cal
+                            ))
+                            conn.commit()
+                            
+                            total_cal += food_cal
+                            dishes_count += 1
+                            bot_logger.info(f"Saved food item for user {user_id}: {name}, {food_cal} kcal")
+                            
+                        except Exception as e:
+                            bot_logger.error(f"Error saving food item for user {user_id}: {e}")
+                            continue
+                    
+                    # Подтверждение сохранения
+                    if dishes_count > 0:
+                        await message.answer(
+                            l.printer(user_id, 'food_saved').format(dishes_count, round(total_cal, 1)),
+                            reply_markup=kb.keyboard(user_id, 'main_menu')
+                        )
+                    else:
+                        await message.answer(
+                            l.printer(user_id, 'food_data_error'),
+                            reply_markup=kb.keyboard(user_id, 'main_menu')
+                        )
+                else:
+                    # JSON не найден - просим уточнить
+                    await message.answer(
+                        l.printer(user_id, 'food_data_error'),
+                        reply_markup=kb.keyboard(user_id, 'main_menu')
+                    )
+                    bot_logger.warning(f"No JSON data found in AI response for user {user_id}")
             else:
                 await message.answer(
                     "⚠️ Не удалось распознать еду на фото. Попробуйте сделать фото поближе и чётче.",
@@ -1374,7 +1456,10 @@ async def handle_photo(message: Message, state: FSMContext):
                 
         except Exception as e:
             bot_logger.error(f"Error recognizing food photo for user {user_id}: {e}")
-            await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
+            try:
+                await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
+            except:
+                pass
             await message.answer(
                 "⚠️ Произошла ошибка при распознавании фото. Попробуйте ещё раз или введите еду вручную.",
                 reply_markup=kb.keyboard(user_id, 'main_menu')
