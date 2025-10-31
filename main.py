@@ -407,14 +407,14 @@ async def handle_language_selection(message: Message, state: FSMContext):
     # Тексты приветствия на разных языках
     welcome_texts = {
         'ru': (
-            "🎉 <b>Добро пожаловать в PROpitashka!</b>\n\n"
+        "🎉 <b>Добро пожаловать в PROpitashka!</b>\n\n"
             "Прежде чем начать, пожалуйста, ознакомьтесь с нашей политикой конфиденциальности:\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         ),
         'en': (
             "🎉 <b>Welcome to PROpitashka!</b>\n\n"
             "Before we start, please review our privacy policy:\n\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
         ),
         'de': (
             "🎉 <b>Willkommen bei PROpitashka!</b>\n\n"
@@ -744,7 +744,7 @@ async def age(message: Message, state: FSMContext):
     await state.update_data(age=birthdate_str)
     await state.set_state(REG.sex)
     await message.answer(l.printer(message.from_user.id, 'sex'),
-                         reply_markup=kb.keyboard(message.from_user.id, 'sex'))
+                             reply_markup=kb.keyboard(message.from_user.id, 'sex'))
 
 
 @dp.message(REG.sex)
@@ -895,7 +895,7 @@ def split_message(text, user_id):
 
     # Применяем форматирование Markdown -> HTML
     formatted_text = markdown_to_telegram_html(text)
-    
+
     max_length = 4096
     return [formatted_text[i:i + max_length] for i in range(0, len(formatted_text), max_length)]
 
@@ -1070,6 +1070,9 @@ async def generate(zap, cache_key: str = None, cache_ttl: int = config.CACHE_TTL
 @dp.message(F.text.in_(
     {'Добавить тренировки', "Añadir formación", 'Add training', 'Ajouter une formation', 'Ausbildung hinzufügen'}))
 async def tren(message: Message, state: FSMContext):
+    # Удаляем предыдущую клавиатуру
+    await message.answer("⏳", reply_markup=types.ReplyKeyboardRemove())
+    
     await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'TrenType'),
                            reply_markup=kb.keyboard(message.from_user.id, 'tren'))
     await state.set_state(REG.types)
@@ -1273,6 +1276,9 @@ async def food1(message: Message, state: FSMContext):
     # Очищаем состояние при входе в раздел
     await state.clear()
     
+    # Удаляем предыдущую клавиатуру
+    await message.answer("⏳", reply_markup=types.ReplyKeyboardRemove())
+    
     await message.answer(text=l.printer(message.from_user.id, 'ChooseTheWay'),
                          reply_markup=kb.keyboard(message.from_user.id, 'food'))
     await state.set_state(REG.food)
@@ -1306,37 +1312,36 @@ async def handle_photo(message: Message, state: FSMContext):
     user_id = message.from_user.id
     bot_logger.info(f"User {user_id} sent food photo for recognition")
     
-    try:
         # Проверяем что это фото
-        if not message.photo:
+    if not message.photo:
             await message.answer("⚠️ Пожалуйста, отправьте фото еды.")
             return
         
-        await state.update_data(food_photo=message.photo)
-        data = await state.get_data()
-        photo = data['food_photo'][-1]
+    await state.update_data(food_photo=message.photo)
+    data = await state.get_data()
+    photo = data['food_photo'][-1]
 
         # Показываем что обрабатываем
-        processing_msg = await message.answer("🔍 Анализирую фото еды...")
+    processing_msg = await message.answer("🔍 Анализирую фото еды...")
         
         # Скачиваем фото
-        file_info = await bot.get_file(photo.file_id)
-        
-        @async_retry(max_attempts=config.API_RETRY_ATTEMPTS, delay=config.API_RETRY_DELAY, exceptions=(Exception,))
-        async def download_file_with_retry(file_info):
-            return await bot.download_file(file_info.file_path)
+    file_info = await bot.get_file(photo.file_id)
+    
+    @async_retry(max_attempts=config.API_RETRY_ATTEMPTS, delay=config.API_RETRY_DELAY, exceptions=(Exception,))
+    async def download_file_with_retry(file_info):
+        return await bot.download_file(file_info.file_path)
 
-        downloaded_file = await download_file_with_retry(file_info)
-        save_path = f'photo_{user_id}.jpg'
+    downloaded_file = await download_file_with_retry(file_info)
+    save_path = f'photo_{user_id}.jpg'
         
         # Сохраняем файл
-        with open(save_path, 'wb') as photo_file:
+    with open(save_path, 'wb') as photo_file:
             photo_file.write(downloaded_file.read())
         
-        bot_logger.info(f"Photo saved for user {user_id}: {save_path}")
+    bot_logger.info(f"Photo saved for user {user_id}: {save_path}")
         
         # Загружаем фото в Gemini
-        try:
+    try:
             # Используем новый API Gemini для загрузки файла
             import google.generativeai as genai
             import json
@@ -1459,34 +1464,36 @@ async def handle_photo(message: Message, state: FSMContext):
             if os.path.exists(save_path):
                 os.remove(save_path)
                 
-        except Exception as e:
-            bot_logger.error(f"Error recognizing food photo for user {user_id}: {e}")
-            try:
-                await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
-            except:
-                pass
-            await message.answer(
-                "⚠️ Произошла ошибка при распознавании фото. Попробуйте ещё раз или введите еду вручную.",
-                reply_markup=kb.keyboard(user_id, 'main_menu')
-            )
-        
-        await state.clear()
-        
     except Exception as e:
-        bot_logger.error(f"Error handling food photo for user {user_id}: {e}")
+        bot_logger.error(f"Error recognizing food photo for user {user_id}: {e}")
+        try:
+            await bot.delete_message(chat_id=message.chat.id, message_id=processing_msg.message_id)
+        except:
+            pass
         await message.answer(
-            "⚠️ Произошла ошибка. Попробуйте снова.",
+            "⚠️ Произошла ошибка при распознавании фото. Попробуйте ещё раз или введите еду вручную.",
             reply_markup=kb.keyboard(user_id, 'main_menu')
         )
-        await state.clear()
+    
+    await state.clear()
 
 
 @dp.message(F.text.in_(
     {'Присоединиться к чату', "Dem Chatraum beitreten", "Join the chat room", "Rejoindre le salon de discussion",
-     'Unirse a la sala de chat'}))
+     'Unirse a la sala de chat'}) | 
+    F.text.startswith('Присоединиться к чату') | 
+    F.text.startswith('Dem Chatraum beitreten') | 
+    F.text.startswith('Join the chat room') | 
+    F.text.startswith('Rejoindre le salon de discussion') | 
+    F.text.startswith('Unirse a la sala de chat'))
 async def chat(message: Message):
-    await message.answer(text='https://t.me/+QVhMA2topDgzOWVi',
-                         reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
+    user_id = message.from_user.id
+    join_message = l.printer(user_id, 'join_chat_message')
+    
+    await message.answer(
+        text=join_message + '\n\nhttps://t.me/+QVhMA2topDgzOWVi',
+        reply_markup=kb.keyboard(user_id, 'main_menu')
+    )
 
 
 @dp.message(F.text.in_({'Добавить выпитый стаканчик воды', "Añade un vaso de agua", "Ajoutez un verre d'eau potable",
@@ -1974,6 +1981,9 @@ async def svod(message: Message, state: FSMContext):
     # Очищаем состояние при входе в раздел
     await state.clear()
     
+    # Удаляем предыдущую клавиатуру
+    await message.answer("⏳", reply_markup=types.ReplyKeyboardRemove())
+    
     # Проверяем, есть ли данные о весе и росте за сегодня
     cursor.execute("""
         SELECT weight, height FROM user_health 
@@ -2191,7 +2201,7 @@ async def svodka(message: Message, state: FSMContext):
                 # Калории тренировок
                 cursor.execute(
                     "SELECT sum(training_cal) FROM user_training WHERE user_id = {} AND date = '{}'".format(
-                        message.from_user.id, datee))
+                    message.from_user.id, datee))
                 cal_data = cursor.fetchone()
                 if cal_data and cal_data[0] is not None:
                     sr_cal.append(cal_data[0])
@@ -2199,18 +2209,18 @@ async def svodka(message: Message, state: FSMContext):
                 # Время тренировок
                 cursor.execute(
                     "SELECT sum(tren_time) FROM user_training WHERE user_id = {} AND date = '{}'".format(
-                        message.from_user.id, datee))
+                    message.from_user.id, datee))
                 time_data = cursor.fetchone()
                 if time_data and time_data[0] is not None:
                     sr_tren.append(time_data[0])
             
             # Фильтруем None значения
-            new_sr_b = list(filter(is_not_none, sr_b))
-            new_sr_g = list(filter(is_not_none, sr_g))
-            new_sr_u = list(filter(is_not_none, sr_u))
-            new_sr_w = list(filter(is_not_none, sr_w))
-            new_sr_cal = list(filter(is_not_none, sr_cal))
-            new_sr_tren = list(filter(is_not_none, sr_tren))
+                new_sr_b = list(filter(is_not_none, sr_b))
+                new_sr_g = list(filter(is_not_none, sr_g))
+                new_sr_u = list(filter(is_not_none, sr_u))
+                new_sr_w = list(filter(is_not_none, sr_w))
+                new_sr_cal = list(filter(is_not_none, sr_cal))
+                new_sr_tren = list(filter(is_not_none, sr_tren))
             new_sr_food_cal = list(filter(is_not_none, sr_food_cal))
             
             # Вычисляем средние значения (только по дням когда были данные)
@@ -2281,10 +2291,10 @@ async def svodka(message: Message, state: FSMContext):
                 # Считаем воду по дням, а не общую сумму за месяц
                 cursor.execute("""
                     SELECT data, SUM(count) 
-                    FROM water
-                    WHERE data >= '{}' AND data <= '{}' AND user_id = {}
+                              FROM water
+                              WHERE data >= '{}' AND data <= '{}' AND user_id = {}
                     GROUP BY data
-                """.format(
+                          """.format(
                     first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
                     message.from_user.id))
                 water_days = cursor.fetchall()
@@ -2304,12 +2314,12 @@ async def svodka(message: Message, state: FSMContext):
                         water_days_count += 1  # Количество дней
 
                 cursor.execute("""
-                    SELECT weight 
-                    FROM user_health
-                    WHERE date >= '{}' AND date <= '{}' AND user_id = {}
-                    ORDER BY date ASC
-                """.format(first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
-                           message.from_user.id))
+                        SELECT weight 
+                        FROM user_health
+                        WHERE date >= '{}' AND date <= '{}' AND user_id = {}
+                        ORDER BY date ASC
+                    """.format(first_day_of_month.strftime('%Y-%m-%d'), last_day_of_month.strftime('%Y-%m-%d'),
+                               message.from_user.id))
                 weight_data = cursor.fetchall()
 
                 if weight_data:

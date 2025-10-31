@@ -76,7 +76,14 @@ def keyboard(user_id, k):
     cursor.execute(
         "SELECT lang FROM user_lang WHERE user_id = {}".format(int(user_id))
     )
-    leng1 = cursor.fetchone()[0]
+    result = cursor.fetchone()
+    
+    # Если язык не найден, используем русский по умолчанию
+    if result is None:
+        leng1 = 'ru'
+    else:
+        leng1 = result[0]
+    
     conn.commit()
     cursor.close()
 
