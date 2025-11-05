@@ -6,7 +6,9 @@ import base64
 import json
 from aiogram.filters import StateFilter
 from config import config
+import paths  # Модуль управления путями к файлам
 import keyboards as kb
+import ad_system
 import asyncio
 import datetime
 from aiogram import Bot, Dispatcher, types, F
@@ -29,6 +31,27 @@ import food_database_fallback as food_db
 import google.generativeai as genai
 import google.genai as genai_new
 from logger_setup import bot_logger
+import sys
+import os
+
+# ============================================
+# Валидация критичных файлов
+# ============================================
+try:
+    paths.validate_assets()
+    bot_logger.info("✅ All critical assets validated successfully")
+except FileNotFoundError as e:
+    bot_logger.critical(f"❌ Asset validation failed: {e}")
+    print(f"\n{e}\n")
+    sys.exit(1)
+
+# ============================================
+# Privacy Policy URL (разместите на HTTPS!)
+# ============================================
+# Замените на свой URL после размещения на GitHub Pages/Netlify
+PRIVACY_POLICY_URL = os.getenv('PRIVACY_POLICY_URL', 'https://yourusername.github.io/propitashka-privacy/privacy_policy.html')
+REFERRAL_BOT_USERNAME = os.getenv('REFERRAL_BOT_USERNAME')
+REFERRAL_BOT_URL = os.getenv('REFERRAL_BOT_URL') or (f"https://t.me/{REFERRAL_BOT_USERNAME}" if REFERRAL_BOT_USERNAME else None)
 
 # ============================================
 # Google Gemini Setup
@@ -170,6 +193,29 @@ conn = psycopg2.connect(**config.get_db_config())
 conn.autocommit = True  # Включаем автокоммит для немедленного сохранения данных
 cursor = conn.cursor()
 bot_logger.info("Database connection established with autocommit enabled")
+
+
+async def maybe_show_ad(message: Message, user_id_override: int | None = None):
+    """Пробует показать рекламу бесплатному пользователю."""
+    user_id = user_id_override or (message.from_user.id if getattr(message, "from_user", None) else None)
+    try:
+        if user_id is None:
+            return
+
+        chat_id = message.chat.id if getattr(message, "chat", None) else None
+        if chat_id is None:
+            return
+
+        shown = await ad_system.show_ad_to_user(
+            bot=bot,
+            cursor=cursor,
+            user_id=user_id,
+            chat_id=chat_id
+        )
+        if shown:
+            bot_logger.info(f"Ad displayed to user {user_id}")
+    except Exception as e:
+        bot_logger.error(f"Failed to show ad to user {user_id or 'unknown'}: {e}")
 
 
 class REG(StatesGroup):
@@ -335,6 +381,39 @@ async def handle_privacy_consent(callback_query: CallbackQuery, state: FSMContex
             reply_markup=None
         )
     
+    await callback_query.answer()
+
+
+# ============================================
+# Premium Upsell / Referral Bridge
+# ============================================
+@dp.callback_query(F.data == 'get_premium')
+async def handle_get_premium(callback_query: CallbackQuery):
+    """Перенаправляет пользователя в реферальный бот для покупки премиума."""
+    user_id = callback_query.from_user.id
+    bot_logger.info(f"User {user_id} requested premium via callback")
+
+    if REFERRAL_BOT_URL:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💎 Оформить премиум", url=REFERRAL_BOT_URL)]
+        ])
+        message_text = (
+            "💎 <b>Премиум без рекламы</b>\n\n"
+            "Перейдите в реферальный бот, чтобы\n"
+            "оформить подписку или получить дни бесплатно за друзей."
+        )
+    else:
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(
+            text="✉️ Связаться с поддержкой",
+            url="https://t.me/propitashka_support"
+        )]])
+        message_text = (
+            "💎 <b>Премиум без рекламы</b>\n\n"
+            "Попросите администратора указать REFERRAL_BOT_USERNAME/REFERRAL_BOT_URL в .env,\n"
+            "либо напишите поддержке, чтобы получить подписку."
+        )
+
+    await callback_query.message.answer(message_text, reply_markup=keyboard)
     await callback_query.answer()
 
 
@@ -561,7 +640,7 @@ async def show_registration_menu(message: Message, lang_code: str, user_id_overr
     try:
         await bot.send_photo(
             user_id,
-            photo=FSInputFile(path='/Users/VadimVthv/Desktop/PROpitashka/new_logo.jpg'),
+            photo=FSInputFile(path=str(paths.LOGO_PATH)),
             caption=welcome_text,
             reply_markup=start_menu_keyboard
         )
@@ -576,36 +655,85 @@ async def show_registration_menu(message: Message, lang_code: str, user_id_overr
             reply_markup=start_menu_keyboard
         )
 
+    await maybe_show_ad(message, user_id_override=user_id)
+
 
 
 @dp.message(Command('privacy'))
 async def send_privacy_policy(message: Message):
-    """Отправляет полный текст политики конфиденциальности"""
-    try:
-        with open('PRIVACY_POLICY.txt', 'r', encoding='utf-8') as f:
-            privacy_text = f.read()
-        
-        # Разбиваем текст на части по 4000 символов (лимит Telegram)
-        max_length = 4000
-        parts = [privacy_text[i:i+max_length] for i in range(0, len(privacy_text), max_length)]
-        
-        await message.answer(
-            f"📄 <b>Политика конфиденциальности и условия использования</b>\n\n"
-            f"Всего частей: {len(parts)}"
+    """Отправляет ссылку на политику конфиденциальности."""
+    user_id = message.from_user.id
+    
+    # Получаем язык пользователя
+    cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (user_id,))
+    result = cursor.fetchone()
+    lang_code = result[0] if result else 'en'
+    
+    messages = {
+        'ru': (
+            "📄 <b>Политика конфиденциальности</b>\n\n"
+            f"Полная версия доступна по ссылке:\n🔗 <a href='{PRIVACY_POLICY_URL}'>Открыть Privacy Policy</a>\n\n"
+            "🔒 <b>Основные положения:</b>\n"
+            "• Мы собираем только необходимые данные для работы бота\n"
+            "• Ваши данные защищены шифрованием\n"
+            "• Вы можете запросить удаление данных в любой момент\n"
+            "• Мы не передаем данные третьим лицам\n"
+            "• Используется AI (Google Gemini) для рекомендаций\n\n"
+            "❓ По вопросам: /support"
+        ),
+        'en': (
+            "📄 <b>Privacy Policy</b>\n\n"
+            f"Full version available at:\n🔗 <a href='{PRIVACY_POLICY_URL}'>Open Privacy Policy</a>\n\n"
+            "🔒 <b>Key points:</b>\n"
+            "• We only collect necessary data for bot operation\n"
+            "• Your data is protected with encryption\n"
+            "• You can request data deletion at any time\n"
+            "• We never share your data with third parties\n"
+            "• AI (Google Gemini) is used for recommendations\n\n"
+            "❓ Questions: /support"
+        ),
+        'de': (
+            "📄 <b>Datenschutzrichtlinie</b>\n\n"
+            f"Vollständige Version verfügbar unter:\n🔗 <a href='{PRIVACY_POLICY_URL}'>Datenschutz öffnen</a>\n\n"
+            "🔒 <b>Hauptpunkte:</b>\n"
+            "• Wir sammeln nur notwendige Daten\n"
+            "• Ihre Daten sind verschlüsselt\n"
+            "• Sie können jederzeit Löschung anfordern\n"
+            "• Keine Weitergabe an Dritte\n"
+            "• AI (Google Gemini) für Empfehlungen\n\n"
+            "❓ Fragen: /support"
+        ),
+        'fr': (
+            "📄 <b>Politique de confidentialité</b>\n\n"
+            f"Version complète disponible sur:\n🔗 <a href='{PRIVACY_POLICY_URL}'>Ouvrir la politique</a>\n\n"
+            "🔒 <b>Points clés:</b>\n"
+            "• Données nécessaires uniquement\n"
+            "• Protection par cryptage\n"
+            "• Suppression sur demande\n"
+            "• Pas de partage avec des tiers\n"
+            "• AI (Google Gemini) pour recommandations\n\n"
+            "❓ Questions: /support"
+        ),
+        'es': (
+            "📄 <b>Política de privacidad</b>\n\n"
+            f"Versión completa disponible en:\n🔗 <a href='{PRIVACY_POLICY_URL}'>Abrir política</a>\n\n"
+            "🔒 <b>Puntos clave:</b>\n"
+            "• Solo datos necesarios\n"
+            "• Protegidos con cifrado\n"
+            "• Eliminación bajo solicitud\n"
+            "• No compartimos con terceros\n"
+            "• AI (Google Gemini) para recomendaciones\n\n"
+            "❓ Preguntas: /support"
         )
-        
-        for i, part in enumerate(parts, 1):
-            await message.answer(
-                f"<i>Часть {i}/{len(parts)}</i>\n\n"
-                f"<pre>{part}</pre>"
-            )
-            await asyncio.sleep(0.5)  # Задержка между сообщениями
-            
-    except FileNotFoundError:
-        await message.answer(
-            "📄 Политика конфиденциальности временно недоступна. "
-            "Пожалуйста, свяжитесь с поддержкой через /support"
-        )
+    }
+    
+    await message.answer(
+        messages.get(lang_code, messages['en']),
+        parse_mode='HTML',
+        disable_web_page_preview=False
+    )
+    
+    bot_logger.info(f"User {user_id} requested privacy policy link")
 
 
 @dp.message(F.text.in_({'Вход', 'Entry', 'Entrée', 'Entrada', 'Eintrag'}))
@@ -672,6 +800,9 @@ async def entrance(message: Message, state: FSMContext):
         imt, imt_str, cal, weight, height = float(user_data[0]), user_data[1], float(user_data[2]), float(user_data[3]), float(user_data[4])
         bot_logger.info(f"User {user_id} entrance successful: weight={weight}, height={height}, imt={imt}")
         
+        # ✅ Пересчитываем описание ИМТ для правильной локализации
+        imt_localized = calculate_imt_description(imt, message)
+        
         # Отправляем информацию пользователю
         await bot.send_message(
             message.chat.id,
@@ -680,13 +811,14 @@ async def entrance(message: Message, state: FSMContext):
                 weight, 
                 height, 
                 imt,
-                imt_str
+                imt_localized
             )
         )
         await message.answer(
             text=l.printer(user_id, 'SuccesfulReg'),
             reply_markup=kb.keyboard(user_id, 'main_menu')
         )
+        await maybe_show_ad(message)
         
     except Exception as e:
         bot_logger.error(f"Error during entrance for user {user_id}: {e}")
@@ -824,6 +956,7 @@ async def wei(message: Message, state: FSMContext):
         await message.answer(text=l.printer(message.from_user.id, 'SuccesfulReg'),
                              reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         await state.clear()
+        await maybe_show_ad(message)
     except Exception as e:
         bot_logger.error(f"Error during registration for user {message.from_user.id}: {e}")
         print(f"Ошибка регистрации: {e}")
@@ -1270,7 +1403,8 @@ def replace_none_with_zero_in_list(lst, index):
     return lst
 
 
-@dp.message(F.text.in_({'Ввести еду за день', "Das Essen des Tages einführen", "Enter a day's worth of food",
+@dp.message(F.text.in_(
+    {'Ввести еду за день', "Das Essen des Tages einführen", "Enter a day's worth of food",
                         "Introducir la comida del día", 'Présenter les aliments du jour'}))
 async def food1(message: Message, state: FSMContext):
     # Очищаем состояние при входе в раздел
@@ -2634,9 +2768,21 @@ async def catch_all_text_messages(message: Message, state: FSMContext):
 # Main Function
 # ============================================
 
+async def subscription_watchdog(interval_hours: int = 24):
+    """Периодически проверяет истекшие подписки и снимает премиум."""
+    delay = max(1, interval_hours * 3600)
+    while True:
+        try:
+            await ad_system.check_expired_subscriptions(cursor)
+            bot_logger.info("Subscription watchdog executed successfully")
+        except Exception as e:
+            bot_logger.error(f"Subscription watchdog error: {e}")
+        await asyncio.sleep(delay)
+
 async def main():
     # Register middleware
     dp.update.middleware(PrivacyConsentMiddleware())
+    asyncio.create_task(subscription_watchdog())
     await dp.start_polling(bot)
 
 

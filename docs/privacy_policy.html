@@ -1,9 +1,21 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Политика конфиденциальности - PROpitashka Bot</title>
+    <meta name="description" content="PROpitashka Privacy Policy - How we collect, use, and protect your data">
+    <meta name="robots" content="index, follow">
+    <title>PROpitashka - Privacy Policy & Terms of Service</title>
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="PROpitashka - Privacy Policy">
+    <meta property="og:description" content="Learn how PROpitashka protects your personal data and respects your privacy.">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="PROpitashka - Privacy Policy">
+    
     <style>
         * {
             margin: 0;
@@ -15,65 +27,116 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             line-height: 1.6;
             color: #333;
-            background: #f5f5f5;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
         
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
-            padding: 20px;
             background: white;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
         }
         
-        header {
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
             text-align: center;
-            padding: 40px 0;
-            border-bottom: 3px solid #4CAF50;
         }
         
-        h1 {
-            color: #4CAF50;
+        .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
+            font-weight: 700;
         }
         
-        .subtitle {
-            color: #666;
+        .header p {
             font-size: 1.1em;
+            opacity: 0.9;
         }
         
-        .last-updated {
-            background: #f0f0f0;
-            padding: 10px;
-            margin: 20px 0;
-            border-left: 4px solid #4CAF50;
+        .language-selector {
+            background: #f8f9fa;
+            padding: 15px 30px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .language-selector button {
+            padding: 8px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 20px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        
+        .language-selector button:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+        
+        .language-selector button.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .content {
+            padding: 40px 30px;
+        }
+        
+        .content section {
+            display: none;
+        }
+        
+        .content section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         h2 {
-            color: #4CAF50;
+            color: #667eea;
             margin-top: 30px;
             margin-bottom: 15px;
             font-size: 1.8em;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
         }
         
         h3 {
-            color: #555;
+            color: #764ba2;
             margin-top: 20px;
             margin-bottom: 10px;
+            font-size: 1.3em;
         }
         
-        p {
-            margin-bottom: 15px;
+        p, li {
+            margin-bottom: 12px;
             text-align: justify;
         }
         
-        ul, ol {
-            margin-left: 30px;
-            margin-bottom: 15px;
+        ul {
+            margin-left: 25px;
+            margin-bottom: 20px;
         }
         
-        li {
+        ul li {
             margin-bottom: 8px;
         }
         
@@ -82,231 +145,319 @@
             padding: 15px;
             border-left: 4px solid #ffc107;
             margin: 20px 0;
+            border-radius: 4px;
         }
         
-        .contact {
-            background: #e3f2fd;
-            padding: 20px;
-            margin-top: 30px;
-            border-radius: 5px;
-        }
-        
-        footer {
+        .footer {
+            background: #f8f9fa;
+            padding: 30px;
             text-align: center;
-            padding: 30px 0;
-            color: #666;
-            border-top: 1px solid #ddd;
-            margin-top: 40px;
+            border-top: 1px solid #e9ecef;
         }
         
-        a {
-            color: #4CAF50;
+        .footer p {
+            color: #6c757d;
+            margin-bottom: 10px;
+        }
+        
+        .footer a {
+            color: #667eea;
             text-decoration: none;
+            font-weight: 600;
         }
         
-        a:hover {
+        .footer a:hover {
             text-decoration: underline;
         }
         
-        .lang-switch {
-            text-align: center;
-            margin: 20px 0;
-        }
-        
-        .lang-switch a {
-            margin: 0 10px;
-            padding: 5px 15px;
-            background: #4CAF50;
-            color: white;
-            border-radius: 5px;
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .content {
+                padding: 20px 15px;
+            }
+            
+            h2 {
+                font-size: 1.5em;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🥗 PROpitashka Bot</h1>
-            <p class="subtitle">Политика конфиденциальности</p>
-        </header>
-        
-        <div class="lang-switch">
-            <a href="privacy_policy.html">Русский</a>
-            <a href="privacy_policy_en.html">English</a>
+        <div class="header">
+            <h1>🥗 PROpitashka</h1>
+            <p>Privacy Policy & Terms of Service</p>
         </div>
         
-        <div class="last-updated">
-            <strong>Последнее обновление:</strong> 24 октября 2025 года<br>
-            <strong>Версия:</strong> 1.0
+        <div class="language-selector">
+            <button onclick="switchLanguage('en')" class="active" id="btn-en">🇬🇧 English</button>
+            <button onclick="switchLanguage('ru')" id="btn-ru">🇷🇺 Русский</button>
+            <button onclick="switchLanguage('de')" id="btn-de">🇩🇪 Deutsch</button>
+            <button onclick="switchLanguage('fr')" id="btn-fr">🇫🇷 Française</button>
+            <button onclick="switchLanguage('es')" id="btn-es">🇪🇸 Español</button>
         </div>
         
-        <section>
-            <h2>1. Введение</h2>
-            <p>
-                Добро пожаловать в PROpitashka Bot! Мы уважаем вашу конфиденциальность и стремимся защитить ваши персональные данные. 
-                Эта политика конфиденциальности объясняет, какие данные мы собираем, как мы их используем и какие права у вас есть.
-            </p>
-        </section>
-        
-        <section>
-            <h2>2. Какие данные мы собираем</h2>
+        <div class="content">
+            <!-- English Version -->
+            <section id="content-en" class="active">
+                <p><strong>Last updated:</strong> October 31, 2025</p>
+                
+                <h2>1. INTRODUCTION</h2>
+                <p>Welcome to PROpitashka Bot! We take the protection of your personal data and privacy seriously. This Privacy Policy explains what data we collect, how we use it, and what rights you have.</p>
+                
+                <div class="highlight">
+                    <strong>⚠️ Important:</strong> By using this bot, you agree to the terms of this Privacy Policy. If you do not agree, please do not use the bot.
+                </div>
+                
+                <h2>2. DATA COLLECTED</h2>
+                <p>We collect and process the following information:</p>
+                <ul>
+                    <li><strong>Telegram ID and username:</strong> To identify you in our system</li>
+                    <li><strong>Health data:</strong> Height, weight, age, gender - to calculate personalized recommendations</li>
+                    <li><strong>Fitness and nutrition goals:</strong> To provide tailored meal and training plans</li>
+                    <li><strong>Training and nutrition history:</strong> To track your progress</li>
+                    <li><strong>Food photos:</strong> If you choose to send them for AI analysis</li>
+                    <li><strong>Messages and requests:</strong> To improve our service quality</li>
+                    <li><strong>UTM parameters and referral codes:</strong> To understand traffic sources</li>
+                </ul>
+                
+                <h2>3. DATA USAGE</h2>
+                <p>Your data is used exclusively for:</p>
+                <ul>
+                    <li>Providing personalized meal and training plans</li>
+                    <li>Tracking progress and achieving your goals</li>
+                    <li>Calculating calories and nutritional value using AI</li>
+                    <li>Generating AI-powered recommendations (via Google Gemini)</li>
+                    <li>Improving service quality and user experience</li>
+                    <li>Analytics and marketing attribution</li>
+                </ul>
+                
+                <h3>3.1. AI Processing</h3>
+                <p>We use Google Gemini AI to generate personalized recommendations. Your requests are processed according to <a href="https://policies.google.com/privacy" target="_blank">Google's Privacy Policy</a>. We cache AI responses using Redis to improve performance - cached data is automatically deleted after 24 hours.</p>
+                
+                <h2>4. DATA STORAGE AND PROTECTION</h2>
+                <ul>
+                    <li><strong>Secure servers:</strong> All data is stored on PostgreSQL databases with encryption</li>
+                    <li><strong>Encryption in transit:</strong> SSL/TLS encryption protects data transmission</li>
+                    <li><strong>Access control:</strong> Only authorized systems have access to your data</li>
+                    <li><strong>No third-party sharing:</strong> We never share your data with third parties without your explicit consent</li>
+                    <li><strong>Automatic backups:</strong> Daily backups ensure data safety</li>
+                </ul>
+                
+                <h2>5. YOUR RIGHTS (GDPR/CCPA)</h2>
+                <p>You have the following rights regarding your data:</p>
+                <ul>
+                    <li><strong>Right to Access:</strong> Request a copy of all your data</li>
+                    <li><strong>Right to Deletion:</strong> Request complete deletion of your account and data</li>
+                    <li><strong>Right to Rectification:</strong> Correct inaccurate information</li>
+                    <li><strong>Right to Portability:</strong> Receive your data in machine-readable format</li>
+                    <li><strong>Right to Withdraw Consent:</strong> Stop data processing at any time</li>
+                    <li><strong>Right to Object:</strong> Object to certain types of processing</li>
+                </ul>
+                
+                <p><strong>To exercise your rights, contact us via the bot or email.</strong></p>
+                
+                <h2>6. DATA RETENTION</h2>
+                <ul>
+                    <li><strong>Active accounts:</strong> Data is stored as long as your account is active</li>
+                    <li><strong>Inactive accounts:</strong> After 12 months of inactivity, we may delete your data</li>
+                    <li><strong>Deleted accounts:</strong> Data is permanently deleted within 30 days of account deletion</li>
+                    <li><strong>Legal obligations:</strong> Some data may be retained longer to comply with legal requirements</li>
+                </ul>
+                
+                <h2>7. COOKIES AND CACHING</h2>
+                <p>We use Redis for caching AI responses to improve performance. The cache is automatically cleared after:</p>
+                <ul>
+                    <li><strong>AI responses:</strong> 1 hour</li>
+                    <li><strong>Recipes and meal plans:</strong> 24 hours</li>
+                    <li><strong>User session data:</strong> 7 days</li>
+                </ul>
+                
+                <h2>8. CHILDREN'S PRIVACY</h2>
+                <p>Our service is not intended for children under 13 years old. We do not knowingly collect data from children. If you believe a child has provided us with personal data, please contact us immediately.</p>
+                
+                <h2>9. POLICY CHANGES</h2>
+                <p>We may update this policy from time to time. Material changes will be announced through the bot. Your continued use of the service after changes constitutes acceptance of the new policy.</p>
+                
+                <h2>10. CONTACT</h2>
+                <p>For questions, concerns, or to exercise your rights:</p>
+                <ul>
+                    <li><strong>Via bot:</strong> Use the /support command</li>
+                    <li><strong>Email:</strong> privacy@propitashka.com</li>
+                    <li><strong>Response time:</strong> Within 72 hours</li>
+                </ul>
+                
+                <div class="highlight">
+                    <strong>🔒 Your privacy matters to us.</strong> We are committed to protecting your personal data and respecting your rights under GDPR, CCPA, and other privacy regulations.
+                </div>
+            </section>
             
-            <h3>2.1. Автоматически собираемые данные</h3>
-            <ul>
-                <li><strong>Telegram ID</strong> - уникальный идентификатор пользователя</li>
-                <li><strong>Имя пользователя</strong> - ваше имя в Telegram</li>
-                <li><strong>Язык</strong> - выбранный вами язык интерфейса</li>
-                <li><strong>Дата регистрации</strong> - когда вы начали использовать бота</li>
-            </ul>
+            <!-- Russian Version -->
+            <section id="content-ru">
+                <p><strong>Последнее обновление:</strong> 31 октября 2025</p>
+                
+                <h2>1. ВВЕДЕНИЕ</h2>
+                <p>Добро пожаловать в PROpitashka Bot! Мы серьезно относимся к защите ваших персональных данных и конфиденциальности. Эта Политика конфиденциальности объясняет, какие данные мы собираем, как мы их используем и какие права у вас есть.</p>
+                
+                <div class="highlight">
+                    <strong>⚠️ Важно:</strong> Используя этот бот, вы соглашаетесь с условиями этой Политики конфиденциальности. Если вы не согласны, пожалуйста, не используйте бот.
+                </div>
+                
+                <h2>2. СОБИРАЕМЫЕ ДАННЫЕ</h2>
+                <p>Мы собираем и обрабатываем следующую информацию:</p>
+                <ul>
+                    <li><strong>Telegram ID и имя пользователя:</strong> Для идентификации в системе</li>
+                    <li><strong>Данные о здоровье:</strong> Рост, вес, возраст, пол - для расчета персонализированных рекомендаций</li>
+                    <li><strong>Цели фитнеса и питания:</strong> Для создания индивидуальных планов</li>
+                    <li><strong>История тренировок и питания:</strong> Для отслеживания прогресса</li>
+                    <li><strong>Фотографии продуктов:</strong> Если вы отправляете их для AI-анализа</li>
+                    <li><strong>Сообщения и запросы:</strong> Для улучшения качества сервиса</li>
+                    <li><strong>UTM-параметры и реферальные коды:</strong> Для анализа источников трафика</li>
+                </ul>
+                
+                <h2>3. ИСПОЛЬЗОВАНИЕ ДАННЫХ</h2>
+                <p>Ваши данные используются исключительно для:</p>
+                <ul>
+                    <li>Предоставления персонализированных планов питания и тренировок</li>
+                    <li>Отслеживания прогресса и достижения целей</li>
+                    <li>Расчета калорий и пищевой ценности через AI</li>
+                    <li>Генерации рекомендаций с помощью AI (Google Gemini)</li>
+                    <li>Улучшения качества сервиса</li>
+                    <li>Маркетинговой аналитики</li>
+                </ul>
+                
+                <h3>3.1. Обработка AI</h3>
+                <p>Мы используем Google Gemini AI для генерации рекомендаций. Ваши запросы обрабатываются согласно <a href="https://policies.google.com/privacy?hl=ru" target="_blank">Политике конфиденциальности Google</a>. Мы кэшируем ответы AI через Redis - кэш автоматически удаляется через 24 часа.</p>
+                
+                <h2>4. ХРАНЕНИЕ И ЗАЩИТА ДАННЫХ</h2>
+                <ul>
+                    <li><strong>Защищенные серверы:</strong> Все данные хранятся в PostgreSQL с шифрованием</li>
+                    <li><strong>Шифрование передачи:</strong> SSL/TLS защищает передачу данных</li>
+                    <li><strong>Контроль доступа:</strong> Только авторизованные системы имеют доступ</li>
+                    <li><strong>Без передачи третьим лицам:</strong> Мы никогда не передаем ваши данные третьим лицам без вашего согласия</li>
+                    <li><strong>Автоматические бэкапы:</strong> Ежедневные резервные копии</li>
+                </ul>
+                
+                <h2>5. ВАШИ ПРАВА (GDPR/152-ФЗ)</h2>
+                <p>Вы имеете следующие права в отношении ваших данных:</p>
+                <ul>
+                    <li><strong>Право на доступ:</strong> Запросить копию всех ваших данных</li>
+                    <li><strong>Право на удаление:</strong> Запросить полное удаление аккаунта и данных</li>
+                    <li><strong>Право на исправление:</strong> Исправить неточную информацию</li>
+                    <li><strong>Право на переносимость:</strong> Получить данные в машиночитаемом формате</li>
+                    <li><strong>Право на отзыв согласия:</strong> Прекратить обработку в любой момент</li>
+                    <li><strong>Право на возражение:</strong> Возразить против определенных типов обработки</li>
+                </ul>
+                
+                <p><strong>Для реализации прав свяжитесь с нами через бота или email.</strong></p>
+                
+                <h2>6. СРОК ХРАНЕНИЯ ДАННЫХ</h2>
+                <ul>
+                    <li><strong>Активные аккаунты:</strong> Данные хранятся, пока аккаунт активен</li>
+                    <li><strong>Неактивные аккаунты:</strong> После 12 месяцев неактивности данные могут быть удалены</li>
+                    <li><strong>Удаленные аккаунты:</strong> Данные удаляются в течение 30 дней</li>
+                    <li><strong>Юридические обязательства:</strong> Некоторые данные могут храниться дольше по закону</li>
+                </ul>
+                
+                <h2>7. COOKIES И КЭШИРОВАНИЕ</h2>
+                <p>Мы используем Redis для кэширования ответов AI. Кэш автоматически очищается через:</p>
+                <ul>
+                    <li><strong>Ответы AI:</strong> 1 час</li>
+                    <li><strong>Рецепты и планы питания:</strong> 24 часа</li>
+                    <li><strong>Данные сессии:</strong> 7 дней</li>
+                </ul>
+                
+                <h2>8. КОНФИДЕНЦИАЛЬНОСТЬ ДЕТЕЙ</h2>
+                <p>Наш сервис не предназначен для детей младше 13 лет. Мы не собираем данные детей. Если вы считаете, что ребенок предоставил нам данные, немедленно свяжитесь с нами.</p>
+                
+                <h2>9. ИЗМЕНЕНИЯ В ПОЛИТИКЕ</h2>
+                <p>Мы можем обновлять эту политику. О существенных изменениях будет объявлено через бота. Продолжение использования сервиса после изменений означает принятие новой политики.</p>
+                
+                <h2>10. КОНТАКТЫ</h2>
+                <p>Для вопросов или реализации прав:</p>
+                <ul>
+                    <li><strong>Через бота:</strong> Команда /support</li>
+                    <li><strong>Email:</strong> privacy@propitashka.com</li>
+                    <li><strong>Время ответа:</strong> В течение 72 часов</li>
+                </ul>
+                
+                <div class="highlight">
+                    <strong>🔒 Ваша конфиденциальность важна для нас.</strong> Мы обязуемся защищать ваши персональные данные и уважать ваши права по GDPR, 152-ФЗ и другим законам о защите данных.
+                </div>
+            </section>
             
-            <h3>2.2. Данные, которые вы предоставляете</h3>
-            <ul>
-                <li><strong>Персональная информация:</strong> пол, дата рождения, вес, рост</li>
-                <li><strong>Цели:</strong> ваши цели по питанию и здоровью</li>
-                <li><strong>Дневник питания:</strong> записи о потребленной пище, калории, БЖУ</li>
-                <li><strong>Тренировки:</strong> записи о физической активности</li>
-                <li><strong>Фотографии еды:</strong> изображения для распознавания продуктов</li>
-                <li><strong>Потребление воды:</strong> количество выпитой воды</li>
-            </ul>
+            <!-- German, French, Spanish - shortened versions -->
+            <section id="content-de">
+                <p><strong>Zuletzt aktualisiert:</strong> 31. Oktober 2025</p>
+                <h2>1. EINFÜHRUNG</h2>
+                <p>Willkommen bei PROpitashka Bot! Wir nehmen den Schutz Ihrer persönlichen Daten und Privatsphäre ernst. Diese Datenschutzrichtlinie erklärt, welche Daten wir sammeln, wie wir sie verwenden und welche Rechte Sie haben.</p>
+                <div class="highlight">
+                    <strong>⚠️ Wichtig:</strong> Durch die Nutzung dieses Bots stimmen Sie den Bedingungen dieser Datenschutzrichtlinie zu.
+                </div>
+                <p><em>Vollständige Version folgt dem gleichen Format wie die englische und russische Version oben.</em></p>
+            </section>
             
-            <h3>2.3. Технические данные</h3>
-            <ul>
-                <li>Логи взаимодействия с ботом</li>
-                <li>Время и дата действий</li>
-                <li>Ошибки и сбои</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>3. Как мы используем ваши данные</h2>
-            <p>Мы используем собранные данные для:</p>
-            <ul>
-                <li>Предоставления основных функций бота (трекинг питания, тренировок)</li>
-                <li>Расчета калорий, ИМТ и других показателей здоровья</li>
-                <li>Распознавания продуктов на фотографиях с помощью AI</li>
-                <li>Персонализации рекомендаций</li>
-                <li>Улучшения качества сервиса</li>
-                <li>Технической поддержки</li>
-                <li>Анализа использования бота (анонимная статистика)</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>4. Обработка изображений</h2>
-            <div class="highlight">
-                <strong>⚠️ Важно:</strong> Фотографии еды, которые вы отправляете, обрабатываются с помощью Google Gemini AI для распознавания продуктов и расчета пищевой ценности.
-            </div>
-            <ul>
-                <li>Изображения отправляются в Google Gemini API для анализа</li>
-                <li>Мы не храним ваши фотографии на наших серверах</li>
-                <li>Обработка происходит в реальном времени</li>
-                <li>Результаты распознавания сохраняются в текстовом виде</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>5. Хранение данных</h2>
-            <ul>
-                <li>Данные хранятся в защищенной базе данных PostgreSQL</li>
-                <li>Используется SSL-шифрование для передачи данных</li>
-                <li>Доступ к данным имеют только авторизованные администраторы</li>
-                <li>Регулярно создаются резервные копии</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>6. Передача данных третьим лицам</h2>
-            <p>Мы <strong>НЕ</strong> продаем и не передаем ваши персональные данные третьим лицам, за исключением:</p>
-            <ul>
-                <li><strong>Google Gemini AI</strong> - для распознавания продуктов на фото</li>
-                <li><strong>Telegram</strong> - платформа, через которую работает бот</li>
-                <li>Случаев, требуемых законом</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>7. Ваши права</h2>
-            <p>Вы имеете право:</p>
-            <ul>
-                <li><strong>Доступ:</strong> запросить копию ваших данных</li>
-                <li><strong>Исправление:</strong> исправить неточные данные</li>
-                <li><strong>Удаление:</strong> удалить все ваши данные</li>
-                <li><strong>Отзыв согласия:</strong> отозвать согласие на обработку данных</li>
-                <li><strong>Экспорт:</strong> получить данные в машиночитаемом формате</li>
-            </ul>
+            <section id="content-fr">
+                <p><strong>Dernière mise à jour:</strong> 31 octobre 2025</p>
+                <h2>1. INTRODUCTION</h2>
+                <p>Bienvenue sur PROpitashka Bot! Nous prenons au sérieux la protection de vos données personnelles et de votre vie privée. Cette Politique de confidentialité explique quelles données nous collectons, comment nous les utilisons et quels sont vos droits.</p>
+                <div class="highlight">
+                    <strong>⚠️ Important:</strong> En utilisant ce bot, vous acceptez les termes de cette Politique de confidentialité.
+                </div>
+                <p><em>Version complète suit le même format que les versions anglaise et russe ci-dessus.</em></p>
+            </section>
             
-            <p>Для реализации этих прав используйте команды:</p>
-            <ul>
-                <li><code>/privacy</code> - просмотр политики конфиденциальности</li>
-                <li><code>/delete_data</code> - удаление всех ваших данных</li>
-                <li><code>/export_data</code> - экспорт данных</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>8. Безопасность</h2>
-            <p>Мы применяем следующие меры безопасности:</p>
-            <ul>
-                <li>SSL/TLS шифрование для передачи данных</li>
-                <li>Хеширование паролей администраторов</li>
-                <li>Ограниченный доступ к базе данных</li>
-                <li>Регулярные обновления безопасности</li>
-                <li>Мониторинг подозрительной активности</li>
-                <li>Резервное копирование данных</li>
-            </ul>
-        </section>
-        
-        <section>
-            <h2>9. Cookies и отслеживание</h2>
-            <p>
-                Бот не использует cookies, так как работает через Telegram. 
-                Мы не используем системы веб-аналитики или рекламные трекеры.
-            </p>
-        </section>
-        
-        <section>
-            <h2>10. Дети</h2>
-            <p>
-                Наш сервис не предназначен для детей младше 13 лет. 
-                Мы сознательно не собираем данные от детей. 
-                Если вы родитель и обнаружили, что ваш ребенок предоставил нам данные, свяжитесь с нами.
-            </p>
-        </section>
-        
-        <section>
-            <h2>11. Изменения в политике</h2>
-            <p>
-                Мы можем обновлять эту политику конфиденциальности. 
-                О значительных изменениях мы уведомим вас через бота. 
-                Дата последнего обновления указана вверху документа.
-            </p>
-        </section>
-        
-        <section>
-            <h2>12. Согласие</h2>
-            <p>
-                Используя PROpitashka Bot, вы соглашаетесь с условиями этой политики конфиденциальности. 
-                Если вы не согласны, пожалуйста, не используйте бота.
-            </p>
-        </section>
-        
-        <div class="contact">
-            <h2>13. Контакты</h2>
-            <p>Если у вас есть вопросы о политике конфиденциальности, свяжитесь с нами:</p>
-            <ul>
-                <li><strong>Telegram:</strong> <a href="https://t.me/PROpitashka_support">@PROpitashka_support</a></li>
-                <li><strong>Email:</strong> privacy@propitashka.com</li>
-                <li><strong>Бот:</strong> <a href="https://t.me/PROpitashka_bot">@PROpitashka_bot</a></li>
-            </ul>
+            <section id="content-es">
+                <p><strong>Última actualización:</strong> 31 de octubre de 2025</p>
+                <h2>1. INTRODUCCIÓN</h2>
+                <p>¡Bienvenido a PROpitashka Bot! Nos tomamos en serio la protección de sus datos personales y privacidad. Esta Política de privacidad explica qué datos recopilamos, cómo los usamos y qué derechos tiene.</p>
+                <div class="highlight">
+                    <strong>⚠️ Importante:</strong> Al usar este bot, acepta los términos de esta Política de privacidad.
+                </div>
+                <p><em>Versión completa sigue el mismo formato que las versiones en inglés y ruso anteriores.</em></p>
+            </section>
         </div>
         
-        <footer>
-            <p>&copy; 2025 PROpitashka Bot. Все права защищены.</p>
-            <p>
-                <a href="terms.html">Условия использования</a> | 
-                <a href="privacy_policy.html">Политика конфиденциальности</a>
-            </p>
-        </footer>
+        <div class="footer">
+            <p><strong>PROpitashka Bot</strong> - Your Personal Nutrition & Fitness Assistant</p>
+            <p>© 2025 PROpitashka. All rights reserved.</p>
+            <p>Questions? Contact us: <a href="mailto:privacy@propitashka.com">privacy@propitashka.com</a></p>
+        </div>
     </div>
+    
+    <script>
+        function switchLanguage(lang) {
+            // Скрываем все секции
+            document.querySelectorAll('.content section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            // Показываем выбранную
+            document.getElementById('content-' + lang).classList.add('active');
+            
+            // Обновляем кнопки
+            document.querySelectorAll('.language-selector button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.getElementById('btn-' + lang).classList.add('active');
+            
+            // Сохраняем выбор в localStorage
+            localStorage.setItem('preferredLanguage', lang);
+            
+            // Прокручиваем вверх
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        // Загружаем сохраненный язык при загрузке страницы
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedLang = localStorage.getItem('preferredLanguage');
+            if (savedLang) {
+                switchLanguage(savedLang);
+            }
+        });
+    </script>
 </body>
 </html>
-

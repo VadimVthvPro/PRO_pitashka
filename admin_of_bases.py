@@ -97,7 +97,7 @@ class Application:
         self.frame.rowconfigure(3, weight=1)
 
     def submit(self):
-        """Функция для обработки входа пользователя."""
+        """Функция для обработки входа пользователя с проверкой блокировки и логированием."""
         username = self.entry_name.get()
         password = self.entry_pas.get()
 
@@ -111,29 +111,251 @@ class Application:
 
         try:
             cursor = conn.cursor()
-            cursor.execute("SELECT password_hash FROM admin_users WHERE username = %s", (username,))
+            
+            # 1. Проверяем, не заблокирован ли аккаунт
+            cursor.execute("""
+                SELECT locked_until, failed_login_attempts 
+                FROM admin_users 
+                WHERE username = %s
+            """, (username,))
+            lock_info = cursor.fetchone()
+            
+            if lock_info and lock_info[0]:
+                from datetime import datetime
+                locked_until = lock_info[0]
+                if datetime.now() < locked_until:
+                    remaining_minutes = int((locked_until - datetime.now()).total_seconds() / 60)
+                    self.error_label.config(
+                        text=f"🔒 Аккаунт временно заблокирован. Попробуйте через {remaining_minutes} мин.",
+                        foreground="red"
+                    )
+                    self.log_login_attempt(conn, username, False, "Account locked")
+                    return
+            
+            # 2. Проверяем пароль
+            cursor.execute("""
+                SELECT password_hash, password_reset_required, failed_login_attempts 
+                FROM admin_users 
+                WHERE username = %s
+            """, (username,))
             result = cursor.fetchone()
 
             if result:
-                password_hash = result[0]
+                password_hash, reset_required, failed_attempts = result
+                
                 if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
-                    # Пароль верный, обновляем last_login_at
-                    cursor.execute("UPDATE admin_users SET last_login_at = NOW() WHERE username = %s", (username,))
+                    # Пароль верный
+                    
+                    # Сбрасываем счетчик неудачных попыток
+                    cursor.execute("""
+                        UPDATE admin_users 
+                        SET failed_login_attempts = 0,
+                            locked_until = NULL,
+                            last_login_at = NOW()
+                        WHERE username = %s
+                    """, (username,))
                     conn.commit()
-                    self.show_main_window()
+                    
+                    # Логируем успешный вход
+                    self.log_login_attempt(conn, username, True)
+                    
+                    # Проверяем, требуется ли смена пароля
+                    if reset_required:
+                        self.show_password_reset_dialog(username, conn)
+                    else:
+                        self.show_main_window()
                 else:
-                    self.error_label.config(text="Неверное имя пользователя или пароль", foreground="red")
+                    # Неверный пароль
+                    failed_attempts += 1
+                    
+                    # Увеличиваем счетчик неудачных попыток
+                    if failed_attempts >= 5:
+                        # Блокируем на 30 минут
+                        cursor.execute("""
+                            UPDATE admin_users 
+                            SET failed_login_attempts = %s,
+                                locked_until = NOW() + INTERVAL '30 minutes'
+                            WHERE username = %s
+                        """, (failed_attempts, username))
+                        conn.commit()
+                        
+                        self.error_label.config(
+                            text="❌ Слишком много неудачных попыток. Аккаунт заблокирован на 30 минут.",
+                            foreground="red"
+                        )
+                        self.log_login_attempt(conn, username, False, "Too many failed attempts - locked")
+                    else:
+                        cursor.execute("""
+                            UPDATE admin_users 
+                            SET failed_login_attempts = %s
+                            WHERE username = %s
+                        """, (failed_attempts, username))
+                        conn.commit()
+                        
+                        remaining_attempts = 5 - failed_attempts
+                        self.error_label.config(
+                            text=f"❌ Неверное имя пользователя или пароль. Осталось попыток: {remaining_attempts}",
+                            foreground="red"
+                        )
+                        self.log_login_attempt(conn, username, False, "Invalid password")
             else:
-                self.error_label.config(text="Неверное имя пользователя или пароль", foreground="red")
+                self.error_label.config(text="❌ Неверное имя пользователя или пароль", foreground="red")
+                self.log_login_attempt(conn, username, False, "User not found")
 
             cursor.close()
             conn.close()
 
         except Exception as e:
-            self.error_label.config(text=f"Ошибка аутентификации: {e}", foreground="red")
+            self.error_label.config(text=f"❌ Ошибка аутентификации: {e}", foreground="red")
             print(f"Ошибка: {str(e)}")
             if conn:
                 conn.close()
+    
+    def log_login_attempt(self, conn, username, success, failure_reason=None):
+        """
+        Логирует попытку входа в систему.
+        
+        Args:
+            conn: Соединение с БД
+            username: Имя пользователя
+            success: Успешность попытки (True/False)
+            failure_reason: Причина неудачи (если success=False)
+        """
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO admin_login_log (admin_username, success, failure_reason)
+                VALUES (%s, %s, %s)
+            """, (username, success, failure_reason))
+            conn.commit()
+            cursor.close()
+        except Exception as e:
+            print(f"⚠️  Ошибка логирования попытки входа: {e}")
+    
+    def show_password_reset_dialog(self, username, conn):
+        """
+        Показывает диалог принудительной смены пароля.
+        
+        Args:
+            username: Имя пользователя
+            conn: Соединение с БД (передается для обновления)
+        """
+        reset_window = tk.Toplevel(self.root)
+        reset_window.title("⚠️ Требуется смена пароля")
+        center_window(reset_window, 600, 450)
+        reset_window.transient(self.root)
+        reset_window.grab_set()  # Модальное окно
+        
+        # Предупреждение
+        warning_frame = ttk.Frame(reset_window, padding="20")
+        warning_frame.pack(fill="both", expand=True)
+        
+        warning_label = ttk.Label(
+            warning_frame,
+            text="⚠️ ТРЕБУЕТСЯ СМЕНА ПАРОЛЯ\n\n"
+                 "Вы используете дефолтный или небезопасный пароль.\n"
+                 "Пожалуйста, установите новый надежный пароль.\n\n"
+                 "Требования:\n"
+                 "• Минимум 12 символов\n"
+                 "• Заглавные и строчные буквы\n"
+                 "• Цифры и специальные символы",
+            font=("Arial", 11),
+            justify="left"
+        )
+        warning_label.pack(pady=10)
+        
+        # Поля ввода
+        fields_frame = ttk.Frame(warning_frame)
+        fields_frame.pack(fill="x", pady=10)
+        
+        ttk.Label(fields_frame, text="Новый пароль:").grid(row=0, column=0, sticky="w", pady=5)
+        new_password_entry = ttk.Entry(fields_frame, show="*", width=30)
+        new_password_entry.grid(row=0, column=1, pady=5, padx=5)
+        
+        ttk.Label(fields_frame, text="Подтверждение:").grid(row=1, column=0, sticky="w", pady=5)
+        confirm_password_entry = ttk.Entry(fields_frame, show="*", width=30)
+        confirm_password_entry.grid(row=1, column=1, pady=5, padx=5)
+        
+        error_label = ttk.Label(fields_frame, text="", foreground="red", wraplength=500)
+        error_label.grid(row=2, column=0, columnspan=2, pady=5)
+        
+        def validate_and_change_password():
+            """Валидация и смена пароля."""
+            new_password = new_password_entry.get()
+            confirm_password = confirm_password_entry.get()
+            
+            # Проверка совпадения
+            if new_password != confirm_password:
+                error_label.config(text="❌ Пароли не совпадают!")
+                return
+            
+            # Валидация надежности
+            import re
+            
+            if len(new_password) < 12:
+                error_label.config(text="❌ Пароль должен содержать минимум 12 символов")
+                return
+            
+            if not re.search(r'[A-Z]', new_password):
+                error_label.config(text="❌ Пароль должен содержать заглавную букву")
+                return
+            
+            if not re.search(r'[a-z]', new_password):
+                error_label.config(text="❌ Пароль должен содержать строчную букву")
+                return
+            
+            if not re.search(r'\d', new_password):
+                error_label.config(text="❌ Пароль должен содержать цифру")
+                return
+            
+            if not re.search(r'[!@#$%^&*(),.?":{}|<>]', new_password):
+                error_label.config(text="❌ Пароль должен содержать спецсимвол")
+                return
+            
+            # Хешируем новый пароль
+            salt = bcrypt.gensalt(rounds=12)
+            hashed = bcrypt.hashpw(new_password.encode('utf-8'), salt).decode('utf-8')
+            
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE admin_users 
+                    SET password_hash = %s,
+                        password_changed_at = NOW(),
+                        password_reset_required = FALSE
+                    WHERE username = %s
+                """, (hashed, username))
+                conn.commit()
+                cursor.close()
+                
+                messagebox.showinfo(
+                    "✅ Успех",
+                    "Пароль успешно изменен!\n\nТеперь вы можете использовать админ-панель."
+                )
+                
+                reset_window.destroy()
+                self.show_main_window()
+                
+            except Exception as e:
+                error_label.config(text=f"❌ Ошибка: {e}")
+        
+        # Кнопки
+        button_frame = ttk.Frame(warning_frame)
+        button_frame.pack(pady=10)
+        
+        change_button = ttk.Button(
+            button_frame,
+            text="Изменить пароль",
+            command=validate_and_change_password
+        )
+        change_button.pack(side="left", padx=5)
+        
+        cancel_button = ttk.Button(
+            button_frame,
+            text="Отмена",
+            command=lambda: [reset_window.destroy(), self.root.destroy()]
+        )
+        cancel_button.pack(side="left", padx=5)
 
     def show_main_window(self):
         """Функция для отображения главного окна с вкладками."""
