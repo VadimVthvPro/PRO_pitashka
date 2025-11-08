@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -266,6 +265,55 @@ msgstr "🏆 You're a champion! Keep going!"
 
 msgid "workout_motivation_5"
 msgstr "💯 Incredible results! Be proud of yourself!"
+
+# Workout Summary
+msgid "workout_summary_day_title"
+msgstr "🏋️ Today's Workouts:"
+
+msgid "workout_summary_day_empty"
+msgstr "No workouts today."
+
+msgid "workout_summary_day_item"
+msgstr "• {} — {} min, {} kcal"
+
+msgid "workout_summary_day_total"
+msgstr "📊 Today's Total:\\n⏱ Duration: {} min\\n🔥 Calories: {} kcal"
+msgid "workout_summary_week_title"
+msgstr "🏋️ This Week's Workouts:"
+
+msgid "workout_summary_week_empty"
+msgstr "No workouts this week."
+
+msgid "workout_summary_week_total"
+msgstr "📊 Week's Total:\\n🔢 Workouts: {}\\n⏱ Avg duration: {} min\\n🔥 Avg calories: {} kcal/day"
+msgid "workout_summary_month_title"
+msgstr "🏋️ Top 5 Workouts This Month:"
+
+msgid "workout_summary_month_empty"
+msgstr "No workouts this month."
+
+msgid "workout_summary_month_item"
+msgstr "{}. {} — {} time(s), {} min avg"
+
+msgid "workout_summary_month_total"
+msgstr "📊 Month's Total:\\n🔢 Total workouts: {}\\n⏱ Avg duration: {} min\\n🔥 Avg calories: {} kcal/day"
+msgid "workout_summary_year_title"
+msgstr "🏋️ Top 5 Workouts This Year:"
+
+msgid "workout_summary_year_empty"
+msgstr "No workouts this year."
+
+msgid "workout_summary_year_item"
+msgstr "{}. {} — {} time(s), {} min avg"
+
+msgid "workout_summary_year_total"
+msgstr "📊 Year's Total:\\n🔢 Total workouts: {}\\n⏱ Avg duration: {} min\\n🔥 Avg calories: {} kcal/day"
+msgid "workout_summary_avg_duration"
+msgstr "⏱ Average workout duration: {} min"
+
+msgid "workout_summary_total_calories"
+msgstr "🔥 Total calories burned: {} kcal"
+
 
 
 msgid "trenMIN"

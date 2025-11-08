@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -290,6 +289,59 @@ msgstr "🏆 Ты - чемпион! Так держать!"
 
 msgid "workout_motivation_5"
 msgstr "💯 Невероятный результат! Гордись собой!"
+
+# Сводка тренировок
+msgid "workout_summary_day_title"
+msgstr "🏋️ Тренировки за сегодня:"
+
+msgid "workout_summary_day_empty"
+msgstr "Сегодня тренировок не было."
+
+msgid "workout_summary_day_item"
+msgstr "• {} — {} мин, {} ккал"
+
+msgid "workout_summary_day_total"
+msgstr "\\n📊 Итого за день:\\n⏱ Время: {} мин\\n🔥 Калории: {} ккал"
+
+msgid "workout_summary_week_title"
+msgstr "🏋️ Тренировки за неделю:"
+
+msgid "workout_summary_week_empty"
+msgstr "На этой неделе тренировок не было."
+
+msgid "workout_summary_week_total"
+msgstr "\\n📊 Итого за неделю:\\n🔢 Тренировок: {}\\n⏱ Среднее время: {} мин\\n🔥 Средние калории: {} ккал/день"
+
+msgid "workout_summary_month_title"
+msgstr "🏋️ Топ-5 тренировок за месяц:"
+
+msgid "workout_summary_month_empty"
+msgstr "В этом месяце тренировок не было."
+
+msgid "workout_summary_month_item"
+msgstr "{}. {} — {} раз(а), {} мин в среднем"
+
+msgid "workout_summary_month_total"
+msgstr "\\n📊 Итого за месяц:\\n🔢 Всего тренировок: {}\\n⏱ Среднее время: {} мин\\n🔥 Средние калории: {} ккал/день"
+
+msgid "workout_summary_year_title"
+msgstr "🏋️ Топ-5 тренировок за год:"
+
+msgid "workout_summary_year_empty"
+msgstr "В этом году тренировок не было."
+
+msgid "workout_summary_year_item"
+msgstr "{}. {} — {} раз(а), {} мин в среднем"
+
+msgid "workout_summary_year_total"
+msgstr "\\n📊 Итого за год:\\n🔢 Всего тренировок: {}\\n⏱ Среднее время: {} мин\\n🔥 Средние калории: {} ккал/день"
+
+msgid "workout_summary_avg_duration"
+msgstr "⏱ Средняя длительность тренировки: {} мин"
+
+msgid "workout_summary_total_calories"
+msgstr "🔥 Всего сожжено калорий: {} ккал"
+
 
 
 

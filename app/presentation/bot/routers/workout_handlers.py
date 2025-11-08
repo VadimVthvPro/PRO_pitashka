@@ -269,13 +269,14 @@ async def handle_workout_selection(
     cancel_keyboard = keyboard_gen.create_duration_cancel_keyboard()
     
     # Отправляем запрос длительности
-    duration_text = l.printer(user_id, 'trenMIN')
-    
     emoji = training.get('emoji', '')
     workout_display_name = f"{emoji} {training['name']}" if emoji else training['name']
     
+    # Подставляем название тренировки в шаблон
+    duration_text = l.printer(user_id, 'trenMIN').format(workout_display_name)
+    
     await callback.message.edit_text(
-        f"✅ {workout_display_name}\n\n{duration_text}",
+        duration_text,
         reply_markup=cancel_keyboard
     )
     

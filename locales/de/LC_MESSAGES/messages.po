@@ -3,7 +3,6 @@
 # This file is distributed under the same license as the PACKAGE package.
 # FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
-#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
@@ -318,6 +317,55 @@ msgstr "Hilfe bei der Ausbildung"
 
 msgid "kbmain6"
 msgstr "Änderung der Sprache"
+
+# Trainingsübersicht
+msgid "workout_summary_day_title"
+msgstr "🏋️ Heutige Trainings:"
+
+msgid "workout_summary_day_empty"
+msgstr "Heute keine Trainings."
+
+msgid "workout_summary_day_item"
+msgstr "• {} — {} Min, {} kcal"
+
+msgid "workout_summary_day_total"
+msgstr "📊 Heute insgesamt:\\n⏱ Dauer: {} Min\\n🔥 Kalorien: {} kcal"
+msgid "workout_summary_week_title"
+msgstr "🏋️ Trainings dieser Woche:"
+
+msgid "workout_summary_week_empty"
+msgstr "Diese Woche keine Trainings."
+
+msgid "workout_summary_week_total"
+msgstr "📊 Woche insgesamt:\\n🔢 Trainings: {}\\n⏱ Durchschn. Dauer: {} Min\\n🔥 Durchschn. Kalorien: {} kcal/Tag"
+msgid "workout_summary_month_title"
+msgstr "🏋️ Top 5 Trainings dieses Monats:"
+
+msgid "workout_summary_month_empty"
+msgstr "Diesen Monat keine Trainings."
+
+msgid "workout_summary_month_item"
+msgstr "{}. {} — {} Mal, {} Min durchschn."
+
+msgid "workout_summary_month_total"
+msgstr "📊 Monat insgesamt:\\n🔢 Trainings gesamt: {}\\n⏱ Durchschn. Dauer: {} Min\\n🔥 Durchschn. Kalorien: {} kcal/Tag"
+msgid "workout_summary_year_title"
+msgstr "🏋️ Top 5 Trainings dieses Jahres:"
+
+msgid "workout_summary_year_empty"
+msgstr "Dieses Jahr keine Trainings."
+
+msgid "workout_summary_year_item"
+msgstr "{}. {} — {} Mal, {} Min durchschn."
+
+msgid "workout_summary_year_total"
+msgstr "📊 Jahr insgesamt:\\n🔢 Trainings gesamt: {}\\n⏱ Durchschn. Dauer: {} Min\\n🔥 Durchschn. Kalorien: {} kcal/Tag"
+msgid "workout_summary_avg_duration"
+msgstr "⏱ Durchschnittliche Trainingsdauer: {} Min"
+
+msgid "workout_summary_total_calories"
+msgstr "🔥 Verbrannte Kalorien gesamt: {} kcal"
+
 
 
 msgid "kbmain7"
