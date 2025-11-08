@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, Spinbox
+from tkinter import ttk, messagebox, Spinbox, Frame, Canvas
 import psycopg2
 from datetime import datetime
 import sys
@@ -21,43 +21,187 @@ def center_window(window, width, height):
 def get_db_connection():
     """Функция для подключения к базе данных (с правами администратора)."""
     try:
+        # Используем конфигурацию из .env файла
+        # Сначала пробуем admin credentials, если не заданы - используем обычные
         db_config = config.get_db_config(admin=True)
+        
+        # Если ADMIN_DB_PASSWORD пустой, используем обычные credentials
+        if not db_config.get('password'):
+            db_config = config.get_db_config(admin=False)
+        
         conn = psycopg2.connect(**db_config)
         return conn
     except psycopg2.Error as e:
         messagebox.showerror("Ошибка подключения", f"Не удалось подключиться к базе данных: {e}")
         return None
 
+class ScrollableNotebook(ttk.Frame):
+    """Виджет Notebook с прокручиваемыми вкладками"""
+    def __init__(self, parent, *args, **kwargs):
+        ttk.Frame.__init__(self, parent, *args, **kwargs)
+        
+        # Создаем canvas для прокрутки вкладок
+        self.canvas = Canvas(self, height=30, highlightthickness=0)
+        self.canvas.pack(side="top", fill="x", expand=False)
+        
+        # Фрейм для кнопок вкладок
+        self.tab_frame = ttk.Frame(self.canvas)
+        self.canvas_frame = self.canvas.create_window((0, 0), window=self.tab_frame, anchor="nw")
+        
+        # Горизонтальная прокрутка
+        self.h_scroll = ttk.Scrollbar(self, orient="horizontal", command=self.canvas.xview)
+        self.h_scroll.pack(side="top", fill="x")
+        self.canvas.configure(xscrollcommand=self.h_scroll.set)
+        
+        # Контейнер для содержимого вкладок
+        self.content_frame = ttk.Frame(self)
+        self.content_frame.pack(side="top", fill="both", expand=True)
+        
+        self.tabs = []
+        self.tab_buttons = []
+        self.current_tab = None
+        
+        # Обновление области прокрутки
+        self.tab_frame.bind("<Configure>", self._on_frame_configure)
+        
+    def _on_frame_configure(self, event=None):
+        """Обновление области прокрутки canvas"""
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        
+    def add(self, child, text=""):
+        """Добавить вкладку"""
+        # Создаем кнопку для вкладки
+        btn = ttk.Button(
+            self.tab_frame, 
+            text=text, 
+            command=lambda idx=len(self.tabs): self.select_tab(idx),
+            style="Tab.TButton"
+        )
+        btn.pack(side="left", padx=2, pady=2)
+        
+        self.tab_buttons.append(btn)
+        self.tabs.append((child, text))
+        
+        # Прячем child в content_frame
+        child.place(in_=self.content_frame, x=0, y=0, relwidth=1, relheight=1)
+        child.lower()
+        
+        # Если это первая вкладка, выбираем её
+        if len(self.tabs) == 1:
+            self.select_tab(0)
+            
+    def select_tab(self, index):
+        """Выбрать вкладку по индексу"""
+        if 0 <= index < len(self.tabs):
+            # Снимаем выделение со всех кнопок
+            for btn in self.tab_buttons:
+                btn.state(["!pressed", "!active"])
+            
+            # Выделяем текущую кнопку
+            self.tab_buttons[index].state(["pressed"])
+            
+            # Скрываем все вкладки
+            for tab, _ in self.tabs:
+                tab.lower()
+            
+            # Показываем выбранную вкладку
+            self.tabs[index][0].lift()
+            self.current_tab = index
+
 class Application:
     def __init__(self, root):
         self.root = root
+        
+        # Расширенный маппинг колонок на русский язык
         self.column_mapping = {
-            "user_id": "Id пользователя",
+            # user_main
+            "user_id": "ID пользователя",
             "user_name": "Имя пользователя",
             "user_sex": "Пол",
             "date_of_birth": "Возраст",
-            "food_id": "Номер записи",
+            
+            # food
+            "food_id": "ID записи",  # Для обратной совместимости
+            "id": "ID",
             "name_of_food": "Название блюда",
-            "b": "Белки",
-            "g": "Жиры",
-            "u": "Углеводы",
+            "b": "Белки (г)",
+            "g": "Жиры (г)",
+            "u": "Углеводы (г)",
             "cal": "Калорийность",
             "date": "Дата",
-            "aim_id": "Номер записи",
+            
+            # user_aims (без aim_id, т.к. user_id - первичный ключ)
+            "aim_id": "ID цели",  # Для обратной совместимости
             "user_aim": "Цель пользователя",
-            "daily_cal": "Дневное количество калорий",
-            "health_id": "Номер записи",
+            "daily_cal": "Дневная норма (ккал)",
+            
+            # user_health
+            "health_id": "ID записи",  # Для обратной совместимости
             "imt": "ИМТ",
             "imt_str": "Расшифровка ИМТ",
-            "weight": "Вес",
-            "height": "Рост",
-            "lang": "Язык пользователя",
-            "training_id": "Номер записи",
-            "training_cal": "Сожжённые калории",
-            "tren_time": "Продолжительность тренировки",
-            "count": "Количество воды",
-            "data": "Дата"
+            "weight": "Вес (кг)",
+            "height": "Рост (см)",
+            
+            # user_lang
+            "lang": "Язык",
+            
+            # user_training
+            "training_id": "ID тренировки",  # Для обратной совместимости
+            "training_cal": "Сожжено калорий",
+            "tren_time": "Длительность (мин)",
+            "training_type_id": "ID типа тренировки",
+            "training_name": "Название тренировки",
+            "updated_at": "Дата обновления",
+            
+            # water
+            "count": "Количество (стаканов)",
+            "data": "Дата",
+            
+            # training_types
+            "id": "ID",
+            "name_ru": "Название (RU)",
+            "name_en": "Название (EN)",
+            "name_de": "Название (DE)",
+            "name_fr": "Название (FR)",
+            "name_es": "Название (ES)",
+            "base_coefficient": "Базовый коэффициент",
+            "emoji": "Эмодзи",
+            "description_ru": "Описание (RU)",
+            "description_en": "Описание (EN)",
+            "description_de": "Описание (DE)",
+            "description_fr": "Описание (FR)",
+            "description_es": "Описание (ES)",
+            "is_active": "Активен",
+            "created_at": "Дата создания",
+            
+            # training_coefficients
+            "gender_male_modifier": "Модификатор (мужской)",
+            "gender_female_modifier": "Модификатор (женский)",
+            "age_18_25_modifier": "Модификатор (18-25 лет)",
+            "age_26_35_modifier": "Модификатор (26-35 лет)",
+            "age_36_45_modifier": "Модификатор (36-45 лет)",
+            "age_46_55_modifier": "Модификатор (46-55 лет)",
+            "age_56_plus_modifier": "Модификатор (56+ лет)",
+            "weight_under_60_modifier": "Модификатор (вес <60)",
+            "weight_60_70_modifier": "Модификатор (вес 60-70)",
+            "weight_71_80_modifier": "Модификатор (вес 71-80)",
+            "weight_81_90_modifier": "Модификатор (вес 81-90)",
+            "weight_91_100_modifier": "Модификатор (вес 91-100)",
+            "weight_over_100_modifier": "Модификатор (вес >100)",
+            "height_under_160_modifier": "Модификатор (рост <160)",
+            "height_160_175_modifier": "Модификатор (рост 160-175)",
+            "height_over_175_modifier": "Модификатор (рост >175)",
+            
+            # chat_history
+            "message_type": "Тип сообщения",
+            "message_text": "Текст сообщения",
+            
+            # admin_users
+            "username": "Имя пользователя",
+            "password_hash": "Хеш пароля",
+            "last_login": "Последний вход"
         }
+        
         self.initialize_ui()
 
     def initialize_ui(self):
@@ -81,7 +225,7 @@ class Application:
         self.button_frame = ttk.Frame(self.frame)
         self.button_frame.grid(row=2, column=0, columnspan=2, sticky="e", padx=5, pady=5)
 
-        self.button = ttk.Button(self.button_frame, text="Ок", command=self.submit, width=10)
+        self.button = ttk.Button(self.button_frame, text="Войти", command=self.submit, width=10)
         self.button.pack(side="left", padx=5)
 
         self.cancel_button = ttk.Button(self.button_frame, text="Отмена", command=self.close_window, width=10)
@@ -117,8 +261,8 @@ class Application:
             if result:
                 password_hash = result[0]
                 if bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8')):
-                    # Пароль верный, обновляем last_login_at
-                    cursor.execute("UPDATE admin_users SET last_login_at = NOW() WHERE username = %s", (username,))
+                    # Пароль верный, обновляем last_login
+                    cursor.execute("UPDATE admin_users SET last_login = NOW() WHERE username = %s", (username,))
                     conn.commit()
                     self.show_main_window()
                 else:
@@ -138,34 +282,78 @@ class Application:
     def show_main_window(self):
         """Функция для отображения главного окна с вкладками."""
         self.frame.pack_forget()
-        self.notebook = ttk.Notebook(self.root)
+        
+        # Используем ScrollableNotebook вместо обычного Notebook
+        self.notebook = ScrollableNotebook(self.root)
         self.notebook.pack(fill="both", expand=True)
 
-        window_width = 1200
-        window_height = 800
+        window_width = 1400
+        window_height = 900
         center_window(self.root, window_width, window_height)
-        self.root.title("PROпиташка")
-        self.root.minsize(800, 600)
+        self.root.title("PROпиташка - Администрирование базы данных")
+        self.root.minsize(1000, 700)
 
         self.create_tabs()
 
     def create_tabs(self):
-        """Функция для создания вкладок."""
+        """Функция для создания вкладок со всеми таблицами."""
         tabs = [
-            ("Главная", ["user_id", "user_name", "user_sex", "date_of_birth"],
-             "SELECT user_id, user_name, user_sex, date_of_birth FROM user_main", "user_main"),
-            ("Еда", ["food_id", "user_id", "name_of_food", "b", "g", "u", "cal", "date"],
-             "SELECT food_id, user_id, name_of_food, b, g, u, cal, date FROM food", "food"),
-            ("Цели", ["aim_id", "user_id", "user_aim", "daily_cal"],
-             "SELECT aim_id, user_id, user_aim, daily_cal FROM user_aims", "user_aims"),
-            ("Здоровье", ["health_id", "user_id", "imt", "imt_str", "cal", "date", "weight", "height"],
-             "SELECT health_id, user_id, imt, imt_str, cal, date, weight, height FROM user_health", "user_health"),
-            ("Язык", ["user_id", "lang"],
-             "SELECT user_id, lang FROM user_lang", "user_lang"),
-            ("Тренировки", ["training_id", "user_id", "date", "training_cal", "tren_time"],
-             "SELECT training_id, user_id, date, training_cal, tren_time FROM user_training", "user_training"),
-            ("Вода", ["user_id", "data", "count"],
-             "SELECT user_id, data, count FROM water", "water")
+            # Основные таблицы
+            ("👤 Пользователи", 
+             ["user_id", "user_name", "user_sex", "date_of_birth"],
+             "SELECT user_id, user_name, user_sex, date_of_birth FROM user_main ORDER BY user_id", 
+             "user_main"),
+            
+            ("🍽️ Питание", 
+             ["id", "user_id", "name_of_food", "b", "g", "u", "cal", "date"],
+             "SELECT id, user_id, name_of_food, b, g, u, cal, date FROM food ORDER BY date DESC, id DESC", 
+             "food"),
+            
+            ("🎯 Цели", 
+             ["user_id", "user_aim", "daily_cal"],
+             "SELECT user_id, user_aim, daily_cal FROM user_aims ORDER BY user_id", 
+             "user_aims"),
+            
+            ("💪 Здоровье", 
+             ["id", "user_id", "imt", "imt_str", "cal", "date", "weight", "height"],
+             "SELECT id, user_id, imt, imt_str, cal, date, weight, height FROM user_health ORDER BY date DESC", 
+             "user_health"),
+            
+            ("🌐 Языки", 
+             ["user_id", "lang"],
+             "SELECT user_id, lang FROM user_lang ORDER BY user_id", 
+             "user_lang"),
+            
+            ("🏃 Тренировки", 
+             ["id", "user_id", "date", "training_cal", "tren_time", "training_type_id", "training_name"],
+             "SELECT id, user_id, date, training_cal, tren_time, training_type_id, training_name FROM user_training ORDER BY date DESC", 
+             "user_training"),
+            
+            ("💧 Вода", 
+             ["user_id", "data", "count"],
+             "SELECT user_id, data, count FROM water ORDER BY data DESC", 
+             "water"),
+            
+            # Новые таблицы системы тренировок
+            ("🏋️ Типы тренировок", 
+             ["id", "name_ru", "name_en", "name_de", "name_fr", "name_es", "base_coefficient", "emoji", "is_active"],
+             "SELECT id, name_ru, name_en, name_de, name_fr, name_es, base_coefficient, emoji, is_active FROM training_types ORDER BY id", 
+             "training_types"),
+            
+            ("📊 Коэффициенты", 
+             ["id", "training_type_id", "gender_male_modifier", "gender_female_modifier", "age_18_25_modifier", "age_26_35_modifier"],
+             "SELECT id, training_type_id, gender_male_modifier, gender_female_modifier, age_18_25_modifier, age_26_35_modifier FROM training_coefficients ORDER BY id", 
+             "training_coefficients"),
+            
+            ("💬 История чата", 
+             ["id", "user_id", "message_type", "message_text", "created_at"],
+             "SELECT id, user_id, message_type, LEFT(message_text, 100), created_at FROM chat_history ORDER BY created_at DESC LIMIT 1000", 
+             "chat_history"),
+            
+            ("👨‍💼 Администраторы", 
+             ["id", "username", "last_login", "created_at"],
+             "SELECT id, username, last_login, created_at FROM admin_users ORDER BY id", 
+             "admin_users")
         ]
 
         for tab_name, columns, query, table_name in tabs:
@@ -178,12 +366,19 @@ class Application:
         container = ttk.Frame(tab)
         container.grid(row=2, column=0, sticky="nsew")
 
+        # Маппинг колонок для отображения
+        display_columns = [self.column_mapping.get(col, col) for col in columns]
+        
         tree = ttk.Treeview(container, columns=columns, show="headings")
         style = ttk.Style()
-        style.configure("Treeview.Heading", font=("Arial", 12, "bold"))
+        style.configure("Treeview.Heading", font=("Arial", 11, "bold"), padding=5)
+        style.configure("Treeview", font=("Arial", 10), rowheight=25)
 
-        for col in columns:
-            tree.heading(col, text=self.column_mapping[col], command=lambda c=col: self.sort_treeview(tree, c, False))
+        for i, col in enumerate(columns):
+            tree.heading(col, text=display_columns[i], 
+                        command=lambda c=col: self.sort_treeview(tree, c, False))
+            # Настройка ширины колонок
+            tree.column(col, width=150, minwidth=100)
 
         h_scroll = ttk.Scrollbar(container, orient="horizontal", command=tree.xview)
         tree.configure(xscrollcommand=h_scroll.set)
@@ -222,12 +417,12 @@ class Application:
         load_data()
 
         filter_frame = ttk.Frame(tab)
-        filter_frame.grid(row=0, column=0, sticky="ew", pady=5)
+        filter_frame.grid(row=0, column=0, sticky="ew", pady=5, padx=5)
 
-        filter_label = ttk.Label(filter_frame, text="Фильтр:")
+        filter_label = ttk.Label(filter_frame, text="🔍 Фильтр:")
         filter_label.pack(side="left", padx=5)
 
-        filter_entry = ttk.Entry(filter_frame)
+        filter_entry = ttk.Entry(filter_frame, width=40)
         filter_entry.pack(side="left", padx=5, fill="x", expand=True)
 
         def apply_filter():
@@ -254,24 +449,54 @@ class Application:
         filter_button = ttk.Button(filter_frame, text="Искать", command=apply_filter)
         filter_button.pack(side="left", padx=5)
 
-        button_frame = ttk.Frame(tab)
-        button_frame.grid(row=1, column=0, sticky="ew", pady=5)
+        clear_filter_button = ttk.Button(filter_frame, text="Сбросить", command=load_data)
+        clear_filter_button.pack(side="left", padx=5)
 
-        refresh_button = ttk.Button(button_frame, text="Обновить", command=load_data)
+        button_frame = ttk.Frame(tab)
+        button_frame.grid(row=1, column=0, sticky="ew", pady=5, padx=5)
+
+        refresh_button = ttk.Button(button_frame, text="🔄 Обновить", command=load_data)
         refresh_button.pack(side="left", padx=5)
 
-        add_button = ttk.Button(button_frame, text="Добавить запись", command=lambda: self.add_record(tree, columns, table_name, load_data))
-        add_button.pack(side="left", padx=5)
+        # Ограничение добавления для некоторых таблиц
+        if table_name not in ["training_coefficients", "admin_users"]:
+            add_button = ttk.Button(button_frame, text="➕ Добавить запись", 
+                                   command=lambda: self.add_record(tree, columns, table_name, load_data))
+            add_button.pack(side="left", padx=5)
 
-        delete_button = ttk.Button(button_frame, text="Удалить строку", command=lambda: self.delete_record(tree, table_name, load_data))
+        delete_button = ttk.Button(button_frame, text="🗑️ Удалить строку", 
+                                   command=lambda: self.delete_record(tree, table_name, load_data))
         delete_button.pack(side="left", padx=5)
 
-        tree.bind("<Double-1>", lambda event: self.edit_cell(event, tree, columns, table_name, load_data))
+        # Счётчик записей
+        count_label = ttk.Label(button_frame, text=f"Всего записей: {len(tree.get_children())}", 
+                               font=("Arial", 10, "italic"))
+        count_label.pack(side="right", padx=10)
+
+        # Обновление счётчика при загрузке
+        def load_data_with_count():
+            load_data()
+            count_label.config(text=f"Всего записей: {len(tree.get_children())}")
+
+        # Заменяем load_data на load_data_with_count
+        refresh_button.config(command=load_data_with_count)
+        if table_name not in ["training_coefficients", "admin_users"]:
+            add_button.config(command=lambda: self.add_record(tree, columns, table_name, load_data_with_count))
+        delete_button.config(command=lambda: self.delete_record(tree, table_name, load_data_with_count))
+        clear_filter_button.config(command=load_data_with_count)
+
+        tree.bind("<Double-1>", lambda event: self.edit_cell(event, tree, columns, table_name, load_data_with_count))
 
     def sort_treeview(self, tree, col, reverse):
         """Сортировка данных в Treeview по выбранному столбцу."""
         data = [(tree.set(item, col), item) for item in tree.get_children("")]
-        data.sort(reverse=reverse)
+        
+        # Попытка числовой сортировки
+        try:
+            data.sort(key=lambda x: float(x[0]) if x[0] else 0, reverse=reverse)
+        except ValueError:
+            # Если не получается преобразовать в число, сортируем как строки
+            data.sort(reverse=reverse)
 
         for index, (val, item) in enumerate(data):
             tree.move(item, "", index)
@@ -279,13 +504,14 @@ class Application:
         tree.heading(col, command=lambda: self.sort_treeview(tree, col, not reverse))
 
     def delete_record(self, tree, table_name, load_data):
-        """Функция для удаления выбранных строк."""
+        """Функция для удаления выбранных строк с каскадным удалением."""
         selected_items = tree.selection()
         if not selected_items:
             messagebox.showwarning("Предупреждение", "Выберите строки для удаления.")
             return
 
-        confirm = messagebox.askyesno("Подтверждение", "Вы уверены, что хотите удалить выбранные строки?")
+        confirm = messagebox.askyesno("Подтверждение", 
+                                     f"Вы уверены, что хотите удалить {len(selected_items)} строк(и)?")
         if not confirm:
             return
 
@@ -298,10 +524,26 @@ class Application:
                     values = tree.item(item, "values")
                     primary_key_value = values[0]
 
+                    # Каскадное удаление для user_main
                     if table_name == "user_main":
                         self.delete_related_records(cursor, primary_key_value)
 
-                    primary_key_column = "user_id" if table_name == "user_main" or table_name == "user_lang" or table_name == "user_aims" else f"{table_name.split('_')[-1]}_id"
+                    # Определение имени первичного ключа
+                    if table_name == "user_main":
+                        primary_key_column = "user_id"
+                    elif table_name == "user_lang":
+                        primary_key_column = "user_id"
+                    elif table_name == "user_aims":
+                        primary_key_column = "user_id"
+                    elif table_name == "water":
+                        # water не имеет первичного ключа, используем комбинацию
+                        primary_key_column = "user_id"
+                    elif table_name in ["food", "user_health", "user_training", "training_types", "training_coefficients", "chat_history", "admin_users"]:
+                        # Эти таблицы используют 'id' как первичный ключ
+                        primary_key_column = "id"
+                    else:
+                        primary_key_column = "id"
+                    
                     cursor.execute(f"DELETE FROM {table_name} WHERE {primary_key_column} = %s", (primary_key_value,))
 
                 conn.commit()
@@ -309,120 +551,234 @@ class Application:
                 conn.close()
 
                 load_data()
-                messagebox.showinfo("Успех", "Строки успешно удалены.")
+                messagebox.showinfo("Успех", f"Удалено {len(selected_items)} строк(и).")
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось удалить строки: {e}")
+            if conn:
+                conn.rollback()
 
     def delete_related_records(self, cursor, user_id):
-        """Функция для удаления связанных записей из всех таблиц по user_id."""
-        related_tables = ["food", "user_aims", "user_health", "user_lang", "user_training", "water"]
+        """Функция для каскадного удаления связанных записей из всех таблиц по user_id."""
+        related_tables = [
+            "chat_history",      # История чата
+            "food",              # Питание
+            "user_aims",         # Цели
+            "user_health",       # Здоровье
+            "user_lang",         # Язык
+            "user_training",     # Тренировки
+            "water"              # Вода
+        ]
+        
         for table in related_tables:
-            cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+            try:
+                cursor.execute(f"DELETE FROM {table} WHERE user_id = %s", (user_id,))
+            except Exception as e:
+                print(f"Ошибка удаления из {table}: {e}")
 
     def add_record(self, tree, columns, table_name, load_data):
         """Функция для добавления новой записи."""
         add_window = tk.Toplevel()
-        add_window.title("Добавить запись")
-        window_width = 600
-        window_height = len(columns) * 50 + 150
+        add_window.title(f"Добавить запись в таблицу '{table_name}'")
+        window_width = 700
+        window_height = min(len(columns) * 60 + 150, 800)
         center_window(add_window, window_width, window_height)
         add_window.minsize(600, 300)
+
+        # Создаем canvas с прокруткой для большого количества полей
+        canvas = Canvas(add_window)
+        scrollbar = ttk.Scrollbar(add_window, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
 
         entries = []
         user_names = []
         user_ids = []
+        training_type_names = []
+        training_type_ids = []
 
         for i, col in enumerate(columns):
             label_text = self.column_mapping.get(col, col)
-            label = ttk.Label(add_window, text=label_text)
-            label.grid(row=i, column=0, padx=5, pady=5, sticky="e")
+            label = ttk.Label(scrollable_frame, text=label_text + ":")
+            label.grid(row=i, column=0, padx=10, pady=8, sticky="e")
 
+            # Специальные поля для различных таблиц
             if col == "count" and table_name == "water":
-                entry = Spinbox(add_window, from_=0, to=99999999999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "training_id" and table_name == "user_training":
-                entry = Spinbox(add_window, from_=1, to=99999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "tren_time" and table_name == "user_training":
-                entry = Spinbox(add_window, from_=1, to=99999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
+                entry = Spinbox(scrollable_frame, from_=0, to=99, increment=1, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col in ["id", "tren_time"] and table_name == "user_training":
+                entry = Spinbox(scrollable_frame, from_=1, to=99999, increment=1, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
             elif col == "training_cal" and table_name == "user_training":
-                entry = Spinbox(add_window, from_=1.0, to=9999999999999.0, increment=0.1, format="%.1f")
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "health_id" and table_name == "user_health":
-                entry = Spinbox(add_window, from_=1, to=999999999999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col in ["imt", "cal", "weight", "height"] and table_name == "user_health":
-                entry = Spinbox(add_window, from_=1.0, to=9999999999.0, increment=0.1, format="%.1f")
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "aim_id" and table_name == "user_aims":
-                entry = Spinbox(add_window, from_=0, to=999999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "daily_cal" and table_name == "user_aims":
-                entry = Spinbox(add_window, from_=0, to=999999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "food_id" and table_name == "food":
-                entry = Spinbox(add_window, from_=1, to=999999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col in ["b", "g", "u", "cal"] and table_name == "food":
-                entry = Spinbox(add_window, from_=0.0, to=999999999.0, increment=0.1, format="%.1f")
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "user_id" and table_name == "user_main":
-                entry = Spinbox(add_window, from_=1, to=999999, increment=1)
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "date_of_birth" and table_name == "user_main":
-                entry = Spinbox(add_window, from_=5, to=100, increment=1)  # Ограничение возраста от 5 до 100 лет
-                entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
-            elif col == "user_id" and table_name != "user_main":
+                entry = Spinbox(scrollable_frame, from_=1.0, to=9999.0, increment=0.1, format="%.1f", width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "training_type_id" and table_name == "user_training":
+                # Загружаем типы тренировок
                 try:
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("SELECT user_id, user_name FROM user_main")
-                    user_data = cursor.fetchall()
-                    user_ids = [str(row[0]) for row in user_data]
-                    user_names = [row[1] for row in user_data]
+                    cursor.execute("SELECT id, name_ru FROM training_types WHERE is_active = TRUE ORDER BY name_ru")
+                    training_data = cursor.fetchall()
+                    training_type_ids = [str(row[0]) for row in training_data]
+                    training_type_names = [f"{row[0]}: {row[1]}" for row in training_data]
                     cursor.close()
                     conn.close()
                 except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить user_id и user_name: {e}")
+                    messagebox.showerror("Ошибка", f"Не удалось загрузить типы тренировок: {e}")
+                    training_type_ids = []
+                    training_type_names = []
+
+                entry = ttk.Combobox(scrollable_frame, values=training_type_names, width=23, state="readonly")
+                if training_type_names:
+                    entry.current(0)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "id" and table_name == "user_health":
+                entry = Spinbox(scrollable_frame, from_=1, to=999999, increment=1, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col in ["imt", "cal", "weight", "height"] and table_name == "user_health":
+                entry = Spinbox(scrollable_frame, from_=1.0, to=999.0, increment=0.1, format="%.1f", width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "aim_id" and table_name == "user_aims":
+                # aim_id не существует - user_id является первичным ключом
+                entry = ttk.Entry(scrollable_frame, width=25, state="disabled")
+                entry.insert(0, "Автоматически")
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "daily_cal" and table_name == "user_aims":
+                entry = Spinbox(scrollable_frame, from_=500, to=10000, increment=50, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "id" and table_name == "food":
+                entry = Spinbox(scrollable_frame, from_=1, to=999999, increment=1, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col in ["b", "g", "u", "cal"] and table_name == "food":
+                entry = Spinbox(scrollable_frame, from_=0.0, to=999.0, increment=0.1, format="%.1f", width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "user_id" and table_name == "user_main":
+                entry = Spinbox(scrollable_frame, from_=1, to=999999999, increment=1, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "date_of_birth" and table_name == "user_main":
+                entry = Spinbox(scrollable_frame, from_=5, to=100, increment=1, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "user_id" and table_name != "user_main":
+                # Загружаем пользователей
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT user_id, user_name FROM user_main ORDER BY user_id")
+                    user_data = cursor.fetchall()
+                    user_ids = [str(row[0]) for row in user_data]
+                    user_names = [f"{row[0]}: {row[1]}" for row in user_data]
+                    cursor.close()
+                    conn.close()
+                except Exception as e:
+                    messagebox.showerror("Ошибка", f"Не удалось загрузить пользователей: {e}")
                     user_ids = []
                     user_names = []
 
-                entry = ttk.Combobox(add_window, values=user_names)
+                entry = ttk.Combobox(scrollable_frame, values=user_names, width=23, state="readonly")
                 if user_names:
                     entry.current(0)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
             elif col == "user_sex" and table_name == "user_main":
-                entry = ttk.Combobox(add_window, values=["Мужчина", "Женщина"])
+                entry = ttk.Combobox(scrollable_frame, values=["Мужской", "Женский"], width=23, state="readonly")
                 entry.current(0)
-            elif col == "date" or col == "data":
-                entry = ttk.Entry(add_window)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "lang" and table_name == "user_lang":
+                entry = ttk.Combobox(scrollable_frame, values=["ru", "en", "de", "fr", "es"], width=23, state="readonly")
+                entry.current(0)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "user_aim" and table_name == "user_aims":
+                entry = ttk.Combobox(scrollable_frame, 
+                                    values=["Похудение", "Набор массы", "Поддержание формы"], 
+                                    width=23)
+                entry.current(0)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "message_type" and table_name == "chat_history":
+                entry = ttk.Combobox(scrollable_frame, values=["user", "bot"], width=23, state="readonly")
+                entry.current(0)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col in ["date", "data"] and table_name not in ["chat_history"]:
+                entry = ttk.Entry(scrollable_frame, width=25)
                 entry.insert(0, datetime.now().strftime("%d-%m-%Y"))
-                entry.config(state="readonly")
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col == "is_active" and table_name == "training_types":
+                entry = ttk.Combobox(scrollable_frame, values=["TRUE", "FALSE"], width=23, state="readonly")
+                entry.current(0)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif col in ["base_coefficient"] and table_name == "training_types":
+                entry = Spinbox(scrollable_frame, from_=0.0, to=20.0, increment=0.1, format="%.2f", width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
+            elif "modifier" in col and table_name == "training_coefficients":
+                entry = Spinbox(scrollable_frame, from_=0.0, to=2.0, increment=0.01, format="%.3f", width=25)
+                entry.insert(0, "1.000")
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
+                
             else:
-                entry = ttk.Entry(add_window)
+                entry = ttk.Entry(scrollable_frame, width=25)
+                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
 
-            entry.grid(row=i, column=1, padx=5, pady=5, sticky="w")
             entries.append(entry)
+
+        canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        scrollbar.pack(side="right", fill="y")
 
         def save_record():
             values = []
             for i, entry in enumerate(entries):
-                if columns[i] == "user_id" and table_name != "user_main":
-                    selected_user_name = entry.get().strip()
-                    if selected_user_name in user_names:
-                        user_id = user_ids[user_names.index(selected_user_name)]
+                col = columns[i]
+                
+                # Обработка user_id
+                if col == "user_id" and table_name != "user_main":
+                    selected_user = entry.get().strip()
+                    if selected_user and ':' in selected_user:
+                        user_id = selected_user.split(':')[0]
                         values.append(user_id)
                     else:
-                        messagebox.showwarning("Предупреждение", "Выберите корректное имя пользователя!")
+                        messagebox.showwarning("Предупреждение", "Выберите корректного пользователя!")
                         return
-                else:
-                    if isinstance(entry, Spinbox) or isinstance(entry, ttk.Combobox):
-                        values.append(entry.get().strip())
+                        
+                # Обработка training_type_id
+                elif col == "training_type_id" and table_name == "user_training":
+                    selected_training = entry.get().strip()
+                    if selected_training and ':' in selected_training:
+                        training_id = selected_training.split(':')[0]
+                        values.append(training_id)
                     else:
-                        values.append(entry.get().strip())
+                        messagebox.showwarning("Предупреждение", "Выберите корректный тип тренировки!")
+                        return
+                        
+                else:
+                    value = entry.get().strip()
+                    values.append(value if value else None)
 
-            if any(not value for value in values):
-                messagebox.showwarning("Предупреждение", "Заполните все поля!")
+            # Проверка заполненности обязательных полей
+            if any(v is None or v == '' for i, v in enumerate(values) if columns[i] not in ['updated_at', 'created_at']):
+                messagebox.showwarning("Предупреждение", "Заполните все обязательные поля!")
                 return
 
             try:
@@ -438,29 +794,32 @@ class Application:
                     add_window.destroy()
 
                     load_data()
-                    last_item = tree.get_children()[-1]
-
-                    # Подсветка строки
-                    if tree.exists(last_item):
-                        tree.tag_configure("highlight", foreground="green")  # Зелёный цвет текста
-                        tree.item(last_item, tags=("highlight",))
-
-                    # Сброс подсветки через 20 секунд
-                    def reset_highlight():
+                    
+                    # Подсветка добавленной записи
+                    if tree.get_children():
+                        last_item = tree.get_children()[-1]
                         if tree.exists(last_item):
-                            tree.item(last_item, tags=())
+                            tree.tag_configure("highlight", foreground="green")
+                            tree.item(last_item, tags=("highlight",))
+                            tree.see(last_item)
 
-                    tree.after(20000, reset_highlight)
+                            def reset_highlight():
+                                if tree.exists(last_item):
+                                    tree.item(last_item, tags=())
+
+                            tree.after(20000, reset_highlight)
+                            
+                    messagebox.showinfo("Успех", "Запись успешно добавлена!")
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Не удалось добавить запись: {e}")
 
         button_frame = ttk.Frame(add_window)
-        button_frame.grid(row=len(columns), column=0, columnspan=2, sticky="e", padx=5, pady=5)
+        button_frame.pack(side="bottom", fill="x", padx=10, pady=10)
 
-        add_button = ttk.Button(button_frame, text="Ок", command=save_record, width=10)
+        add_button = ttk.Button(button_frame, text="✅ Сохранить", command=save_record, width=15)
         add_button.pack(side="left", padx=5)
 
-        cancel_button = ttk.Button(button_frame, text="Отмена", command=add_window.destroy, width=10)
+        cancel_button = ttk.Button(button_frame, text="❌ Отмена", command=add_window.destroy, width=15)
         cancel_button.pack(side="left", padx=5)
 
     def edit_cell(self, event, tree, columns, table_name, load_data):
@@ -469,76 +828,102 @@ class Application:
         if region != "cell":
             return
 
+        if not tree.selection():
+            return
+            
         item = tree.selection()[0]
         column = tree.identify_column(event.x)
         column_index = int(column.replace("#", "")) - 1
+        
+        if column_index < 0 or column_index >= len(columns):
+            return
+            
         column_name = columns[column_index]
         current_value = tree.set(item, column)
 
-        entry_edit = ttk.Entry(tree, font=("Arial", 16))
+        # Запрет редактирования первичных ключей и некоторых полей
+        restricted_columns = ["id", "user_id", "food_id", "health_id", "aim_id", 
+                             "training_id", "created_at", "password_hash"]
+        if column_name in restricted_columns and table_name != "user_main":
+            messagebox.showinfo("Информация", "Это поле нельзя редактировать напрямую")
+            return
+
+        # Создание поля для редактирования
+        entry_edit = ttk.Entry(tree, font=("Arial", 12))
         entry_edit.insert(0, current_value)
         entry_edit.select_range(0, tk.END)
         entry_edit.focus()
 
-        def save_edit(event):
+        def save_edit(event=None):
             new_value = entry_edit.get().strip()
-            if new_value != current_value:
-                # Валидация для поля user_sex
-                if column_name == "user_sex" and new_value not in ["Мужчина", "Женщина"]:
-                    messagebox.showwarning("Ошибка", "Допустимые значения: Мужчина или Женщина.")
+            if new_value == current_value:
+                entry_edit.destroy()
+                return
+
+            # Валидация для специальных полей
+            if column_name == "user_sex" and new_value not in ["Мужской", "Женский", "Мужчина", "Женщина"]:
+                messagebox.showwarning("Ошибка", "Допустимые значения: Мужской, Женский")
+                entry_edit.destroy()
+                return
+
+            if column_name == "date_of_birth":
+                try:
+                    age = int(new_value)
+                    if age < 5 or age > 100:
+                        messagebox.showwarning("Ошибка", "Возраст должен быть от 5 до 100 лет")
+                        entry_edit.destroy()
+                        return
+                except ValueError:
+                    messagebox.showwarning("Ошибка", "Введите корректное число для возраста")
+                    entry_edit.destroy()
                     return
 
-                # Валидация для поля date_of_birth (возраст от 5 до 100 лет)
-                if column_name == "date_of_birth":
-                    try:
-                        age = int(new_value)
-                        if age < 5 or age > 100:
-                            messagebox.showwarning("Ошибка", "Возраст должен быть от 5 до 100 лет.")
-                            return
-                    except ValueError:
-                        messagebox.showwarning("Ошибка", "Введите корректное число для возраста.")
-                        return
+            if column_name == "lang" and new_value not in ["ru", "en", "de", "fr", "es"]:
+                messagebox.showwarning("Ошибка", "Допустимые значения: ru, en, de, fr, es")
+                entry_edit.destroy()
+                return
 
-                try:
-                    conn = get_db_connection()
-                    if conn:
-                        cursor = conn.cursor()
-                        primary_key_value = tree.item(item, "values")[0]
-                        primary_key_column = columns[0]
-                        update_query = f"UPDATE {table_name} SET {column_name} = %s WHERE {primary_key_column} = %s"
-                        cursor.execute(update_query, (new_value, primary_key_value))
-                        conn.commit()
-                        cursor.close()
-                        conn.close()
+            try:
+                conn = get_db_connection()
+                if conn:
+                    cursor = conn.cursor()
+                    primary_key_value = tree.item(item, "values")[0]
+                    primary_key_column = columns[0]
+                    
+                    update_query = f"UPDATE {table_name} SET {column_name} = %s WHERE {primary_key_column} = %s"
+                    cursor.execute(update_query, (new_value, primary_key_value))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
 
-                        # Подсветка строки
-                        if tree.exists(item):
-                            tree.tag_configure("highlight", foreground="green")  # Зелёный цвет текста
-                            tree.item(item, tags=("highlight",))
+                    # Подсветка изменённой строки
+                    if tree.exists(item):
+                        tree.tag_configure("highlight", foreground="blue")
+                        tree.item(item, tags=("highlight",))
 
-                        # Сброс подсветки через 20 секунд
                         def reset_highlight():
                             if tree.exists(item):
                                 tree.item(item, tags=())
 
-                        tree.after(20000, reset_highlight)  # 20 секунд = 20000 миллисекунд
+                        tree.after(10000, reset_highlight)
 
-                        # Перезагрузка данных
-                        load_data()
-
-                        # Уничтожение окна редактирования
-                        entry_edit.destroy()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось обновить запись: {e}")
-            else:
-                # Если данные не изменились, просто закрываем окно редактирования
+                    load_data()
+                    entry_edit.destroy()
+                    messagebox.showinfo("Успех", "Запись успешно обновлена!")
+            except Exception as e:
+                messagebox.showerror("Ошибка", f"Не удалось обновить запись: {e}")
                 entry_edit.destroy()
 
         entry_edit.bind("<Return>", save_edit)
+        entry_edit.bind("<Escape>", lambda e: entry_edit.destroy())
         entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
 
-        x, y, width, height = tree.bbox(item, column)
-        entry_edit.place(x=x, y=y, width=width, height=height * 2)
+        # Позиционирование поля редактирования
+        try:
+            x, y, width, height = tree.bbox(item, column)
+            entry_edit.place(x=x, y=y, width=width, height=height)
+        except:
+            entry_edit.destroy()
 
     def close_window(self):
         """Функция для закрытия окна."""
@@ -546,11 +931,11 @@ class Application:
 
 # Главное окно
 root = tk.Tk()
-root.title("Вход в систему PROпиташка")
-window_width = 400
-window_height = 150
+root.title("PROпиташка - Вход в систему администрирования")
+window_width = 450
+window_height = 180
 center_window(root, window_width, window_height)
-root.minsize(300, 120)
+root.minsize(400, 150)
 
 app = Application(root)
 root.mainloop()
