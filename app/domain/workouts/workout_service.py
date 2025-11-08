@@ -288,6 +288,32 @@ class WorkoutService:
             bot_logger.error(f"Error getting today's total calories: {e}")
             return 0.0
     
+    def get_today_total_duration(self, user_id: int) -> int:
+        """
+        Получить суммарную длительность тренировок за сегодня
+        
+        Args:
+            user_id: ID пользователя
+            
+        Returns:
+            Суммарная длительность в минутах
+        """
+        try:
+            query = """
+                SELECT COALESCE(SUM(tren_time), 0) 
+                FROM user_training 
+                WHERE date = CURRENT_DATE AND user_id = %s
+            """
+            
+            self.cursor.execute(query, (user_id,))
+            result = self.cursor.fetchone()
+            
+            return int(result[0]) if result else 0
+            
+        except Exception as e:
+            bot_logger.error(f"Error getting today's total duration: {e}")
+            return 0
+    
     def get_trainings_by_period(
         self,
         user_id: int,

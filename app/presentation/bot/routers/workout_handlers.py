@@ -300,18 +300,33 @@ async def handle_duration_input(
     cursor = db_connection.cursor()
     language = get_user_language(user_id, cursor)
     
+    # Создаем клавиатуру с кнопками отмены
+    keyboard_gen = WorkoutKeyboards(language)
+    cancel_keyboard = keyboard_gen.create_duration_cancel_keyboard()
+    
     # Валидация длительности
     try:
         duration = int(message.text.strip())
         
         if not (1 <= duration <= 300):
             await message.answer(
-                "⚠️ " + l.printer(user_id, 'trenMIN') + "\n\n(1-300 минут)"
+                l.printer(user_id, 'validation_duration_out_of_range'),
+                reply_markup=cancel_keyboard
             )
             return
     except ValueError:
         await message.answer(
-            "⚠️ " + l.printer(user_id, 'trenMIN') + "\n\nВведите число."
+            l.printer(user_id, 'validation_duration_not_number'),
+            reply_markup=cancel_keyboard
+        )
+        return
+    
+    # Проверяем суммарную длительность за день (не более 24 часов)
+    today_total = workout_service.get_today_total_duration(user_id)
+    if today_total + duration > 1440:  # 24 часа = 1440 минут
+        await message.answer(
+            l.printer(user_id, 'validation_daily_limit_exceeded').format(today_total, duration),
+            reply_markup=cancel_keyboard
         )
         return
     
@@ -410,6 +425,11 @@ async def handle_weight_input_for_workout(
     """
     user_id = message.from_user.id
     cursor = db_connection.cursor()
+    language = get_user_language(user_id, cursor)
+    
+    # Создаем клавиатуру с кнопками отмены
+    keyboard_gen = WorkoutKeyboards(language)
+    cancel_keyboard = keyboard_gen.create_duration_cancel_keyboard()
     
     # Валидация веса
     try:
@@ -418,12 +438,14 @@ async def handle_weight_input_for_workout(
         
         if not (30 <= weight <= 300):
             await message.answer(
-                l.printer(user_id, 'weight') + "\n\n⚠️ (30-300 кг)"
+                l.printer(user_id, 'validation_weight_out_of_range'),
+                reply_markup=cancel_keyboard
             )
             return
     except ValueError:
         await message.answer(
-            l.printer(user_id, 'weight') + "\n\n⚠️ Введите число."
+            l.printer(user_id, 'validation_weight_not_number'),
+            reply_markup=cancel_keyboard
         )
         return
     
