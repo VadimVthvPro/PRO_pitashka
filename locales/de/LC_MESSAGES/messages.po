@@ -366,6 +366,22 @@ msgstr "⏱ Durchschnittliche Trainingsdauer: {} Min"
 msgid "workout_summary_total_calories"
 msgstr "🔥 Verbrannte Kalorien gesamt: {} kcal"
 
+# Eingabevalidierung
+msgid "validation_duration_not_number"
+msgstr "⚠️ Bitte geben Sie eine Zahl von 1 bis 300 Minuten ein."
+
+msgid "validation_duration_out_of_range"
+msgstr "⚠️ Die Dauer muss zwischen 1 und 300 Minuten liegen. Bitte versuchen Sie es erneut."
+
+msgid "validation_weight_not_number"
+msgstr "⚠️ Bitte geben Sie Ihr Gewicht als Zahl ein (z.B.: 70 oder 70,5)."
+
+msgid "validation_weight_out_of_range"
+msgstr "⚠️ Das Gewicht muss zwischen 30 und 300 kg liegen. Bitte geben Sie einen gültigen Wert ein."
+
+msgid "validation_daily_limit_exceeded"
+msgstr "⚠️ Tägliches Trainingslimit überschritten!\n\nSie haben heute bereits {} Min Training.\nDas Hinzufügen von {} Min würde 24 Stunden (1440 Min) pro Tag überschreiten.\n\nBitte geben Sie eine kürzere Dauer ein oder machen Sie morgen weiter! 💪"
+
 
 
 msgid "kbmain7"
