@@ -193,6 +193,20 @@ def keyboard(user_id, k):
         one_time_keyboard=True,
     )
 
+    tren = ReplyKeyboardMarkup(
+        keyboard = [
+            [
+                KeyboardButton(text=l.printer_with_given(leng, "kbtren1")),
+                KeyboardButton(text=l.printer_with_given(leng, "kbtren2")),
+                KeyboardButton(text=l.printer_with_given(leng, "kbtren3")),
+
+            ]
+
+        ],
+        resize_keyboard=True,
+        one_time_keyboard=True,
+    )
+
     meals = ReplyKeyboardMarkup(
         keyboard = [
             [
@@ -263,7 +277,7 @@ def keyboard(user_id, k):
     )
 
     kb = {'startMenu': startMenu, 'lenguage': lenguage, 'entranse': entranse,  'reRig': reRig, 'sex': sex, 'food': food,
-          'want': want, 'main_menu': main_menu, 'meals': meals, 'svo': svo, 'tren_type': tren_type,
+          'want': want, 'main_menu': main_menu, 'tren': tren, 'meals': meals, 'svo': svo, 'tren_type': tren_type,
           'tren_choise': tren_choise}
     return kb[k]
 
