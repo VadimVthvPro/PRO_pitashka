@@ -2274,6 +2274,26 @@ async def svodka(message: Message, state: FSMContext):
     
     try:
         if mes == 'День' or mes == "Day" or mes == "Jour" or mes == "Tag" or mes == "Día":
+            # ===== ТРЕНИРОВКИ =====
+            # Получаем список тренировок за день
+            cursor.execute("""
+                SELECT training_name, tren_time, training_cal 
+                FROM user_training 
+                WHERE date = %s AND user_id = %s
+                ORDER BY id
+            """, (datetime.datetime.now().strftime('%Y-%m-%d'), message.from_user.id))
+            trainings_today = cursor.fetchall()
+            
+            # Форматируем список тренировок
+            trainings_text = ""
+            if trainings_today:
+                trainings_text = "\n\n" + l.printer(message.from_user.id, 'workout_summary_day_title') + "\n"
+                for training_name, duration, calories in trainings_today:
+                    trainings_text += l.printer(message.from_user.id, 'workout_summary_day_item').format(
+                        training_name, duration, round(calories, 1)
+                    ) + "\n"
+            
+            # Сумма калорий от тренировок (используем старое поле training_cal)
             cursor.execute("SELECT SUM(training_cal) FROM user_training WHERE date = '{}' AND user_id = {}".format(
                 datetime.datetime.now().strftime('%Y-%m-%d'), message.from_user.id))
             result_tren = cursor.fetchone()
@@ -2317,7 +2337,7 @@ async def svodka(message: Message, state: FSMContext):
                                                                                          col_b if col_b else 0,
                                                                                          col_g if col_g else 0,
                                                                                          col_u if col_u else 0,
-                                                                                         col_wat * 300 if col_wat else 0)
+                                                                                         col_wat * 300 if col_wat else 0) + trainings_text
                                    , reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         elif mes == 'Месяц' or mes == "Mes" or mes == "Monat" or mes == "Mois" or mes == "Month":
             weight_month = []
@@ -2329,8 +2349,14 @@ async def svodka(message: Message, state: FSMContext):
             sr_tren = []
             sr_food_cal = []  # Добавляем калории еды
             
-            for i in range(1, 32):
-                datee = f'{str(datetime.datetime.now().year)}-{str(datetime.datetime.now().month).zfill(2)}-{str(i).zfill(2)}'
+            # Получаем количество дней в текущем месяце
+            import calendar
+            current_year = datetime.datetime.now().year
+            current_month = datetime.datetime.now().month
+            _, days_in_month = calendar.monthrange(current_year, current_month)
+            
+            for i in range(1, days_in_month + 1):
+                datee = f'{str(current_year)}-{str(current_month).zfill(2)}-{str(i).zfill(2)}'
                 
                 # Вес (только один раз берём данные)
                 cursor.execute(
@@ -2421,11 +2447,32 @@ async def svodka(message: Message, state: FSMContext):
                 weig_1 = new_weight
                 weig_2 = new_weight
             
+            # ===== ТОП-5 ТРЕНИРОВОК ЗА МЕСЯЦ =====
+            cursor.execute("""
+                SELECT training_name, COUNT(*) as count, ROUND(AVG(tren_time), 1) as avg_duration
+                FROM user_training
+                WHERE user_id = %s 
+                    AND EXTRACT(YEAR FROM date) = %s
+                    AND EXTRACT(MONTH FROM date) = %s
+                GROUP BY training_name
+                ORDER BY count DESC, avg_duration DESC
+                LIMIT 5
+            """, (message.from_user.id, current_year, current_month))
+            top_trainings = cursor.fetchall()
+            
+            trainings_top_text = ""
+            if top_trainings:
+                trainings_top_text = "\n\n" + l.printer(message.from_user.id, 'workout_summary_month_title') + "\n"
+                for idx, (training_name, count, avg_dur) in enumerate(top_trainings, 1):
+                    trainings_top_text += l.printer(message.from_user.id, 'workout_summary_month_item').format(
+                        idx, training_name, int(count), int(avg_dur) if avg_dur else 0
+                    ) + "\n"
+            
             # Формируем сообщение
             bot_logger.info(f"Monthly summary for user {message.from_user.id}: w_days={len(new_sr_w)}, avg_w={avg_w}ml")
             await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'svoMONTH').format(
                 message.from_user.first_name, weig_1[0] if isinstance(weig_1, tuple) else weig_1, weig_2, 
-                avg_training_time, avg_calories_burned, avg_food_cal, avg_b, avg_g, avg_u, avg_w),
+                avg_training_time, avg_calories_burned, avg_food_cal, avg_b, avg_g, avg_u, avg_w) + trainings_top_text,
                                    reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
         elif mes == 'Год' or mes == "Year" or mes == "Année" or mes == "Jahr" or mes == "Año":
             all_data = []
@@ -2543,6 +2590,26 @@ async def svodka(message: Message, state: FSMContext):
                 last_b = last_g = last_u = 0
                 first_b = first_g = first_u = 0
             
+            # ===== ТОП-5 ТРЕНИРОВОК ЗА ГОД =====
+            cursor.execute("""
+                SELECT training_name, COUNT(*) as count, ROUND(AVG(tren_time), 1) as avg_duration
+                FROM user_training
+                WHERE user_id = %s 
+                    AND EXTRACT(YEAR FROM date) = %s
+                GROUP BY training_name
+                ORDER BY count DESC, avg_duration DESC
+                LIMIT 5
+            """, (message.from_user.id, datetime.datetime.now().year))
+            top_trainings_year = cursor.fetchall()
+            
+            trainings_year_text = ""
+            if top_trainings_year:
+                trainings_year_text = "\n\n" + l.printer(message.from_user.id, 'workout_summary_year_title') + "\n"
+                for idx, (training_name, count, avg_dur) in enumerate(top_trainings_year, 1):
+                    trainings_year_text += l.printer(message.from_user.id, 'workout_summary_year_item').format(
+                        idx, training_name, int(count), int(avg_dur) if avg_dur else 0
+                    ) + "\n"
+            
             await bot.send_message(message.chat.id,
                                    text=l.printer(message.from_user.id, 'svoYEAR').format('\n', start_weight,
                                                                                           end_weight, '\n',
@@ -2553,7 +2620,7 @@ async def svodka(message: Message, state: FSMContext):
                                                                                           avg_b, avg_g, avg_u,
                                                                                           last_b, last_g, last_u,
                                                                                           first_b, first_g, first_u,
-                                                                                          avg_w),
+                                                                                          avg_w) + trainings_year_text,
                                    reply_markup=kb.keyboard(message.from_user.id, 'main_menu'))
     except Exception as e:
         print(f"Ошибка при генерации плана: {str(e)}")
