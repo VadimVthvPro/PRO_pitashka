@@ -10,14 +10,10 @@ import keyboards as kb
 import asyncio
 import datetime
 from datetime import date
-from aiogram import Bot, Dispatcher, types, F, Router
+from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-
-# Импорты для новой системы тренировок
-from app.domain.workouts.workout_service import get_workout_service
-from app.presentation.bot.routers.workout_handlers import get_workout_router, WorkoutStates
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.filters import Command
 import main_mo as l
@@ -169,56 +165,16 @@ TOKEN = config.TELEGRAM_TOKEN
 
 
 
-
-
-# ============================================
-# Middleware для Dependency Injection
-# ============================================
-
-class DatabaseMiddleware(BaseMiddleware):
-    """Middleware для передачи db_connection и workout_service в обработчики"""
-    
-    def __init__(self, db_connection, workout_service):
-        super().__init__()
-        self.db_connection = db_connection
-        self.workout_service = workout_service
-    
-    async def __call__(
-        self,
-        handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
-        event: TelegramObject,
-        data: Dict[str, Any]
-    ) -> Any:
-        data["db_connection"] = self.db_connection
-        data["workout_service"] = self.workout_service
-        return await handler(event, data)
-
-
-# Подключение к БД и создание сервисов
-conn = psycopg2.connect(**config.get_db_config())
-conn.autocommit = True  # Включаем автокоммит для немедленного сохранения данных
-cursor = conn.cursor()
-
-# Создание сервиса тренировок
-workout_service = get_workout_service(conn)
-bot_logger.info("Database connection established with autocommit enabled")
-
 bot = Bot(TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-
-# Регистрация роутера тренировок
-workout_router = get_workout_router()
-dp.include_router(workout_router)
-
 # Register middleware
 dp.update.middleware(PrivacyConsentMiddleware())
-dp.update.middleware(DatabaseMiddleware(conn, workout_service))
 
-# ВАЖНО: Регистрируем AI chat router ПОСЛЕДНИМ, чтобы он обрабатывал
-# только те сообщения, которые не обработали другие хэндлеры
-# ai_chat_router будет определен в конце файла перед main()
-# и зарегистрирован здесь после инициализации всех хэндлеров
+conn = psycopg2.connect(**config.get_db_config())
+conn.autocommit = True  # Включаем автокоммит для немедленного сохранения данных
+cursor = conn.cursor()
+bot_logger.info("Database connection established with autocommit enabled")
 
 
 class REG(StatesGroup):
@@ -228,6 +184,7 @@ class REG(StatesGroup):
     sex = State()
     want = State()
     weight = State()
+    types = State()
     length = State()
     food = State()
     food_list = State()
@@ -1265,8 +1222,22 @@ async def generate(zap, cache_key: str = None, cache_ttl: int = config.CACHE_TTL
         bot_logger.error(f"Error generating AI response: {str(e)}")
         raise  # Пробрасываем исключение для retry-декоратора
 
-# СТАРЫЙ ОБРАБОТЧИК tren УДАЛЁН - используется новая система из workout_handlers.py
+@dp.message(F.text.in_(
+    {'Добавить тренировки', "Añadir formación", 'Add training', 'Ajouter une formation', 'Ausbildung hinzufügen'}))
+async def tren(message: Message, state: FSMContext):
+    # Удаляем предыдущую клавиатуру
+    await message.answer("⏳", reply_markup=types.ReplyKeyboardRemove())
+    
+    await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'TrenType'),
+                           reply_markup=kb.keyboard(message.from_user.id, 'tren'))
+    await state.set_state(REG.types)
 
+
+@dp.message(REG.types)
+async def tren_type(message: Message, state: FSMContext):
+    await state.update_data(types=message.text)
+    await state.set_state(REG.length)
+    await message.answer(text=l.printer(message.from_user.id, 'trenMIN'))
 
 @dp.message(StateFilter("waiting_for_weight"))
 async def set_weight_and_continue(message: Message, state: FSMContext):
@@ -1436,6 +1407,15 @@ async def tren_len(message: Message, state: FSMContext):
         reply_markup=kb.keyboard(user_id, 'main_menu')
     )
     await state.clear()
+
+
+def intensiv(intensiv, id):
+    if intensiv == l.printer(id, 'tren1'):
+        return 2.5
+    if intensiv == l.printer(id, 'tren2'):
+        return 3
+    if intensiv == l.printer(id, 'tren3'):
+        return 3.5
 
 
 def replace_none_with_zero_in_list(lst, index):
@@ -2776,18 +2756,14 @@ async def handle_ai_chat(message: Message):
 
 
 # ============================================
-# Catch-All Router - AI Chat для необработанных сообщений
-# Должен быть зарегистрирован ПОСЛЕДНИМ через include_router
+# Catch-All Handler - AI Chat для необработанных сообщений
 # ============================================
 
-# Создаем отдельный роутер для catch-all
-ai_chat_router = Router(name='ai_chat_router')
-
-@ai_chat_router.message(F.text)
+@dp.message(F.text)
 async def catch_all_text_messages(message: Message, state: FSMContext):
     """
     Обрабатывает все необработанные текстовые сообщения через AI-чат
-    Этот роутер должен быть зарегистрирован ПОСЛЕДНИМ
+    Это должен быть ПОСЛЕДНИЙ обработчик сообщений
     """
     current_state = await state.get_state()
     
@@ -2805,19 +2781,8 @@ async def catch_all_text_messages(message: Message, state: FSMContext):
         bot_logger.error(f"Error checking user registration: {e}")
         return
     
-    bot_logger.info(f"User {message.from_user.id} sent free-form message to AI chat: {message.text[:50]}...")
-    
     # Передаём в AI-чат
     await handle_ai_chat(message)
-
-
-# ============================================
-# Регистрация AI Chat Router ПОСЛЕДНИМ
-# ============================================
-# КРИТИЧЕСКИ ВАЖНО: Этот роутер должен быть зарегистрирован после всех других,
-# чтобы catch-all хэндлер не перехватывал сообщения, предназначенные для других хэндлеров
-dp.include_router(ai_chat_router)
-bot_logger.info("AI Chat router registered as catch-all (last priority)")
 
 
 # ============================================

@@ -156,7 +156,7 @@ msgstr "Glass added"
 
 
 msgid "TrenType"
-msgstr "Pick which workout you did today:"
+msgstr "Choose your workout type from the list below 🏋️"
 
 
 msgid "gram"
@@ -176,25 +176,100 @@ msgstr "Enter comma-delimited names of dishes:"
 msgid "ChooseTheWay"
 msgstr "Choose how you would like to add the food eaten?"
 
-msgid "TrenCalDay"
-msgstr "You've burned {} kilocalories today. Way to go!!!"
-
 msgid "TrenCal"
-msgstr "Great! You burned {} kilocalories during your workout. Way to go!!!"
+msgstr "🎉 Great job!\n\n🏋️ Workout: {}\n⏱ Duration: {} min\n🔥 Calories burned: {} kcal\n\nKeep it up!"
 
-msgid "tren1"
-msgstr "Light"
+msgid "TrenCalDay"
+msgstr "💪 Total burned today: {} kcal"
 
-msgid "tren2"
-msgstr "Moderate"
+# Old keys removed - now using dynamic system
+# msgid "tren1"
+# msgstr "Light"
+# msgid "tren2"
+# msgstr "Moderate"
+# msgid "tren3"
+# msgstr "Heavy"
 
+# === NEW TRAINING SYSTEM V2.0 ===
 
-msgid "tren3"
-msgstr "Heavy"
+# Navigation
+msgid "page_indicator"
+msgstr "Page"
+
+msgid "main_menu_button"
+msgstr "🏠 Main Menu"
+
+msgid "cancel_button"
+msgstr "❌ Cancel"
+
+msgid "back_button"
+msgstr "⬅️ Back"
+
+msgid "next_button"
+msgstr "Next ➡️"
+
+msgid "prev_button"
+msgstr "⬅️ Previous"
+
+# Errors and validation
+msgid "no_trainings_available"
+msgstr "⚠️ Workout list is temporarily unavailable. Try again later."
+
+msgid "error_workout_not_found"
+msgstr "⚠️ Selected workout not found. Please choose from the list."
+
+msgid "invalid_duration_range"
+msgstr "⚠️ Enter a realistic workout duration (1 to 300 minutes)."
+
+msgid "invalid_duration_format"
+msgstr "⚠️ Duration must be a number. For example: 45"
+
+msgid "request_weight_for_workout"
+msgstr "⚖️ We need your current weight for accurate calorie calculation.\n\nEnter your weight in kilograms (e.g., 72.5):"
+
+msgid "invalid_weight_range"
+msgstr "⚠️ Enter a valid weight in kg (25 to 400)."
+
+msgid "invalid_weight_format"
+msgstr "⚠️ Weight must be a number. For example: 72.5"
+
+msgid "error_db_save_weight"
+msgstr "⚠️ Error saving weight. Please try again."
+
+msgid "error_calorie_calculation"
+msgstr "⚠️ Couldn't calculate calories. Please try again."
+
+msgid "error_db_save_training"
+msgstr "⚠️ Error saving workout. Please try again."
+
+msgid "error_general"
+msgstr "⚠️ An unexpected error occurred. Please start over."
+
+msgid "return_to_main_menu"
+msgstr "✅ Returning to main menu."
+
+msgid "workout_cancelled"
+msgstr "❌ Workout registration cancelled."
+
+# Motivational messages
+msgid "workout_motivation_1"
+msgstr "💪 You're on the right path to your goal!"
+
+msgid "workout_motivation_2"
+msgstr "🔥 Every workout brings you closer to your dream!"
+
+msgid "workout_motivation_3"
+msgstr "⭐ Excellent work! Keep it up!"
+
+msgid "workout_motivation_4"
+msgstr "🏆 You're a champion! Keep going!"
+
+msgid "workout_motivation_5"
+msgstr "💯 Incredible results! Be proud of yourself!"
 
 
 msgid "trenMIN"
-msgstr "Okay, and enter how many minutes your workout lasted:"
+msgstr "Excellent! You chose: {}.\n\nNow enter the workout duration in minutes (1 to 300):"
 
 msgid "kbENTRANCE"
 msgstr "Entry"
