@@ -9,6 +9,7 @@ from config import config
 import keyboards as kb
 import asyncio
 import datetime
+from datetime import date
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.types import Message, FSInputFile, CallbackQuery
 from aiogram.fsm.context import FSMContext
@@ -29,6 +30,10 @@ import food_database_fallback as food_db
 import google.generativeai as genai
 import google.genai as genai_new
 from logger_setup import bot_logger
+
+# Импорты для календаря
+from app.presentation.utils.calendar_utils import CalendarKeyboard, get_calendar_keyboard
+from app.domain.calendar.calendar_service import CalendarService, calendar_cache
 
 # ============================================
 # Google Gemini Setup
@@ -175,6 +180,7 @@ bot_logger.info("Database connection established with autocommit enabled")
 class REG(StatesGroup):
     height = State()
     age = State()
+    age_calendar = State()  # Новое состояние для выбора даты в календаре
     sex = State()
     want = State()
     weight = State()
@@ -719,8 +725,34 @@ async def height(message: Message, state: FSMContext):
             return
         
         await state.update_data(height=height_value)
-        await state.set_state(REG.age)
-        await message.answer(l.printer(message.from_user.id, 'age'))
+        await state.set_state(REG.age_calendar)
+        
+        # Получаем язык пользователя для календаря
+        cursor.execute("SELECT lang FROM user_lang WHERE user_id = %s", (message.from_user.id,))
+        lang_result = cursor.fetchone()
+        lang_code = lang_result[0] if lang_result else 'ru'
+        
+        # Показываем выбор года (новый UX)
+        # Минимальная дата: 1950 год (фиксированный)
+        # Максимальная дата: текущий год - 10 лет (динамический)
+        min_date, max_date = CalendarService.get_age_range_dates()
+        
+        calendar_obj = CalendarKeyboard(lang=lang_code, min_date=min_date, max_date=max_date)
+        keyboard = calendar_obj.create_year_selector(context='birthdate', lang=lang_code)
+        
+        # Сохраняем в состоянии
+        await state.update_data(calendar_lang=lang_code)
+        
+        year_prompts = {
+            'ru': "📅 Выберите год рождения:",
+            'en': "📅 Select your birth year:",
+            'de': "📅 Wählen Sie Ihr Geburtsjahr:",
+            'fr': "📅 Sélectionnez votre année de naissance:",
+            'es': "📅 Seleccione su año de nacimiento:"
+        }
+        prompt_message = year_prompts.get(lang_code, year_prompts['ru'])
+        await message.answer(prompt_message, reply_markup=keyboard)
+        
     except ValueError:
         await state.set_state(REG.height)
         await bot.send_message(message.chat.id, text=l.printer(message.from_user.id, 'height') + "\n\n⚠️ Введите числовое значение.")
@@ -745,6 +777,129 @@ async def age(message: Message, state: FSMContext):
     await state.set_state(REG.sex)
     await message.answer(l.printer(message.from_user.id, 'sex'),
                              reply_markup=kb.keyboard(message.from_user.id, 'sex'))
+
+
+# ============================================
+# Обработчики календаря для выбора даты рождения
+# ============================================
+
+@dp.callback_query(F.data.startswith('cal_'), REG.age_calendar)
+async def handle_calendar_callback(callback: CallbackQuery, state: FSMContext):
+    """
+    Обработчик callback-запросов от инлайн-календаря
+    """
+    user_id = callback.from_user.id
+    
+    # Получаем данные из состояния
+    data_state = await state.get_data()
+    lang_code = data_state.get('calendar_lang', 'ru')
+    
+    # Парсим callback_data
+    action, data = CalendarKeyboard.parse_callback(callback.data)
+    
+    if action == 'ignore':
+        # Игнорируем нажатие (например, на заголовок или пустую ячейку)
+        await callback.answer()
+        return
+    
+    elif action == 'selectyear':
+        # Пользователь выбрал год - показываем календарь этого года
+        selected_year = data['year']
+        
+        # Получаем диапазон допустимых дат
+        min_date, max_date = CalendarService.get_age_range_dates()
+        
+        calendar_obj = CalendarKeyboard(lang=lang_code, min_date=min_date, max_date=max_date)
+        keyboard = calendar_obj.create_calendar(selected_year, 1, context='birthdate')
+        
+        # Сохраняем выбранный год
+        await state.update_data(calendar_year=selected_year, calendar_month=1)
+        
+        month_prompts = {
+            'ru': f"📅 Выберите день и месяц {selected_year} года:",
+            'en': f"📅 Select day and month of {selected_year}:",
+            'de': f"📅 Wählen Sie Tag und Monat {selected_year}:",
+            'fr': f"📅 Sélectionnez le jour et le mois de {selected_year}:",
+            'es': f"📅 Seleccione el día y el mes de {selected_year}:"
+        }
+        prompt_message = month_prompts.get(lang_code, month_prompts['ru'])
+        
+        await callback.message.edit_text(prompt_message, reply_markup=keyboard)
+        await callback.answer()
+        return
+    
+    elif action == 'changeyear':
+        # Возврат к выбору года
+        min_date, max_date = CalendarService.get_age_range_dates()
+        
+        calendar_obj = CalendarKeyboard(lang=lang_code, min_date=min_date, max_date=max_date)
+        keyboard = calendar_obj.create_year_selector(context='birthdate', lang=lang_code)
+        
+        year_prompts = {
+            'ru': "📅 Выберите год рождения:",
+            'en': "📅 Select your birth year:",
+            'de': "📅 Wählen Sie Ihr Geburtsjahr:",
+            'fr': "📅 Sélectionnez votre année de naissance:",
+            'es': "📅 Seleccione su año de nacimiento:"
+        }
+        prompt_message = year_prompts.get(lang_code, year_prompts['ru'])
+        
+        await callback.message.edit_text(prompt_message, reply_markup=keyboard)
+        await callback.answer()
+        return
+    
+    elif action == 'navigate':
+        # Навигация по месяцам
+        year = data['year']
+        month = data['month']
+        
+        # Обновляем состояние с новым годом и месяцем
+        await state.update_data(calendar_year=year, calendar_month=month)
+        
+        # Генерируем новую клавиатуру с актуальными ограничениями
+        min_date, max_date = CalendarService.get_age_range_dates()
+        today_date = date.today()
+        calendar_obj = CalendarKeyboard(lang=lang_code, min_date=min_date, max_date=max_date)
+        keyboard = calendar_obj.create_calendar(year, month, context='birthdate')
+        
+        # Обновляем сообщение с новой клавиатурой
+        prompt_message = CalendarService.get_calendar_prompt_message(lang_code)
+        await callback.message.edit_text(prompt_message, reply_markup=keyboard)
+        await callback.answer()
+        return
+    
+    elif action == 'select':
+        # Выбрана конкретная дата
+        selected_date = data['date']
+        
+        # Валидируем выбранную дату
+        is_valid, error_key = CalendarService.validate_birthdate(selected_date)
+        
+        if not is_valid:
+            # Показываем ошибку валидации
+            error_message = CalendarService.get_localized_error_message(error_key, lang_code)
+            await callback.answer(f"⚠️ {error_message}", show_alert=True)
+            return
+        
+        # Дата валидна - сохраняем ее
+        formatted_date = CalendarService.format_date(selected_date)
+        await state.update_data(age=formatted_date)
+        
+        # Показываем подтверждение
+        confirmation_message = CalendarService.get_date_confirmation_message(selected_date, lang_code)
+        await callback.message.edit_text(confirmation_message)
+        
+        # Переходим к следующему шагу (выбор пола)
+        await state.set_state(REG.sex)
+        await callback.message.answer(
+            l.printer(user_id, 'sex'),
+            reply_markup=kb.keyboard(user_id, 'sex')
+        )
+        await callback.answer()
+        return
+    
+    # На случай неизвестного action
+    await callback.answer()
 
 
 @dp.message(REG.sex)
