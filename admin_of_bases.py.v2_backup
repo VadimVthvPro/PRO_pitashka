@@ -114,35 +114,6 @@ def get_primary_key(table_name):
         print(f"Ошибка получения первичного ключа для {table_name}: {e}")
         return "id"
 
-def is_auto_column(table_name, column_name):
-    """Проверить, должна ли колонка заполняться автоматически."""
-    # Временные метки всегда автоматические
-    if column_name in ['created_at', 'updated_at', 'last_login']:
-        return True
-    
-    # В user_main поле user_id НЕ автоматическое (это Telegram ID, вводится вручную)
-    if table_name == 'user_main' and column_name == 'user_id':
-        return False
-    
-    # В user_aims user_id является первичным ключом, но НЕ автоматический
-    if table_name == 'user_aims' and column_name == 'user_id':
-        return False
-    
-    # В user_lang user_id является первичным ключом, но НЕ автоматический  
-    if table_name == 'user_lang' and column_name == 'user_id':
-        return False
-    
-    # В water нет первичного ключа, user_id НЕ автоматический
-    if table_name == 'water' and column_name == 'user_id':
-        return False
-    
-    # Во ВСЕХ остальных случаях 'id' - автоматическое (SERIAL)
-    if column_name == 'id':
-        return True
-    
-    return False
-
-
 class ScrollableNotebook(ttk.Frame):
     """Виджет Notebook с прокручиваемыми вкладками"""
     def __init__(self, parent, *args, **kwargs):
@@ -417,9 +388,9 @@ class Application:
         self.notebook = ScrollableNotebook(self.main_root)
         self.notebook.pack(fill="both", expand=True)
 
-        # Окно открывается в минимальном размере (шикарный вид!)
-        window_width = 1200  # Минимальный размер
-        window_height = 800  # Минимальный размер
+        # Увеличенное окно
+        window_width = 1600
+        window_height = 1000
         center_window(self.main_root, window_width, window_height)
         self.main_root.title("PROпиташка - Администрирование базы данных")
         self.main_root.minsize(1200, 800)
@@ -665,16 +636,15 @@ class Application:
                 print(f"Ошибка удаления из {table}: {e}")
 
     def add_record(self, tree, columns, table_name, load_data):
-        """УЛУЧШЕННОЕ окно добавления новой записи с обработкой user_id."""
+        """УЛУЧШЕННОЕ окно добавления новой записи."""
         add_window = tk.Toplevel()
         add_window.title(f"Добавить запись в таблицу '{table_name}'")
         
-        # Адаптивный размер окна - УВЕЛИЧЕН для отображения всего текста
-        num_fields = len(columns)
-        window_height = min(num_fields * 70 + 200, 950)  # Увеличена максимальная высота
-        window_width = 900  # Увеличена ширина для длинных текстов
+        # Адаптивный размер окна
+        window_height = min(len(columns) * 70 + 200, 900)
+        window_width = 800
         center_window(add_window, window_width, window_height)
-        add_window.minsize(800, 500)  # Увеличен минимальный размер
+        add_window.minsize(700, 400)
 
         # Canvas с прокруткой для большого количества полей
         main_frame = ttk.Frame(add_window)
@@ -693,10 +663,6 @@ class Application:
         canvas.configure(yscrollcommand=scrollbar.set)
 
         entries = []
-        user_names = []
-        user_ids = []
-        training_type_names = []
-        training_type_ids = []
         pk = get_primary_key(table_name)
 
         for i, col in enumerate(columns):
@@ -704,99 +670,17 @@ class Application:
             label = ttk.Label(scrollable_frame, text=label_text + ":", font=FONT_MEDIUM)
             label.grid(row=i, column=0, padx=15, pady=10, sticky="e")
 
-            # Автоматические поля (SERIAL колонки и timestamps)
-            if is_auto_column(table_name, col):
-                entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM)
+            # Автоматические поля (первичные ключи, timestamps)
+            if col == pk or col in ['created_at', 'updated_at', 'last_login']:
+                entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM, state="disabled")
                 entry.insert(0, "Автоматически")
-                entry.config(state="disabled")  # Отключаем ПОСЛЕ вставки текста
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-            # user_id для других таблиц - комбобокс с никнеймами + возможность ввода
-            elif col == "user_id" and table_name != "user_main":
-                # Создаем Frame для комбобокса и подсказки
-                user_frame = ttk.Frame(scrollable_frame)
-                user_frame.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-                try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT user_id, user_name FROM user_main ORDER BY user_id")
-                    user_data = cursor.fetchall()
-                    user_ids = [str(row[0]) for row in user_data]
-                    user_names = [f"{row[0]}: {row[1]}" for row in user_data]
-                    cursor.close()
-                    conn.close()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить пользователей: {e}")
-                    user_ids = []
-                    user_names = []
-
-                # Комбобокс с возможностью ввода (editable)
-                entry = ttk.Combobox(user_frame, values=user_names, width=35, font=FONT_MEDIUM)
-                if user_names:
-                    entry.current(0)
-                entry.pack(side="left")
-                
-                # Подсказка
-                hint = ttk.Label(user_frame, text="(выберите или введите Telegram ID)", 
-                                font=("Arial", 9), foreground="gray")
-                hint.pack(side="left", padx=5)
-                
-            # training_type_id - комбобокс с типами тренировок
-            elif col == "training_type_id":
-                try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT id, name_ru FROM training_types WHERE is_active = TRUE ORDER BY name_ru")
-                    training_data = cursor.fetchall()
-                    training_type_ids = [str(row[0]) for row in training_data]
-                    training_type_names = [f"{row[0]}: {row[1]}" for row in training_data]
-                    cursor.close()
-                    conn.close()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить типы тренировок: {e}")
-                    training_type_ids = []
-                    training_type_names = []
-
-                entry = ttk.Combobox(scrollable_frame, values=training_type_names, width=28, font=FONT_MEDIUM, state="readonly")
-                if training_type_names:
-                    entry.current(0)
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-            # user_sex - комбобокс
-            elif col == "user_sex":
-                entry = ttk.Combobox(scrollable_frame, values=["Мужской", "Женский"], width=28, font=FONT_MEDIUM, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-            # lang - комбобокс
-            elif col == "lang":
-                entry = ttk.Combobox(scrollable_frame, values=["ru", "en", "de", "fr", "es"], width=28, font=FONT_MEDIUM, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-            # message_type - комбобокс
-            elif col == "message_type":
-                entry = ttk.Combobox(scrollable_frame, values=["user", "bot"], width=28, font=FONT_MEDIUM, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-            # is_active - комбобокс
-            elif col == "is_active":
-                entry = ttk.Combobox(scrollable_frame, values=["TRUE", "FALSE"], width=28, font=FONT_MEDIUM, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
-            # date/data - автозаполнение текущей датой
             elif col in ['date', 'data']:
                 entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM)
                 entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
-                
             else:
                 entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM)
-                entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
             
+            entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
             entries.append(entry)
 
         canvas.pack(side="left", fill="both", expand=True)
@@ -804,70 +688,14 @@ class Application:
 
         def save_record():
             values = []
-            filtered_columns = []
-            
-            print(f"\n=== ОТЛАДКА: Добавление записи в {table_name} ===")
-            print(f"Всего колонок: {len(columns)}")
-            
-            for i, col in enumerate(columns):
-                entry = entries[i]
-                
-                # Проверяем, автоматическое ли поле
-                is_auto = is_auto_column(table_name, col)
-                print(f"Колонка {col}: автоматическая={is_auto}, disabled={entry.cget('state')=='disabled'}")
-                
-                # Пропускаем автоматические поля (ID, timestamps)
-                # ВАЖНО: НЕ добавляем их ни в values, ни в filtered_columns!
-                if is_auto or entry.cget('state') == 'disabled':
-                    print(f"  → Пропускаем (disabled или автоматическое)")
-                    continue
-                
-                # Обработка user_id с комбобоксом (извлекаем ID из "ID: Имя")
-                if col == "user_id" and table_name != "user_main":
-                    selected_user = entry.get().strip()
-                    if selected_user and ':' in selected_user:
-                        user_id = selected_user.split(':')[0].strip()
-                        values.append(user_id)
-                        filtered_columns.append(col)
-                        print(f"  → user_id из комбобокса: {user_id}")
-                    elif selected_user:
-                        # Если формат не "ID: Имя", значит просто ID
-                        values.append(selected_user)
-                        filtered_columns.append(col)
-                        print(f"  → user_id напрямую: {selected_user}")
-                    else:
-                        messagebox.showwarning("Предупреждение", "Выберите корректного пользователя!")
-                        return
-                        
-                # Обработка training_type_id
-                elif col == "training_type_id":
-                    selected_training = entry.get().strip()
-                    if selected_training and ':' in selected_training:
-                        training_id = selected_training.split(':')[0].strip()
-                        values.append(training_id)
-                        filtered_columns.append(col)
-                        print(f"  → training_type_id: {training_id}")
-                    elif selected_training:
-                        # Если просто число
-                        values.append(selected_training)
-                        filtered_columns.append(col)
-                        print(f"  → training_type_id напрямую: {selected_training}")
-                    else:
-                        # Может быть NULL для training_type_id
-                        values.append(None)
-                        filtered_columns.append(col)
-                        print(f"  → training_type_id: NULL")
-                        
-                else:
-                    value = entry.get().strip()
-                    values.append(value if value else None)
-                    filtered_columns.append(col)
-                    print(f"  → {col}: {value if value else 'NULL'}")
-            
-            print(f"\nИтого колонок для INSERT: {len(filtered_columns)}")
-            print(f"Колонки: {filtered_columns}")
-            print(f"Значения: {values}")
-            print(f"len(values) == len(filtered_columns): {len(values) == len(filtered_columns)}")
+            for i, entry in enumerate(entries):
+                if entry.cget('state') == 'disabled':
+                    continue  # Пропускаем автоматические поля
+                value = entry.get().strip()
+                values.append(value if value else None)
+
+            # Фильтруем колонки (без автоматических)
+            filtered_columns = [col for col in columns if col != pk and col not in ['created_at', 'updated_at', 'last_login']]
 
             try:
                 conn = get_db_connection()
@@ -875,9 +703,6 @@ class Application:
                     cursor = conn.cursor()
                     placeholders = ', '.join(['%s'] * len(filtered_columns))
                     query = f"INSERT INTO {table_name} ({', '.join(filtered_columns)}) VALUES ({placeholders})"
-                    print(f"\nSQL запрос: {query}")
-                    print(f"Параметры: {values}\n")
-                    
                     cursor.execute(query, values)
                     conn.commit()
                     cursor.close()
@@ -886,7 +711,6 @@ class Application:
                     load_data()
                     messagebox.showinfo("Успех", "Запись успешно добавлена!")
             except Exception as e:
-                print(f"ОШИБКА: {e}")
                 messagebox.showerror("Ошибка", f"Не удалось добавить запись: {e}")
 
         button_frame = ttk.Frame(add_window)
