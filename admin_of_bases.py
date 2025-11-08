@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, Spinbox, Frame, Canvas
+from tkinter import ttk, messagebox, Spinbox, Frame, Canvas, Scrollbar
 import psycopg2
 from datetime import datetime
 import sys
@@ -9,6 +9,16 @@ import bcrypt
 # Add parent directory to path to import config
 sys.path.insert(0, os.path.dirname(__file__))
 from config import config
+
+# ============================================
+# ГЛОБАЛЬНЫЕ НАСТРОЙКИ ШРИФТОВ (УВЕЛИЧЕНЫ)
+# ============================================
+FONT_LARGE = ("Arial", 14, "bold")      # Заголовки
+FONT_MEDIUM = ("Arial", 13)             # Обычный текст
+FONT_SMALL = ("Arial", 12)              # Мелкий текст
+FONT_TABLE_HEADER = ("Arial", 12, "bold")  # Заголовки таблиц
+FONT_TABLE_CELL = ("Arial", 11)         # Ячейки таблиц
+ROW_HEIGHT = 30                          # Высота строк в таблице
 
 def center_window(window, width, height):
     """Функция для центрирования окна на экране."""
@@ -35,13 +45,82 @@ def get_db_connection():
         messagebox.showerror("Ошибка подключения", f"Не удалось подключиться к базе данных: {e}")
         return None
 
+def get_all_tables():
+    """Автоматическое получение всех таблиц из базы данных."""
+    conn = get_db_connection()
+    if not conn:
+        return []
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT table_name 
+            FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_type = 'BASE TABLE'
+            ORDER BY table_name;
+        """)
+        tables = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return tables
+    except Exception as e:
+        print(f"Ошибка получения списка таблиц: {e}")
+        return []
+
+def get_table_columns(table_name):
+    """Получить все колонки таблицы."""
+    conn = get_db_connection()
+    if not conn:
+        return []
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = '{table_name}'
+            ORDER BY ordinal_position;
+        """)
+        columns = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return columns
+    except Exception as e:
+        print(f"Ошибка получения колонок для {table_name}: {e}")
+        return []
+
+def get_primary_key(table_name):
+    """Получить имя первичного ключа таблицы."""
+    conn = get_db_connection()
+    if not conn:
+        return "id"
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT a.attname
+            FROM pg_index i
+            JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = ANY(i.indkey)
+            WHERE i.indrelid = '{table_name}'::regclass
+            AND i.indisprimary
+            LIMIT 1;
+        """)
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return result[0] if result else "id"
+    except Exception as e:
+        print(f"Ошибка получения первичного ключа для {table_name}: {e}")
+        return "id"
+
 class ScrollableNotebook(ttk.Frame):
     """Виджет Notebook с прокручиваемыми вкладками"""
     def __init__(self, parent, *args, **kwargs):
         ttk.Frame.__init__(self, parent, *args, **kwargs)
         
         # Создаем canvas для прокрутки вкладок
-        self.canvas = Canvas(self, height=30, highlightthickness=0)
+        self.canvas = Canvas(self, height=40, highlightthickness=0)
         self.canvas.pack(side="top", fill="x", expand=False)
         
         # Фрейм для кнопок вкладок
@@ -70,14 +149,14 @@ class ScrollableNotebook(ttk.Frame):
         
     def add(self, child, text=""):
         """Добавить вкладку"""
-        # Создаем кнопку для вкладки
+        # Создаем кнопку для вкладки с увеличенным шрифтом
         btn = ttk.Button(
             self.tab_frame, 
             text=text, 
             command=lambda idx=len(self.tabs): self.select_tab(idx),
-            style="Tab.TButton"
+            width=max(15, len(text))
         )
-        btn.pack(side="left", padx=2, pady=2)
+        btn.pack(side="left", padx=3, pady=5)
         
         self.tab_buttons.append(btn)
         self.tabs.append((child, text))
@@ -112,6 +191,21 @@ class Application:
     def __init__(self, root):
         self.root = root
         
+        # ПРЕДОПРЕДЕЛЁННЫЕ ТАБЛИЦЫ С ЭМОДЗИ И КРАСИВЫМИ НАЗВАНИЯМИ
+        self.predefined_tables = {
+            "user_main": "👤 Пользователи",
+            "food": "🍽️ Питание",
+            "user_aims": "🎯 Цели",
+            "user_health": "💪 Здоровье",
+            "user_lang": "🌐 Языки",
+            "user_training": "🏃 Тренировки",
+            "water": "💧 Вода",
+            "training_types": "🏋️ Типы тренировок",
+            "training_coefficients": "📊 Коэффициенты",
+            "chat_history": "💬 История чата",
+            "admin_users": "👨‍💼 Администраторы"
+        }
+        
         # Расширенный маппинг колонок на русский язык
         self.column_mapping = {
             # user_main
@@ -121,7 +215,7 @@ class Application:
             "date_of_birth": "Возраст",
             
             # food
-            "food_id": "ID записи",  # Для обратной совместимости
+            "food_id": "ID записи",
             "id": "ID",
             "name_of_food": "Название блюда",
             "b": "Белки (г)",
@@ -130,13 +224,13 @@ class Application:
             "cal": "Калорийность",
             "date": "Дата",
             
-            # user_aims (без aim_id, т.к. user_id - первичный ключ)
-            "aim_id": "ID цели",  # Для обратной совместимости
+            # user_aims
+            "aim_id": "ID цели",
             "user_aim": "Цель пользователя",
             "daily_cal": "Дневная норма (ккал)",
             
             # user_health
-            "health_id": "ID записи",  # Для обратной совместимости
+            "health_id": "ID записи",
             "imt": "ИМТ",
             "imt_str": "Расшифровка ИМТ",
             "weight": "Вес (кг)",
@@ -146,7 +240,7 @@ class Application:
             "lang": "Язык",
             
             # user_training
-            "training_id": "ID тренировки",  # Для обратной совместимости
+            "training_id": "ID тренировки",
             "training_cal": "Сожжено калорий",
             "tren_time": "Длительность (мин)",
             "training_type_id": "ID типа тренировки",
@@ -158,7 +252,6 @@ class Application:
             "data": "Дата",
             
             # training_types
-            "id": "ID",
             "name_ru": "Название (RU)",
             "name_en": "Название (EN)",
             "name_de": "Название (DE)",
@@ -212,33 +305,35 @@ class Application:
 
     def entry(self):
         """Функция для создания интерфейса входа."""
-        self.label_name = ttk.Label(self.frame, text="Имя пользователя:")
-        self.label_name.grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.entry_name = ttk.Entry(self.frame, width=20)
-        self.entry_name.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        title_label = ttk.Label(self.frame, text="Вход в систему", font=FONT_LARGE)
+        title_label.grid(row=0, column=0, columnspan=2, pady=20)
+        
+        self.label_name = ttk.Label(self.frame, text="Имя пользователя:", font=FONT_MEDIUM)
+        self.label_name.grid(row=1, column=0, padx=5, pady=10, sticky="w")
+        self.entry_name = ttk.Entry(self.frame, width=25, font=FONT_MEDIUM)
+        self.entry_name.grid(row=1, column=1, padx=5, pady=10, sticky="ew")
 
-        self.label_pas = ttk.Label(self.frame, text="Пароль:")
-        self.label_pas.grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.entry_pas = ttk.Entry(self.frame, width=20, show="*")
-        self.entry_pas.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        self.label_pas = ttk.Label(self.frame, text="Пароль:", font=FONT_MEDIUM)
+        self.label_pas.grid(row=2, column=0, padx=5, pady=10, sticky="w")
+        self.entry_pas = ttk.Entry(self.frame, width=25, show="*", font=FONT_MEDIUM)
+        self.entry_pas.grid(row=2, column=1, padx=5, pady=10, sticky="ew")
 
         self.button_frame = ttk.Frame(self.frame)
-        self.button_frame.grid(row=2, column=0, columnspan=2, sticky="e", padx=5, pady=5)
+        self.button_frame.grid(row=3, column=0, columnspan=2, sticky="e", padx=5, pady=15)
 
-        self.button = ttk.Button(self.button_frame, text="Войти", command=self.submit, width=10)
+        self.button = ttk.Button(self.button_frame, text="Войти", command=self.submit, width=12)
         self.button.pack(side="left", padx=5)
 
-        self.cancel_button = ttk.Button(self.button_frame, text="Отмена", command=self.close_window, width=10)
+        self.cancel_button = ttk.Button(self.button_frame, text="Отмена", command=self.close_window, width=12)
         self.cancel_button.pack(side="left", padx=5)
 
-        self.error_label = ttk.Label(self.frame, text="", font=("Arial", 12))
-        self.error_label.grid(row=3, column=0, columnspan=2, sticky="ew")
+        self.error_label = ttk.Label(self.frame, text="", font=FONT_SMALL)
+        self.error_label.grid(row=4, column=0, columnspan=2, sticky="ew")
 
         self.frame.columnconfigure(1, weight=1)
-        self.frame.rowconfigure(0, weight=1)
-        self.frame.rowconfigure(1, weight=1)
-        self.frame.rowconfigure(2, weight=1)
-        self.frame.rowconfigure(3, weight=1)
+        
+        # Bind Enter key
+        self.entry_pas.bind("<Return>", lambda e: self.submit())
 
     def submit(self):
         """Функция для обработки входа пользователя."""
@@ -251,7 +346,7 @@ class Application:
 
         conn = get_db_connection()
         if not conn:
-            return  # Сообщение об ошибке уже показано в get_db_connection
+            return
 
         try:
             cursor = conn.cursor()
@@ -283,103 +378,72 @@ class Application:
         """Функция для отображения главного окна с вкладками."""
         self.frame.pack_forget()
         
-        # Используем ScrollableNotebook вместо обычного Notebook
+        # Используем ScrollableNotebook
         self.notebook = ScrollableNotebook(self.root)
         self.notebook.pack(fill="both", expand=True)
 
-        window_width = 1400
-        window_height = 900
+        # Увеличенное окно
+        window_width = 1600
+        window_height = 1000
         center_window(self.root, window_width, window_height)
         self.root.title("PROпиташка - Администрирование базы данных")
-        self.root.minsize(1000, 700)
+        self.root.minsize(1200, 800)
 
         self.create_tabs()
 
     def create_tabs(self):
-        """Функция для создания вкладок со всеми таблицами."""
-        tabs = [
-            # Основные таблицы
-            ("👤 Пользователи", 
-             ["user_id", "user_name", "user_sex", "date_of_birth"],
-             "SELECT user_id, user_name, user_sex, date_of_birth FROM user_main ORDER BY user_id", 
-             "user_main"),
-            
-            ("🍽️ Питание", 
-             ["id", "user_id", "name_of_food", "b", "g", "u", "cal", "date"],
-             "SELECT id, user_id, name_of_food, b, g, u, cal, date FROM food ORDER BY date DESC, id DESC", 
-             "food"),
-            
-            ("🎯 Цели", 
-             ["user_id", "user_aim", "daily_cal"],
-             "SELECT user_id, user_aim, daily_cal FROM user_aims ORDER BY user_id", 
-             "user_aims"),
-            
-            ("💪 Здоровье", 
-             ["id", "user_id", "imt", "imt_str", "cal", "date", "weight", "height"],
-             "SELECT id, user_id, imt, imt_str, cal, date, weight, height FROM user_health ORDER BY date DESC", 
-             "user_health"),
-            
-            ("🌐 Языки", 
-             ["user_id", "lang"],
-             "SELECT user_id, lang FROM user_lang ORDER BY user_id", 
-             "user_lang"),
-            
-            ("🏃 Тренировки", 
-             ["id", "user_id", "date", "training_cal", "tren_time", "training_type_id", "training_name"],
-             "SELECT id, user_id, date, training_cal, tren_time, training_type_id, training_name FROM user_training ORDER BY date DESC", 
-             "user_training"),
-            
-            ("💧 Вода", 
-             ["user_id", "data", "count"],
-             "SELECT user_id, data, count FROM water ORDER BY data DESC", 
-             "water"),
-            
-            # Новые таблицы системы тренировок
-            ("🏋️ Типы тренировок", 
-             ["id", "name_ru", "name_en", "name_de", "name_fr", "name_es", "base_coefficient", "emoji", "is_active"],
-             "SELECT id, name_ru, name_en, name_de, name_fr, name_es, base_coefficient, emoji, is_active FROM training_types ORDER BY id", 
-             "training_types"),
-            
-            ("📊 Коэффициенты", 
-             ["id", "training_type_id", "gender_male_modifier", "gender_female_modifier", "age_18_25_modifier", "age_26_35_modifier"],
-             "SELECT id, training_type_id, gender_male_modifier, gender_female_modifier, age_18_25_modifier, age_26_35_modifier FROM training_coefficients ORDER BY id", 
-             "training_coefficients"),
-            
-            ("💬 История чата", 
-             ["id", "user_id", "message_type", "message_text", "created_at"],
-             "SELECT id, user_id, message_type, LEFT(message_text, 100), created_at FROM chat_history ORDER BY created_at DESC LIMIT 1000", 
-             "chat_history"),
-            
-            ("👨‍💼 Администраторы", 
-             ["id", "username", "last_login", "created_at"],
-             "SELECT id, username, last_login, created_at FROM admin_users ORDER BY id", 
-             "admin_users")
+        """Функция для автоматического создания вкладок из всех таблиц БД."""
+        all_tables = get_all_tables()
+        
+        # Сначала добавляем предопределённые таблицы в заданном порядке
+        predefined_order = [
+            "user_main", "food", "user_aims", "user_health", "user_lang",
+            "user_training", "water", "training_types", "training_coefficients",
+            "chat_history", "admin_users"
         ]
+        
+        # Добавляем предопределённые таблицы
+        for table_name in predefined_order:
+            if table_name in all_tables:
+                tab_name = self.predefined_tables.get(table_name, table_name)
+                columns = get_table_columns(table_name)
+                if columns:
+                    tab = ttk.Frame(self.notebook)
+                    self.notebook.add(tab, text=tab_name)
+                    self.create_table(tab, columns, table_name)
+        
+        # Добавляем остальные таблицы с английскими названиями
+        for table_name in all_tables:
+            if table_name not in predefined_order:
+                columns = get_table_columns(table_name)
+                if columns:
+                    tab = ttk.Frame(self.notebook)
+                    self.notebook.add(tab, text=table_name)  # Английское название
+                    self.create_table(tab, columns, table_name)
 
-        for tab_name, columns, query, table_name in tabs:
-            tab = ttk.Frame(self.notebook)
-            self.notebook.add(tab, text=tab_name)
-            self.create_table(tab, columns, query, table_name)
-
-    def create_table(self, tab, columns, query, table_name):
+    def create_table(self, tab, columns, table_name):
         """Функция для создания таблицы на вкладке."""
         container = ttk.Frame(tab)
         container.grid(row=2, column=0, sticky="nsew")
 
         # Маппинг колонок для отображения
-        display_columns = [self.column_mapping.get(col, col) for col in columns]
+        display_columns = [self.column_mapping.get(col, col.replace('_', ' ').title()) for col in columns]
         
         tree = ttk.Treeview(container, columns=columns, show="headings")
+        
+        # Применяем увеличенные шрифты
         style = ttk.Style()
-        style.configure("Treeview.Heading", font=("Arial", 11, "bold"), padding=5)
-        style.configure("Treeview", font=("Arial", 10), rowheight=25)
+        style.configure("Treeview.Heading", font=FONT_TABLE_HEADER, padding=8)
+        style.configure("Treeview", font=FONT_TABLE_CELL, rowheight=ROW_HEIGHT)
 
+        # Создаем заголовки с сортировкой
         for i, col in enumerate(columns):
-            tree.heading(col, text=display_columns[i], 
-                        command=lambda c=col: self.sort_treeview(tree, c, False))
-            # Настройка ширины колонок
-            tree.column(col, width=150, minwidth=100)
+            tree.heading(col, text=f"{display_columns[i]} ▼", 
+                        command=lambda c=col, t=tree: self.sort_treeview(t, c, False))
+            # Автоматическая ширина колонок
+            tree.column(col, width=150, minwidth=100, stretch=True)
 
+        # ГОРИЗОНТАЛЬНАЯ И ВЕРТИКАЛЬНАЯ ПРОКРУТКА
         h_scroll = ttk.Scrollbar(container, orient="horizontal", command=tree.xview)
         tree.configure(xscrollcommand=h_scroll.set)
         h_scroll.grid(row=1, column=0, sticky="ew")
@@ -400,6 +464,8 @@ class Application:
                 conn = get_db_connection()
                 if conn:
                     cursor = conn.cursor()
+                    pk = get_primary_key(table_name)
+                    query = f"SELECT * FROM {table_name} ORDER BY {pk} DESC LIMIT 1000"
                     cursor.execute(query)
                     rows = cursor.fetchall()
 
@@ -416,13 +482,14 @@ class Application:
 
         load_data()
 
+        # Фильтр
         filter_frame = ttk.Frame(tab)
-        filter_frame.grid(row=0, column=0, sticky="ew", pady=5, padx=5)
+        filter_frame.grid(row=0, column=0, sticky="ew", pady=8, padx=8)
 
-        filter_label = ttk.Label(filter_frame, text="🔍 Фильтр:")
+        filter_label = ttk.Label(filter_frame, text="🔍 Фильтр:", font=FONT_MEDIUM)
         filter_label.pack(side="left", padx=5)
 
-        filter_entry = ttk.Entry(filter_frame, width=40)
+        filter_entry = ttk.Entry(filter_frame, width=40, font=FONT_MEDIUM)
         filter_entry.pack(side="left", padx=5, fill="x", expand=True)
 
         def apply_filter():
@@ -434,7 +501,7 @@ class Application:
                 conn = get_db_connection()
                 if conn:
                     cursor = conn.cursor()
-                    cursor.execute(query)
+                    cursor.execute(f"SELECT * FROM {table_name}")
                     rows = cursor.fetchall()
 
                     for row in rows:
@@ -452,17 +519,17 @@ class Application:
         clear_filter_button = ttk.Button(filter_frame, text="Сбросить", command=load_data)
         clear_filter_button.pack(side="left", padx=5)
 
+        # Кнопки управления
         button_frame = ttk.Frame(tab)
-        button_frame.grid(row=1, column=0, sticky="ew", pady=5, padx=5)
+        button_frame.grid(row=1, column=0, sticky="ew", pady=8, padx=8)
 
         refresh_button = ttk.Button(button_frame, text="🔄 Обновить", command=load_data)
         refresh_button.pack(side="left", padx=5)
 
-        # Ограничение добавления для некоторых таблиц
-        if table_name not in ["training_coefficients", "admin_users"]:
-            add_button = ttk.Button(button_frame, text="➕ Добавить запись", 
-                                   command=lambda: self.add_record(tree, columns, table_name, load_data))
-            add_button.pack(side="left", padx=5)
+        # КНОПКА "ДОБАВИТЬ ЗАПИСЬ" ДЛЯ ВСЕХ ТАБЛИЦ
+        add_button = ttk.Button(button_frame, text="➕ Добавить запись", 
+                               command=lambda: self.add_record(tree, columns, table_name, load_data))
+        add_button.pack(side="left", padx=5)
 
         delete_button = ttk.Button(button_frame, text="🗑️ Удалить строку", 
                                    command=lambda: self.delete_record(tree, table_name, load_data))
@@ -470,7 +537,7 @@ class Application:
 
         # Счётчик записей
         count_label = ttk.Label(button_frame, text=f"Всего записей: {len(tree.get_children())}", 
-                               font=("Arial", 10, "italic"))
+                               font=FONT_SMALL)
         count_label.pack(side="right", padx=10)
 
         # Обновление счётчика при загрузке
@@ -478,30 +545,34 @@ class Application:
             load_data()
             count_label.config(text=f"Всего записей: {len(tree.get_children())}")
 
-        # Заменяем load_data на load_data_with_count
         refresh_button.config(command=load_data_with_count)
-        if table_name not in ["training_coefficients", "admin_users"]:
-            add_button.config(command=lambda: self.add_record(tree, columns, table_name, load_data_with_count))
+        add_button.config(command=lambda: self.add_record(tree, columns, table_name, load_data_with_count))
         delete_button.config(command=lambda: self.delete_record(tree, table_name, load_data_with_count))
         clear_filter_button.config(command=load_data_with_count)
 
         tree.bind("<Double-1>", lambda event: self.edit_cell(event, tree, columns, table_name, load_data_with_count))
 
     def sort_treeview(self, tree, col, reverse):
-        """Сортировка данных в Treeview по выбранному столбцу."""
+        """Улучшенная сортировка с индикатором направления."""
         data = [(tree.set(item, col), item) for item in tree.get_children("")]
         
         # Попытка числовой сортировки
         try:
-            data.sort(key=lambda x: float(x[0]) if x[0] else 0, reverse=reverse)
-        except ValueError:
-            # Если не получается преобразовать в число, сортируем как строки
-            data.sort(reverse=reverse)
+            data.sort(key=lambda x: float(x[0]) if x[0] and x[0] != 'None' else 0, reverse=reverse)
+        except (ValueError, TypeError):
+            # Сортировка как строки
+            data.sort(key=lambda x: str(x[0]).lower(), reverse=reverse)
 
         for index, (val, item) in enumerate(data):
             tree.move(item, "", index)
 
-        tree.heading(col, command=lambda: self.sort_treeview(tree, col, not reverse))
+        # Обновляем индикатор направления в заголовке
+        current_text = tree.heading(col)['text']
+        base_text = current_text.replace(' ▼', '').replace(' ▲', '')
+        new_text = f"{base_text} {'▲' if reverse else '▼'}"
+        
+        # Обновляем заголовок
+        tree.heading(col, text=new_text, command=lambda: self.sort_treeview(tree, col, not reverse))
 
     def delete_record(self, tree, table_name, load_data):
         """Функция для удаления выбранных строк с каскадным удалением."""
@@ -519,6 +590,7 @@ class Application:
             conn = get_db_connection()
             if conn:
                 cursor = conn.cursor()
+                pk = get_primary_key(table_name)
 
                 for item in selected_items:
                     values = tree.item(item, "values")
@@ -528,23 +600,7 @@ class Application:
                     if table_name == "user_main":
                         self.delete_related_records(cursor, primary_key_value)
 
-                    # Определение имени первичного ключа
-                    if table_name == "user_main":
-                        primary_key_column = "user_id"
-                    elif table_name == "user_lang":
-                        primary_key_column = "user_id"
-                    elif table_name == "user_aims":
-                        primary_key_column = "user_id"
-                    elif table_name == "water":
-                        # water не имеет первичного ключа, используем комбинацию
-                        primary_key_column = "user_id"
-                    elif table_name in ["food", "user_health", "user_training", "training_types", "training_coefficients", "chat_history", "admin_users"]:
-                        # Эти таблицы используют 'id' как первичный ключ
-                        primary_key_column = "id"
-                    else:
-                        primary_key_column = "id"
-                    
-                    cursor.execute(f"DELETE FROM {table_name} WHERE {primary_key_column} = %s", (primary_key_value,))
+                    cursor.execute(f"DELETE FROM {table_name} WHERE {pk} = %s", (primary_key_value,))
 
                 conn.commit()
                 cursor.close()
@@ -558,15 +614,10 @@ class Application:
                 conn.rollback()
 
     def delete_related_records(self, cursor, user_id):
-        """Функция для каскадного удаления связанных записей из всех таблиц по user_id."""
+        """Функция для каскадного удаления связанных записей."""
         related_tables = [
-            "chat_history",      # История чата
-            "food",              # Питание
-            "user_aims",         # Цели
-            "user_health",       # Здоровье
-            "user_lang",         # Язык
-            "user_training",     # Тренировки
-            "water"              # Вода
+            "chat_history", "food", "user_aims", "user_health",
+            "user_lang", "user_training", "water"
         ]
         
         for table in related_tables:
@@ -576,17 +627,22 @@ class Application:
                 print(f"Ошибка удаления из {table}: {e}")
 
     def add_record(self, tree, columns, table_name, load_data):
-        """Функция для добавления новой записи."""
+        """УЛУЧШЕННОЕ окно добавления новой записи."""
         add_window = tk.Toplevel()
         add_window.title(f"Добавить запись в таблицу '{table_name}'")
-        window_width = 700
-        window_height = min(len(columns) * 60 + 150, 800)
+        
+        # Адаптивный размер окна
+        window_height = min(len(columns) * 70 + 200, 900)
+        window_width = 800
         center_window(add_window, window_width, window_height)
-        add_window.minsize(600, 300)
+        add_window.minsize(700, 400)
 
-        # Создаем canvas с прокруткой для большого количества полей
-        canvas = Canvas(add_window)
-        scrollbar = ttk.Scrollbar(add_window, orient="vertical", command=canvas.yview)
+        # Canvas с прокруткой для большого количества полей
+        main_frame = ttk.Frame(add_window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        canvas = Canvas(main_frame)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
         scrollable_frame = ttk.Frame(canvas)
 
         scrollable_frame.bind(
@@ -598,228 +654,63 @@ class Application:
         canvas.configure(yscrollcommand=scrollbar.set)
 
         entries = []
-        user_names = []
-        user_ids = []
-        training_type_names = []
-        training_type_ids = []
+        pk = get_primary_key(table_name)
 
         for i, col in enumerate(columns):
-            label_text = self.column_mapping.get(col, col)
-            label = ttk.Label(scrollable_frame, text=label_text + ":")
-            label.grid(row=i, column=0, padx=10, pady=8, sticky="e")
+            label_text = self.column_mapping.get(col, col.replace('_', ' ').title())
+            label = ttk.Label(scrollable_frame, text=label_text + ":", font=FONT_MEDIUM)
+            label.grid(row=i, column=0, padx=15, pady=10, sticky="e")
 
-            # Специальные поля для различных таблиц
-            if col == "count" and table_name == "water":
-                entry = Spinbox(scrollable_frame, from_=0, to=99, increment=1, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col in ["id", "tren_time"] and table_name == "user_training":
-                entry = Spinbox(scrollable_frame, from_=1, to=99999, increment=1, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "training_cal" and table_name == "user_training":
-                entry = Spinbox(scrollable_frame, from_=1.0, to=9999.0, increment=0.1, format="%.1f", width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "training_type_id" and table_name == "user_training":
-                # Загружаем типы тренировок
-                try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT id, name_ru FROM training_types WHERE is_active = TRUE ORDER BY name_ru")
-                    training_data = cursor.fetchall()
-                    training_type_ids = [str(row[0]) for row in training_data]
-                    training_type_names = [f"{row[0]}: {row[1]}" for row in training_data]
-                    cursor.close()
-                    conn.close()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить типы тренировок: {e}")
-                    training_type_ids = []
-                    training_type_names = []
-
-                entry = ttk.Combobox(scrollable_frame, values=training_type_names, width=23, state="readonly")
-                if training_type_names:
-                    entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "id" and table_name == "user_health":
-                entry = Spinbox(scrollable_frame, from_=1, to=999999, increment=1, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col in ["imt", "cal", "weight", "height"] and table_name == "user_health":
-                entry = Spinbox(scrollable_frame, from_=1.0, to=999.0, increment=0.1, format="%.1f", width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "aim_id" and table_name == "user_aims":
-                # aim_id не существует - user_id является первичным ключом
-                entry = ttk.Entry(scrollable_frame, width=25, state="disabled")
+            # Автоматические поля (первичные ключи, timestamps)
+            if col == pk or col in ['created_at', 'updated_at', 'last_login']:
+                entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM, state="disabled")
                 entry.insert(0, "Автоматически")
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "daily_cal" and table_name == "user_aims":
-                entry = Spinbox(scrollable_frame, from_=500, to=10000, increment=50, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "id" and table_name == "food":
-                entry = Spinbox(scrollable_frame, from_=1, to=999999, increment=1, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col in ["b", "g", "u", "cal"] and table_name == "food":
-                entry = Spinbox(scrollable_frame, from_=0.0, to=999.0, increment=0.1, format="%.1f", width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "user_id" and table_name == "user_main":
-                entry = Spinbox(scrollable_frame, from_=1, to=999999999, increment=1, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "date_of_birth" and table_name == "user_main":
-                entry = Spinbox(scrollable_frame, from_=5, to=100, increment=1, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "user_id" and table_name != "user_main":
-                # Загружаем пользователей
-                try:
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT user_id, user_name FROM user_main ORDER BY user_id")
-                    user_data = cursor.fetchall()
-                    user_ids = [str(row[0]) for row in user_data]
-                    user_names = [f"{row[0]}: {row[1]}" for row in user_data]
-                    cursor.close()
-                    conn.close()
-                except Exception as e:
-                    messagebox.showerror("Ошибка", f"Не удалось загрузить пользователей: {e}")
-                    user_ids = []
-                    user_names = []
-
-                entry = ttk.Combobox(scrollable_frame, values=user_names, width=23, state="readonly")
-                if user_names:
-                    entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "user_sex" and table_name == "user_main":
-                entry = ttk.Combobox(scrollable_frame, values=["Мужской", "Женский"], width=23, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "lang" and table_name == "user_lang":
-                entry = ttk.Combobox(scrollable_frame, values=["ru", "en", "de", "fr", "es"], width=23, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "user_aim" and table_name == "user_aims":
-                entry = ttk.Combobox(scrollable_frame, 
-                                    values=["Похудение", "Набор массы", "Поддержание формы"], 
-                                    width=23)
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "message_type" and table_name == "chat_history":
-                entry = ttk.Combobox(scrollable_frame, values=["user", "bot"], width=23, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col in ["date", "data"] and table_name not in ["chat_history"]:
-                entry = ttk.Entry(scrollable_frame, width=25)
-                entry.insert(0, datetime.now().strftime("%d-%m-%Y"))
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col == "is_active" and table_name == "training_types":
-                entry = ttk.Combobox(scrollable_frame, values=["TRUE", "FALSE"], width=23, state="readonly")
-                entry.current(0)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif col in ["base_coefficient"] and table_name == "training_types":
-                entry = Spinbox(scrollable_frame, from_=0.0, to=20.0, increment=0.1, format="%.2f", width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
-            elif "modifier" in col and table_name == "training_coefficients":
-                entry = Spinbox(scrollable_frame, from_=0.0, to=2.0, increment=0.01, format="%.3f", width=25)
-                entry.insert(0, "1.000")
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-                
+            elif col in ['date', 'data']:
+                entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM)
+                entry.insert(0, datetime.now().strftime("%Y-%m-%d"))
             else:
-                entry = ttk.Entry(scrollable_frame, width=25)
-                entry.grid(row=i, column=1, padx=10, pady=8, sticky="w")
-
+                entry = ttk.Entry(scrollable_frame, width=30, font=FONT_MEDIUM)
+            
+            entry.grid(row=i, column=1, padx=15, pady=10, sticky="w")
             entries.append(entry)
 
-        canvas.pack(side="left", fill="both", expand=True, padx=10, pady=10)
+        canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
 
         def save_record():
             values = []
             for i, entry in enumerate(entries):
-                col = columns[i]
-                
-                # Обработка user_id
-                if col == "user_id" and table_name != "user_main":
-                    selected_user = entry.get().strip()
-                    if selected_user and ':' in selected_user:
-                        user_id = selected_user.split(':')[0]
-                        values.append(user_id)
-                    else:
-                        messagebox.showwarning("Предупреждение", "Выберите корректного пользователя!")
-                        return
-                        
-                # Обработка training_type_id
-                elif col == "training_type_id" and table_name == "user_training":
-                    selected_training = entry.get().strip()
-                    if selected_training and ':' in selected_training:
-                        training_id = selected_training.split(':')[0]
-                        values.append(training_id)
-                    else:
-                        messagebox.showwarning("Предупреждение", "Выберите корректный тип тренировки!")
-                        return
-                        
-                else:
-                    value = entry.get().strip()
-                    values.append(value if value else None)
+                if entry.cget('state') == 'disabled':
+                    continue  # Пропускаем автоматические поля
+                value = entry.get().strip()
+                values.append(value if value else None)
 
-            # Проверка заполненности обязательных полей
-            if any(v is None or v == '' for i, v in enumerate(values) if columns[i] not in ['updated_at', 'created_at']):
-                messagebox.showwarning("Предупреждение", "Заполните все обязательные поля!")
-                return
+            # Фильтруем колонки (без автоматических)
+            filtered_columns = [col for col in columns if col != pk and col not in ['created_at', 'updated_at', 'last_login']]
 
             try:
                 conn = get_db_connection()
                 if conn:
                     cursor = conn.cursor()
-                    placeholders = ', '.join(['%s'] * len(columns))
-                    query = f"INSERT INTO {table_name} ({', '.join(columns)}) VALUES ({placeholders})"
+                    placeholders = ', '.join(['%s'] * len(filtered_columns))
+                    query = f"INSERT INTO {table_name} ({', '.join(filtered_columns)}) VALUES ({placeholders})"
                     cursor.execute(query, values)
                     conn.commit()
                     cursor.close()
                     conn.close()
                     add_window.destroy()
-
                     load_data()
-                    
-                    # Подсветка добавленной записи
-                    if tree.get_children():
-                        last_item = tree.get_children()[-1]
-                        if tree.exists(last_item):
-                            tree.tag_configure("highlight", foreground="green")
-                            tree.item(last_item, tags=("highlight",))
-                            tree.see(last_item)
-
-                            def reset_highlight():
-                                if tree.exists(last_item):
-                                    tree.item(last_item, tags=())
-
-                            tree.after(20000, reset_highlight)
-                            
                     messagebox.showinfo("Успех", "Запись успешно добавлена!")
             except Exception as e:
                 messagebox.showerror("Ошибка", f"Не удалось добавить запись: {e}")
 
         button_frame = ttk.Frame(add_window)
-        button_frame.pack(side="bottom", fill="x", padx=10, pady=10)
+        button_frame.pack(side="bottom", fill="x", padx=10, pady=15)
 
-        add_button = ttk.Button(button_frame, text="✅ Сохранить", command=save_record, width=15)
+        add_button = ttk.Button(button_frame, text="✅ Сохранить", command=save_record, width=18)
         add_button.pack(side="left", padx=5)
 
-        cancel_button = ttk.Button(button_frame, text="❌ Отмена", command=add_window.destroy, width=15)
+        cancel_button = ttk.Button(button_frame, text="❌ Отмена", command=add_window.destroy, width=18)
         cancel_button.pack(side="left", padx=5)
 
     def edit_cell(self, event, tree, columns, table_name, load_data):
@@ -841,15 +732,13 @@ class Application:
         column_name = columns[column_index]
         current_value = tree.set(item, column)
 
-        # Запрет редактирования первичных ключей и некоторых полей
-        restricted_columns = ["id", "user_id", "food_id", "health_id", "aim_id", 
-                             "training_id", "created_at", "password_hash"]
-        if column_name in restricted_columns and table_name != "user_main":
-            messagebox.showinfo("Информация", "Это поле нельзя редактировать напрямую")
+        # Запрет редактирования первичных ключей
+        pk = get_primary_key(table_name)
+        if column_name == pk:
+            messagebox.showinfo("Информация", "Первичный ключ нельзя редактировать")
             return
 
-        # Создание поля для редактирования
-        entry_edit = ttk.Entry(tree, font=("Arial", 12))
+        entry_edit = ttk.Entry(tree, font=FONT_TABLE_CELL)
         entry_edit.insert(0, current_value)
         entry_edit.select_range(0, tk.END)
         entry_edit.focus()
@@ -860,52 +749,17 @@ class Application:
                 entry_edit.destroy()
                 return
 
-            # Валидация для специальных полей
-            if column_name == "user_sex" and new_value not in ["Мужской", "Женский", "Мужчина", "Женщина"]:
-                messagebox.showwarning("Ошибка", "Допустимые значения: Мужской, Женский")
-                entry_edit.destroy()
-                return
-
-            if column_name == "date_of_birth":
-                try:
-                    age = int(new_value)
-                    if age < 5 or age > 100:
-                        messagebox.showwarning("Ошибка", "Возраст должен быть от 5 до 100 лет")
-                        entry_edit.destroy()
-                        return
-                except ValueError:
-                    messagebox.showwarning("Ошибка", "Введите корректное число для возраста")
-                    entry_edit.destroy()
-                    return
-
-            if column_name == "lang" and new_value not in ["ru", "en", "de", "fr", "es"]:
-                messagebox.showwarning("Ошибка", "Допустимые значения: ru, en, de, fr, es")
-                entry_edit.destroy()
-                return
-
             try:
                 conn = get_db_connection()
                 if conn:
                     cursor = conn.cursor()
                     primary_key_value = tree.item(item, "values")[0]
-                    primary_key_column = columns[0]
                     
-                    update_query = f"UPDATE {table_name} SET {column_name} = %s WHERE {primary_key_column} = %s"
+                    update_query = f"UPDATE {table_name} SET {column_name} = %s WHERE {pk} = %s"
                     cursor.execute(update_query, (new_value, primary_key_value))
                     conn.commit()
                     cursor.close()
                     conn.close()
-
-                    # Подсветка изменённой строки
-                    if tree.exists(item):
-                        tree.tag_configure("highlight", foreground="blue")
-                        tree.item(item, tags=("highlight",))
-
-                        def reset_highlight():
-                            if tree.exists(item):
-                                tree.item(item, tags=())
-
-                        tree.after(10000, reset_highlight)
 
                     load_data()
                     entry_edit.destroy()
@@ -918,7 +772,6 @@ class Application:
         entry_edit.bind("<Escape>", lambda e: entry_edit.destroy())
         entry_edit.bind("<FocusOut>", lambda e: entry_edit.destroy())
 
-        # Позиционирование поля редактирования
         try:
             x, y, width, height = tree.bbox(item, column)
             entry_edit.place(x=x, y=y, width=width, height=height)
@@ -932,10 +785,12 @@ class Application:
 # Главное окно
 root = tk.Tk()
 root.title("PROпиташка - Вход в систему администрирования")
-window_width = 450
-window_height = 180
+
+# Увеличенное окно входа
+window_width = 500
+window_height = 300
 center_window(root, window_width, window_height)
-root.minsize(400, 150)
+root.minsize(450, 250)
 
 app = Application(root)
 root.mainloop()
