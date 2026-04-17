@@ -9,6 +9,7 @@ import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { ScrollReveal, Stagger, StaggerItem } from "@/components/motion/ScrollReveal";
 import { WaterWave } from "@/components/water/WaterWave";
 import { fireConfetti } from "@/components/motion/confetti";
+import { handleActivityResponse, type StreakDTO, type BadgeDTO, useLoadStreak, useStreakStore } from "@/lib/streaks";
 import { HandDrawnUnderline } from "@/components/hand/HandDrawnUnderline";
 import { Highlight } from "@/components/hand/Highlight";
 import { HandArrow } from "@/components/hand/HandArrow";
@@ -81,6 +82,8 @@ function WaterWidget({
 }
 
 export default function DashboardPage() {
+  useLoadStreak();
+  const { streak } = useStreakStore();
   const [data, setData] = useState<DashboardData | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +113,13 @@ export default function DashboardPage() {
   async function addWater() {
     setWaterAdding(true);
     try {
-      await api("/api/water", { method: "POST" });
+      const res = await api<{
+        count: number;
+        ml: number;
+        streak?: StreakDTO | null;
+        newly_earned_badges?: BadgeDTO[] | null;
+      }>("/api/water", { method: "POST" });
+      handleActivityResponse(res);
       const updated = await api<DashboardData>(
         "/api/summary/day?date=" + todayStr,
       );
@@ -234,7 +243,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Right-side live ticker — looks hand-pinned */}
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 flex flex-col gap-5">
               <div
                 className="relative inline-flex flex-col items-start gap-2 pr-6"
                 style={{ transform: "rotate(-1.2deg)" }}
@@ -260,6 +269,35 @@ export default function DashboardPage() {
                   съел {Math.round(foodCal)} · сжёг {Math.round(trainCal)}
                 </p>
               </div>
+
+              {streak && streak.current >= 2 && (
+                <a
+                  href="/achievements"
+                  className="relative inline-flex items-center gap-3 pl-3 pr-4 py-2 rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--warning)]/15 to-[var(--accent)]/10 border border-[var(--warning)]/30 hover:border-[var(--warning)]/60 transition-colors"
+                  style={{ transform: "rotate(1deg)" }}
+                >
+                  <Icon
+                    icon="solar:fire-bold-duotone"
+                    width={28}
+                    className={
+                      streak.status === "at_risk"
+                        ? "text-[var(--destructive)]"
+                        : "text-[var(--warning)]"
+                    }
+                  />
+                  <div className="leading-tight">
+                    <p
+                      className="display-number text-2xl tabular-nums"
+                      style={{ fontFamily: "var(--font-display)" }}
+                    >
+                      {streak.current}
+                    </p>
+                    <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                      {streak.status === "at_risk" ? "streak горит" : "дней подряд"}
+                    </p>
+                  </div>
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -501,37 +539,47 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
-          ) : (
-            <div className="flex flex-col md:flex-row items-start md:items-center gap-6 py-4">
-              <Scribble
-                variant="empty-plate"
-                className="w-28 h-28 shrink-0 text-[var(--color-latte)]"
-              />
-              <div className="flex-1">
-                <p
-                  className="text-2xl"
-                  style={{
-                    fontFamily: "var(--font-display)",
-                    letterSpacing: "-0.01em",
-                  }}
-                >
-                  <Highlight color="oklch(72% 0.15 80 / 0.35)">
-                    {EMPTY_COPY.food_today.title}
-                  </Highlight>
-                </p>
-                <p className="text-sm text-[var(--muted-foreground)] mt-2 max-w-[48ch]">
-                  {EMPTY_COPY.food_today.subtitle}
-                </p>
-                <a
-                  href="/food"
-                  className="inline-flex items-center gap-2 mt-3 text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]"
-                >
-                  <Icon icon="solar:arrow-right-bold-duotone" width={16} />
-                  {EMPTY_COPY.food_today.cta}
-                </a>
+            ) : (
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6 py-4">
+                <Scribble
+                  variant="empty-plate"
+                  className="w-28 h-28 shrink-0 text-[var(--color-latte)]"
+                />
+                <div className="flex-1">
+                  <p
+                    className="text-2xl"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    <Highlight color="oklch(72% 0.15 80 / 0.35)">
+                      {EMPTY_COPY.food_today.title}
+                    </Highlight>
+                  </p>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-2 max-w-[48ch]">
+                    {EMPTY_COPY.food_today.subtitle}
+                  </p>
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    <a
+                      href="/food"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]"
+                    >
+                      <Icon icon="solar:arrow-right-bold-duotone" width={16} />
+                      {EMPTY_COPY.food_today.cta}
+                    </a>
+                    <span className="text-[var(--muted-foreground)]">·</span>
+                    <a
+                      href="/food?tab=repeat"
+                      className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--muted)] hover:text-[var(--foreground)]"
+                    >
+                      <Icon icon="solar:refresh-circle-bold-duotone" width={16} />
+                      Как вчера
+                    </a>
+                  </div>
+                </div>
               </div>
-            </div>
-          )}
+            )}
         </div>
       </ScrollReveal>
     </div>

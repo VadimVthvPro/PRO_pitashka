@@ -4,6 +4,7 @@ from app.dependencies import DbDep, CurrentUserDep
 from app.models.workout import WorkoutSaveRequest, WorkoutSaveResponse, WorkoutType
 from app.repositories.workout_repo import WorkoutRepository
 from app.repositories.user_repo import UserRepository
+from app.services import streak_service
 
 router = APIRouter()
 
@@ -15,7 +16,7 @@ async def get_workout_types(db: DbDep, user_id: CurrentUserDep, lang: str = Quer
     return [WorkoutType(**t) for t in types]
 
 
-@router.post("", response_model=WorkoutSaveResponse)
+@router.post("")
 async def save_workout(body: WorkoutSaveRequest, user_id: CurrentUserDep, db: DbDep):
     repo = WorkoutRepository(db)
     training = await repo.get_training_by_id(body.training_type_id)
@@ -43,13 +44,27 @@ async def save_workout(body: WorkoutSaveRequest, user_id: CurrentUserDep, db: Db
     total_cal = await repo.get_total_calories(user_id, body.workout_date)
     total_dur = await repo.get_total_duration(user_id, body.workout_date)
 
-    return WorkoutSaveResponse(
-        training_name=training["name_ru"],
-        duration=body.duration_minutes,
-        calories=calories,
-        total_today_cal=total_cal,
-        total_today_duration=total_dur,
-    )
+    streak = None
+    new_badges: list = []
+    if body.workout_date == date.today():
+        update = await streak_service.touch_activity(db, user_id)
+        streak = {
+            "current": update.current,
+            "longest": update.longest,
+            "status": update.status,
+            "freezes_available": update.freezes_available,
+        }
+        new_badges = update.newly_earned_badges
+
+    return {
+        "training_name": training["name_ru"],
+        "duration": body.duration_minutes,
+        "calories": calories,
+        "total_today_cal": total_cal,
+        "total_today_duration": total_dur,
+        "streak": streak,
+        "newly_earned_badges": new_badges,
+    }
 
 
 @router.get("")

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
+import { StreakFlame } from "@/components/streak/StreakFlame";
 
 interface NavItem {
   href: string;
@@ -16,6 +17,7 @@ const navItems: NavItem[] = [
   { href: "/food", icon: "solar:plate-bold-duotone", label: "Питание" },
   { href: "/workouts", icon: "solar:dumbbell-large-bold-duotone", label: "Тренировки" },
   { href: "/summary", icon: "solar:graph-new-up-bold-duotone", label: "Прогресс" },
+  { href: "/achievements", icon: "solar:medal-ribbon-star-bold-duotone", label: "Достижения" },
   { href: "/ai-chat", icon: "solar:magic-stick-3-bold-duotone", label: "AI-Ассистент" },
   { href: "/plans", icon: "solar:clipboard-check-bold-duotone", label: "Планы" },
   { href: "/recipes", icon: "solar:chef-hat-bold-duotone", label: "Рецепты" },
@@ -87,9 +89,10 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="mt-6 px-3 py-4 border-t border-dashed border-[var(--border)]">
+      <div className="mt-6 pt-4 border-t border-dashed border-[var(--border)]">
+        <StreakFlame />
         <p
-          className="text-xs text-[var(--muted-foreground)] leading-snug"
+          className="mt-3 px-3 text-xs text-[var(--muted-foreground)] leading-snug"
           style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "13px" }}
         >
           «Лучшая диета та,

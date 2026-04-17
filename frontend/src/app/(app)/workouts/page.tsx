@@ -9,6 +9,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Sticker } from "@/components/hand/Sticker";
 import { Highlight } from "@/components/hand/Highlight";
 import { Scribble } from "@/components/hand/Scribble";
+import { handleActivityResponse, type StreakDTO, type BadgeDTO } from "@/lib/streaks";
 
 interface WorkoutType {
   id: number;
@@ -30,6 +31,8 @@ interface WorkoutSaveResponse {
   total_today_cal: number;
   total_today_duration: number;
   error?: string;
+  streak?: StreakDTO | null;
+  newly_earned_badges?: BadgeDTO[] | null;
 }
 
 function todayISO(): string {
@@ -128,6 +131,7 @@ export default function WorkoutsPage() {
         setSubmitError(res.error);
         return;
       }
+      handleActivityResponse(res);
       setTotalsCal(res.total_today_cal);
       setTotalsMin(res.total_today_duration);
       setModalType(null);
