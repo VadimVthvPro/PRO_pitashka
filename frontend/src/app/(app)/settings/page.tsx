@@ -70,7 +70,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <h1 className="font-display text-2xl font-bold">Настройки</h1>
+      <h1 className="page-title">Настройки</h1>
 
       {/* Profile */}
       <section className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-6 shadow-[var(--shadow-1)]">

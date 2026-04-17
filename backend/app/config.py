@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     # JWT
     JWT_SECRET_KEY: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
-    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
-    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour (active session)
+    JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 90  # 90 days (remember me)
 
     # Admin
     ADMIN_SECRET_KEY: str = "change-me-in-production"

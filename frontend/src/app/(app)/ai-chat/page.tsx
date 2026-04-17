@@ -58,7 +58,7 @@ export default function AiChatPage() {
   return (
     <div className="flex flex-col h-[min(720px,calc(100vh-8rem))] gap-4">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[var(--foreground)]">AI-чат</h1>
+        <h1 className="page-title">AI-ассистент</h1>
         <p className="text-sm text-[var(--muted)] mt-1">
           Спросите про питание, тренировки или здоровье
         </p>

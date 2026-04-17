@@ -47,7 +47,7 @@ export default function PlansPage() {
   return (
     <div className="space-y-10 max-w-3xl">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[var(--foreground)]">Планы</h1>
+        <h1 className="page-title">Планы</h1>
         <p className="text-sm text-[var(--muted)] mt-1">
           Персональные планы на основе вашего профиля
         </p>

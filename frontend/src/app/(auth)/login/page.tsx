@@ -99,8 +99,17 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
       <div className="w-full max-w-sm">
         <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-8 shadow-[var(--shadow-1)]">
-          <h1 className="font-display text-2xl font-bold text-center mb-1">
-            PROpitashka
+          <h1
+            className="text-center mb-1"
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: "clamp(2.25rem, 8vw, 3rem)",
+              letterSpacing: "-0.03em",
+              lineHeight: 0.95,
+              fontWeight: 700,
+            }}
+          >
+            PRO<span className="text-[var(--accent)]">pitashka</span>
           </h1>
           <p className="text-sm text-[var(--muted)] text-center mb-8">
             {t("login_subtitle")}

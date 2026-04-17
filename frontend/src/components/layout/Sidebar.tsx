@@ -2,63 +2,79 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  LayoutDashboard, Apple, Dumbbell,
-  CalendarDays, Bot, ClipboardList, CookingPot,
-  Settings, ShieldCheck,
-} from "lucide-react";
+import { Icon } from "@iconify/react";
+import { motion } from "motion/react";
 
-const navItems = [
-  { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav_dashboard" },
-  { href: "/food", icon: Apple, labelKey: "nav_food" },
-  { href: "/workouts", icon: Dumbbell, labelKey: "nav_workouts" },
-  { href: "/summary", icon: CalendarDays, labelKey: "nav_summary" },
-  { href: "/ai-chat", icon: Bot, labelKey: "nav_ai" },
-  { href: "/plans", icon: ClipboardList, labelKey: "nav_plans" },
-  { href: "/recipes", icon: CookingPot, labelKey: "nav_recipes" },
-  { href: "/settings", icon: Settings, labelKey: "nav_settings" },
-  { href: "/admin", icon: ShieldCheck, labelKey: "nav_admin" },
+interface NavItem {
+  href: string;
+  icon: string;
+  label: string;
+}
+
+const navItems: NavItem[] = [
+  { href: "/dashboard", icon: "solar:home-2-bold-duotone", label: "Главная" },
+  { href: "/food", icon: "solar:plate-bold-duotone", label: "Питание" },
+  { href: "/workouts", icon: "solar:dumbbell-large-bold-duotone", label: "Тренировки" },
+  { href: "/summary", icon: "solar:graph-new-up-bold-duotone", label: "Прогресс" },
+  { href: "/ai-chat", icon: "solar:magic-stick-3-bold-duotone", label: "AI-Ассистент" },
+  { href: "/plans", icon: "solar:clipboard-check-bold-duotone", label: "Планы" },
+  { href: "/recipes", icon: "solar:chef-hat-bold-duotone", label: "Рецепты" },
+  { href: "/settings", icon: "solar:settings-bold-duotone", label: "Настройки" },
+  { href: "/admin", icon: "solar:shield-user-bold-duotone", label: "Админ" },
 ];
-
-const labels: Record<string, string> = {
-  nav_dashboard: "Главная",
-  nav_food: "Питание",
-  nav_workouts: "Тренировки",
-  nav_summary: "Сводка",
-  nav_ai: "AI-Ассистент",
-  nav_plans: "Планы",
-  nav_recipes: "Рецепты",
-  nav_settings: "Настройки",
-  nav_admin: "Админ",
-};
 
 export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-screen sticky top-0 bg-[var(--background)] border-r border-[var(--border)] px-4 py-6">
-      <Link href="/dashboard" className="flex items-center gap-2 mb-8 px-2">
-        <span className="font-display text-xl font-bold text-[var(--foreground)]">
+    <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-screen sticky top-0 bg-transparent border-r border-[var(--border)] px-4 py-6 backdrop-blur-[2px]">
+      <Link
+        href="/dashboard"
+        className="flex items-center gap-2 mb-10 px-2 group"
+      >
+        <span
+          className="text-3xl font-bold text-[var(--foreground)] tracking-tight transition-transform group-hover:scale-[1.02]"
+          style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}
+        >
           PROpitashka
         </span>
       </Link>
 
       <nav className="flex-1 flex flex-col gap-1">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          const Icon = item.icon;
+          const isActive =
+            pathname === item.href || pathname.startsWith(item.href + "/");
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius)] text-sm font-medium transition-colors duration-150 ${
-                isActive
-                  ? "bg-[var(--color-sand)] text-[var(--accent)]"
-                  : "text-[var(--muted)] hover:bg-[var(--color-sand)] hover:text-[var(--foreground)]"
-              }`}
+              className="relative group"
             >
-              <Icon size={18} strokeWidth={1.8} />
-              <span>{labels[item.labelKey]}</span>
+              <motion.div
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                className={`relative flex items-center gap-3 px-3 py-2.5 rounded-[var(--radius)] text-sm font-medium transition-colors duration-200 ${
+                  isActive
+                    ? "text-[var(--accent)]"
+                    : "text-[var(--muted)] hover:text-[var(--foreground)]"
+                }`}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="sidebar-active-pill"
+                    className="absolute inset-0 bg-[var(--color-sand)] rounded-[var(--radius)] -z-10"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <Icon
+                  icon={item.icon}
+                  width={20}
+                  height={20}
+                  className={isActive ? "text-[var(--accent)]" : ""}
+                />
+                <span>{item.label}</span>
+              </motion.div>
             </Link>
           );
         })}

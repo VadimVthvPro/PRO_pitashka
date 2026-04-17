@@ -1,14 +1,34 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, DM_Sans, JetBrains_Mono } from "next/font/google";
+import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-display",
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "600", "700", "800"],
+// --- Custom display fonts ---
+const pobeda = localFont({
+  src: "../../public/fonts/pobeda-bold.ttf",
+  variable: "--font-pobeda",
+  weight: "700",
+  style: "normal",
   display: "swap",
 });
 
+const arkhip = localFont({
+  src: "../../public/fonts/arkhip.ttf",
+  variable: "--font-arkhip",
+  weight: "400",
+  style: "normal",
+  display: "swap",
+});
+
+const appetite = localFont({
+  src: "../../public/fonts/appetite.ttf",
+  variable: "--font-appetite",
+  weight: "400",
+  style: "normal",
+  display: "swap",
+});
+
+// --- Body & Mono ---
 const dmSans = DM_Sans({
   variable: "--font-body",
   subsets: ["latin", "latin-ext"],
@@ -36,7 +56,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${bricolage.variable} ${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      className={`${pobeda.variable} ${arkhip.variable} ${appetite.variable} ${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-body">{children}</body>
     </html>

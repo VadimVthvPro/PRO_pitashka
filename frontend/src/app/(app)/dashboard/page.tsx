@@ -1,9 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import MetricCard from "@/components/dashboard/MetricCard";
-import { Plus, Loader2, Droplets, Check } from "lucide-react";
+import { Icon } from "@iconify/react";
+import { motion } from "motion/react";
+import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
+import { ScrollReveal, Stagger, StaggerItem } from "@/components/motion/ScrollReveal";
+import { WaterWave } from "@/components/water/WaterWave";
+import { fireConfetti } from "@/components/motion/confetti";
 
 const WATER_TARGET = 8;
 
@@ -20,48 +25,45 @@ interface Profile {
   daily_cal?: number;
 }
 
-function WaterRing({ count, adding, onAdd }: { count: number; adding: boolean; onAdd: () => void }) {
-  const progress = Math.min(count / WATER_TARGET, 1);
-  const size = 160;
-  const stroke = 12;
-  const r = (size - stroke) / 2;
-  const c = 2 * Math.PI * r;
-  const offset = c * (1 - progress);
+function WaterWidget({
+  count,
+  adding,
+  onAdd,
+}: {
+  count: number;
+  adding: boolean;
+  onAdd: () => void;
+}) {
   const done = count >= WATER_TARGET;
-
   return (
     <div className="flex flex-col items-center">
-      <div className="relative mb-4" style={{ width: size, height: size }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rotate-[-90deg]">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-sand)" strokeWidth={stroke} />
-          <circle
-            cx={size / 2} cy={size / 2} r={r} fill="none"
-            stroke={done ? "var(--success)" : "var(--accent)"}
-            strokeWidth={stroke} strokeLinecap="round"
-            strokeDasharray={c} strokeDashoffset={offset}
-            className="transition-[stroke-dashoffset] duration-500 ease-out"
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-display text-4xl font-bold text-[var(--foreground)] tabular-nums">{count}</span>
-          <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wide">из {WATER_TARGET}</span>
-        </div>
-      </div>
-      <p className="font-mono text-lg font-semibold text-[var(--foreground)]">
-        {count * 300} <span className="text-sm font-medium text-[var(--muted)]">мл</span>
+      <WaterWave glasses={count} goal={WATER_TARGET} size={200} />
+      <p
+        className="display-number text-2xl text-[var(--foreground)] mt-4 tabular-nums"
+        style={{ fontFamily: "var(--font-display)" }}
+      >
+        <AnimatedNumber value={count * 300} /> <span className="text-sm text-[var(--muted)] font-normal" style={{ fontFamily: "var(--font-body)" }}>мл</span>
       </p>
-      <button
+      <motion.button
+        whileHover={{ scale: adding ? 1 : 1.02 }}
+        whileTap={{ scale: 0.97 }}
         onClick={onAdd}
         disabled={adding}
-        className={`mt-4 flex items-center gap-2 w-full justify-center py-3 font-semibold rounded-[var(--radius-lg)] transition-all active:scale-[0.97] disabled:opacity-50 ${
+        className={`mt-5 flex items-center justify-center gap-2 w-full py-3 font-semibold rounded-[var(--radius-lg)] transition-colors disabled:opacity-60 ${
           done
             ? "bg-[var(--success)]/15 text-[var(--success)] border border-[var(--success)]/30"
-            : "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] shadow-[var(--shadow-1)]"
+            : "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] shadow-[var(--shadow-accent)]"
         }`}
       >
-        {adding ? <Loader2 size={18} className="animate-spin" /> : done ? <Check size={18} /> : <Droplets size={18} />}
-        {adding ? "Добавление…" : done ? "Норма выполнена!" : "+ Стакан воды"}
-      </button>
+        {adding ? (
+          <Icon icon="svg-spinners:180-ring" width={18} />
+        ) : done ? (
+          <Icon icon="solar:check-circle-bold-duotone" width={20} />
+        ) : (
+          <Icon icon="solar:cup-bold-duotone" width={20} />
+        )}
+        {adding ? "Добавляем…" : done ? "Норма выполнена!" : "+ Стакан воды"}
+      </motion.button>
     </div>
   );
 }
@@ -72,6 +74,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [waterAdding, setWaterAdding] = useState(false);
+  const hitWaterGoal = useRef(false);
 
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -84,8 +87,11 @@ export default function DashboardPage() {
       .then(([summary, prof]) => {
         setData(summary);
         setProfile(prof);
+        if (summary.water >= WATER_TARGET) hitWaterGoal.current = true;
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Не удалось загрузить данные"))
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Не удалось загрузить данные"),
+      )
       .finally(() => setLoading(false));
   }, [todayStr]);
 
@@ -95,6 +101,11 @@ export default function DashboardPage() {
       await api("/api/water", { method: "POST" });
       const updated = await api<DashboardData>("/api/summary/day?date=" + todayStr);
       setData(updated);
+      // Fire confetti the first time the daily goal is reached
+      if (updated.water >= WATER_TARGET && !hitWaterGoal.current) {
+        hitWaterGoal.current = true;
+        setTimeout(() => fireConfetti({ y: 0.4 }), 120);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось добавить воду");
     } finally {
@@ -104,8 +115,17 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="animate-spin text-[var(--accent)]" size={32} />
+      <div className="space-y-8">
+        <div className="skeleton h-12 w-72" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="skeleton h-36 rounded-[var(--radius-lg)]" />
+          ))}
+        </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="skeleton h-56 lg:col-span-2 rounded-[var(--radius-lg)]" />
+          <div className="skeleton h-56 rounded-[var(--radius-lg)]" />
+        </div>
       </div>
     );
   }
@@ -113,8 +133,16 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="py-12 text-center">
+        <Icon
+          icon="solar:sad-circle-bold-duotone"
+          width={56}
+          className="mx-auto text-[var(--destructive)] mb-4"
+        />
         <p className="text-sm text-[var(--destructive)]">{error}</p>
-        <button onClick={() => window.location.reload()} className="mt-4 text-sm text-[var(--accent)] hover:underline">
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 text-sm text-[var(--accent)] hover:underline"
+        >
           Попробовать снова
         </button>
       </div>
@@ -122,99 +150,230 @@ export default function DashboardPage() {
   }
 
   const dailyCal = profile?.daily_cal || 2200;
-  const proteinTarget = Math.round(dailyCal * 0.3 / 4);
-  const fatTarget = Math.round(dailyCal * 0.25 / 9);
-  const carbsTarget = Math.round(dailyCal * 0.45 / 4);
+  const proteinTarget = Math.round((dailyCal * 0.3) / 4);
+  const fatTarget = Math.round((dailyCal * 0.25) / 9);
+  const carbsTarget = Math.round((dailyCal * 0.45) / 4);
+
+  const now = new Date();
+  const hour = now.getHours();
+  const greeting =
+    hour < 6
+      ? "Доброй ночи"
+      : hour < 12
+      ? "Доброе утро"
+      : hour < 18
+      ? "Добрый день"
+      : "Добрый вечер";
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-2xl font-bold">
-          Привет{profile?.user_name ? `, ${profile.user_name}` : ""}!
-        </h1>
-        <p className="text-sm text-[var(--muted)] mt-1">
-          {new Date().toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" })}
-        </p>
-      </div>
+    <div className="space-y-10">
+      {/* Hero */}
+      <ScrollReveal>
+        <div className="relative rounded-[var(--radius-xl)] mesh-hero p-8 overflow-hidden border border-[var(--card-border)] shadow-[var(--shadow-1)]">
+          <motion.div
+            aria-hidden
+            className="absolute -right-10 -bottom-10 w-64 h-64 rounded-full blur-3xl opacity-30"
+            style={{ background: "oklch(58% 0.16 35)" }}
+            animate={{ scale: [1, 1.08, 1], rotate: [0, 8, 0] }}
+            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <p className="relative text-xs uppercase tracking-widest text-[var(--muted)] mb-2">
+            {now.toLocaleDateString("ru-RU", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+            })}
+          </p>
+          <h1
+            className="relative text-5xl md:text-6xl text-[var(--foreground)]"
+            style={{
+              fontFamily: "var(--font-display)",
+              letterSpacing: "-0.025em",
+              lineHeight: 0.95,
+            }}
+          >
+            {greeting}
+            {profile?.user_name ? (
+              <>
+                ,<br />
+                <span className="text-[var(--accent)]">{profile.user_name}</span>
+              </>
+            ) : (
+              "!"
+            )}
+          </h1>
+        </div>
+      </ScrollReveal>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard label="Калории" value={data?.food.cal || 0} target={dailyCal} unit="ккал" color="var(--accent)" />
-        <MetricCard label="Белки" value={data?.food.protein || 0} target={proteinTarget} unit="г" color="var(--success)" />
-        <MetricCard label="Жиры" value={data?.food.fat || 0} target={fatTarget} unit="г" color="var(--warning)" />
-        <MetricCard label="Углеводы" value={data?.food.carbs || 0} target={carbsTarget} unit="г" color="var(--accent)" />
-      </div>
+      {/* Metrics */}
+      <Stagger className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StaggerItem>
+          <MetricCard
+            label="Калории"
+            value={data?.food.cal || 0}
+            target={dailyCal}
+            unit="ккал"
+            color="var(--accent)"
+          />
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Белки"
+            value={data?.food.protein || 0}
+            target={proteinTarget}
+            unit="г"
+            color="var(--success)"
+          />
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Жиры"
+            value={data?.food.fat || 0}
+            target={fatTarget}
+            unit="г"
+            color="var(--warning)"
+          />
+        </StaggerItem>
+        <StaggerItem>
+          <MetricCard
+            label="Углеводы"
+            value={data?.food.carbs || 0}
+            target={carbsTarget}
+            unit="г"
+            color="var(--accent)"
+          />
+        </StaggerItem>
+      </Stagger>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Тренировки */}
-        <div className="lg:col-span-2 bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-            Тренировки сегодня
-          </h2>
-          {data?.training_items.length ? (
-            <div className="space-y-2">
-              {data.training_items.map((t, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
-                  <span className="text-sm">{t.training_name}</span>
-                  <div className="flex gap-4 text-sm">
-                    <span className="text-[var(--muted)]">{t.tren_time} мин</span>
-                    <span className="font-mono font-medium">{Math.round(t.training_cal)} ккал</span>
-                  </div>
-                </div>
-              ))}
-              <div className="pt-2 flex justify-between font-medium">
-                <span>Итого</span>
-                <span className="font-mono">{Math.round(data.training.cal)} ккал</span>
-              </div>
+        <ScrollReveal className="lg:col-span-2" delay={0.05}>
+          <div className="card-base p-6 h-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
+                Тренировки сегодня
+              </h2>
+              <Icon
+                icon="solar:dumbbell-large-bold-duotone"
+                width={22}
+                className="text-[var(--accent)]"
+              />
             </div>
-          ) : (
-            <p className="text-sm text-[var(--muted-foreground)]">Нет тренировок за сегодня</p>
-          )}
-        </div>
+            {data?.training_items.length ? (
+              <div className="space-y-2">
+                {data.training_items.map((t, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, x: -8 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05, duration: 0.4 }}
+                    className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
+                  >
+                    <span className="text-sm">{t.training_name}</span>
+                    <div className="flex gap-4 text-sm">
+                      <span className="text-[var(--muted)]">{t.tren_time} мин</span>
+                      <span className="font-mono font-medium tabular-nums">
+                        {Math.round(t.training_cal)} ккал
+                      </span>
+                    </div>
+                  </motion.div>
+                ))}
+                <div className="pt-3 flex justify-between font-semibold">
+                  <span>Итого</span>
+                  <span className="display-number text-xl">
+                    <AnimatedNumber value={Math.round(data.training.cal)} /> ккал
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--muted-foreground)]">
+                Нет тренировок за сегодня
+              </p>
+            )}
+          </div>
+        </ScrollReveal>
 
-        {/* Вода — полноценный виджет */}
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
-          <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-            <Droplets size={13} className="inline mr-1.5 -mt-0.5" />
-            Вода
-          </h2>
-          <WaterRing count={data?.water || 0} adding={waterAdding} onAdd={addWater} />
-        </div>
+        {/* Вода */}
+        <ScrollReveal delay={0.1}>
+          <div className="card-base p-6 h-full">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
+                Вода
+              </h2>
+              <Icon
+                icon="solar:cup-bold-duotone"
+                width={22}
+                className="text-[var(--accent)]"
+              />
+            </div>
+            <WaterWidget
+              count={data?.water || 0}
+              adding={waterAdding}
+              onAdd={addWater}
+            />
+          </div>
+        </ScrollReveal>
       </div>
 
       {/* Еда */}
-      <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
-        <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-          Еда сегодня
-        </h2>
-        {data?.food_items.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-                  <th className="pb-2">Блюдо</th>
-                  <th className="pb-2 text-right">Б</th>
-                  <th className="pb-2 text-right">Ж</th>
-                  <th className="pb-2 text-right">У</th>
-                  <th className="pb-2 text-right">Ккал</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.food_items.map((f, i) => (
-                  <tr key={i} className="border-t border-[var(--border)] hover:bg-[var(--color-sand)]/50">
-                    <td className="py-2">{f.name_of_food}</td>
-                    <td className="py-2 text-right font-mono text-xs">{Math.round(f.b)}</td>
-                    <td className="py-2 text-right font-mono text-xs">{Math.round(f.g)}</td>
-                    <td className="py-2 text-right font-mono text-xs">{Math.round(f.u)}</td>
-                    <td className="py-2 text-right font-mono text-xs font-medium">{Math.round(f.cal)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      <ScrollReveal delay={0.12}>
+        <div className="card-base p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
+              Еда сегодня
+            </h2>
+            <Icon
+              icon="solar:plate-bold-duotone"
+              width={22}
+              className="text-[var(--accent)]"
+            />
           </div>
-        ) : (
-          <p className="text-sm text-[var(--muted-foreground)]">Нет записей за сегодня</p>
-        )}
-      </div>
+          {data?.food_items.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[10px] font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
+                    <th className="pb-3">Блюдо</th>
+                    <th className="pb-3 text-right">Б</th>
+                    <th className="pb-3 text-right">Ж</th>
+                    <th className="pb-3 text-right">У</th>
+                    <th className="pb-3 text-right">Ккал</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.food_items.map((f, i) => (
+                    <motion.tr
+                      key={i}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.04, duration: 0.35 }}
+                      className="border-t border-[var(--border)] hover:bg-[var(--color-sand)]/40 transition-colors"
+                    >
+                      <td className="py-2.5">{f.name_of_food}</td>
+                      <td className="py-2.5 text-right font-mono text-xs tabular-nums">
+                        {Math.round(f.b)}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-xs tabular-nums">
+                        {Math.round(f.g)}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-xs tabular-nums">
+                        {Math.round(f.u)}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-xs font-medium tabular-nums">
+                        {Math.round(f.cal)}
+                      </td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Нет записей за сегодня
+            </p>
+          )}
+        </div>
+      </ScrollReveal>
     </div>
   );
 }

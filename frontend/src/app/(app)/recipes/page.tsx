@@ -44,7 +44,7 @@ export default function RecipesPage() {
   return (
     <div className="space-y-8 max-w-3xl">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[var(--foreground)]">Рецепты</h1>
+        <h1 className="page-title">Рецепты</h1>
         <p className="text-sm text-[var(--muted)] mt-1">Идеи блюд от AI под приём пищи</p>
       </div>
 

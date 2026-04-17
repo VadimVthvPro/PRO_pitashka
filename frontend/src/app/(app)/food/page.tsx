@@ -161,7 +161,7 @@ export default function FoodPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[var(--foreground)]">Питание</h1>
+        <h1 className="page-title">Питание</h1>
         <p className="text-sm text-[var(--muted)] mt-1">
           {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
             day: "numeric",
