@@ -1,0 +1,18 @@
+{
+  "workout_running": "Running",
+  "workout_walking": "Walking",
+  "workout_cycling": "Cycling",
+  "workout_swimming": "Swimming",
+  "workout_yoga": "Yoga",
+  "workout_strength": "Strength",
+  "workout_hiit": "HIIT",
+  "workout_stretching": "Stretching",
+  "workout_dancing": "Dancing",
+  "workout_boxing": "Boxing",
+  "workout_tennis": "Tennis",
+  "workout_football": "Football",
+  "workout_basketball": "Basketball",
+  "workout_skiing": "Skiing",
+  "otp_message": "Your PROpitashka login code: {code}. Valid for 5 minutes.",
+  "welcome": "Welcome to PROpitashka!"
+}

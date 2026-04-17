@@ -54,3 +54,7 @@ print("  - user_id в user_main = ВРУЧНУЮ (Telegram ID)")
 print("  - user_id в других таблицах = выбор из списка")
 print("  - timestamps = АВТОМАТИЧЕСКИ")
 
+
+
+
+

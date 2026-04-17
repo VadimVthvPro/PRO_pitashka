@@ -50,3 +50,16 @@ PROpitashka Admin.app/
 *.temp
 *.bak
 photo.jpg
+
+# Node / Frontend
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Docker volumes
+postgres_data/
+redis_data/
+
+# Certificates
+certbot_conf/
+certbot_www/

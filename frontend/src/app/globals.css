@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+/* === PROpitashka Design Tokens (from DESIGN.md) === */
+
+:root {
+  /* Colors — Light Mode */
+  --color-cream: oklch(97% 0.008 75);
+  --color-warm-white: oklch(99% 0.004 75);
+  --color-espresso: oklch(22% 0.015 55);
+  --color-dark-roast: oklch(35% 0.012 55);
+  --color-latte: oklch(72% 0.025 55);
+  --color-terracotta: oklch(58% 0.16 35);
+  --color-terracotta-light: oklch(78% 0.08 35);
+  --color-terracotta-deep: oklch(42% 0.14 35);
+  --color-sage: oklch(62% 0.08 155);
+  --color-sage-light: oklch(88% 0.04 155);
+  --color-amber: oklch(72% 0.15 80);
+  --color-rust: oklch(48% 0.16 25);
+  --color-sand: oklch(90% 0.015 75);
+  --color-clay: oklch(82% 0.02 55);
+
+  /* Semantic */
+  --background: var(--color-cream);
+  --foreground: var(--color-espresso);
+  --card: var(--color-warm-white);
+  --card-border: var(--color-sand);
+  --muted: var(--color-dark-roast);
+  --muted-foreground: var(--color-latte);
+  --accent: var(--color-terracotta);
+  --accent-hover: oklch(52% 0.15 35);
+  --accent-active: var(--color-terracotta-deep);
+  --success: var(--color-sage);
+  --success-bg: var(--color-sage-light);
+  --warning: var(--color-amber);
+  --destructive: var(--color-rust);
+  --border: var(--color-sand);
+  --input-bg: var(--color-cream);
+  --disabled: var(--color-clay);
+
+  /* Elevation (warm shadows) */
+  --shadow-1: 0 1px 3px oklch(22% 0.015 55 / 0.06), 0 4px 12px oklch(22% 0.015 55 / 0.04);
+  --shadow-2: 0 2px 6px oklch(22% 0.015 55 / 0.08), 0 12px 32px oklch(22% 0.015 55 / 0.06);
+  --shadow-3: 0 4px 12px oklch(22% 0.015 55 / 0.1), 0 20px 48px oklch(22% 0.015 55 / 0.08);
+
+  /* Radius */
+  --radius: 8px;
+  --radius-lg: 12px;
+
+  /* Sidebar */
+  --sidebar-width: 240px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-cream: oklch(15% 0.01 55);
+    --color-warm-white: oklch(20% 0.012 55);
+    --color-espresso: oklch(92% 0.008 75);
+    --color-dark-roast: oklch(70% 0.01 55);
+    --color-latte: oklch(50% 0.015 55);
+    --color-terracotta: oklch(62% 0.16 35);
+    --color-sand: oklch(25% 0.012 55);
+    --color-clay: oklch(35% 0.01 55);
+
+    --background: var(--color-cream);
+    --foreground: var(--color-espresso);
+    --card: var(--color-warm-white);
+    --card-border: var(--color-sand);
+    --muted: var(--color-dark-roast);
+    --muted-foreground: var(--color-latte);
+    --accent: var(--color-terracotta);
+    --border: var(--color-sand);
+    --input-bg: var(--color-warm-white);
+
+    --shadow-1: 0 1px 3px oklch(5% 0 0 / 0.3), 0 4px 12px oklch(5% 0 0 / 0.2);
+    --shadow-2: 0 2px 6px oklch(5% 0 0 / 0.4), 0 12px 32px oklch(5% 0 0 / 0.3);
+    --shadow-3: 0 4px 12px oklch(5% 0 0 / 0.5), 0 20px 48px oklch(5% 0 0 / 0.4);
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-border: var(--card-border);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-disabled: var(--disabled);
+
+  --font-display: "Bricolage Grotesque", Georgia, serif;
+  --font-body: "DM Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  --shadow-elevation-1: var(--shadow-1);
+  --shadow-elevation-2: var(--shadow-2);
+  --shadow-elevation-3: var(--shadow-3);
+}
+
+/* Base styles */
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 3px solid oklch(58% 0.16 35 / 0.25);
+  outline-offset: 2px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-clay);
+  border-radius: 3px;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

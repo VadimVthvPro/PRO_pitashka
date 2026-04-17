@@ -1,0 +1,18 @@
+{
+  "workout_running": "Бег",
+  "workout_walking": "Ходьба",
+  "workout_cycling": "Велосипед",
+  "workout_swimming": "Плавание",
+  "workout_yoga": "Йога",
+  "workout_strength": "Силовая",
+  "workout_hiit": "HIIT",
+  "workout_stretching": "Растяжка",
+  "workout_dancing": "Танцы",
+  "workout_boxing": "Бокс",
+  "workout_tennis": "Теннис",
+  "workout_football": "Футбол",
+  "workout_basketball": "Баскетбол",
+  "workout_skiing": "Лыжи",
+  "otp_message": "Ваш код для входа в PROpitashka: {code}. Действителен 5 минут.",
+  "welcome": "Добро пожаловать в PROpitashka!"
+}
