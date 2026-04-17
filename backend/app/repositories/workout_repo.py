@@ -25,7 +25,7 @@ class WorkoutRepository:
     async def calculate_calories(self, training_type_id: int, duration_minutes: int, user_id: int) -> float:
         row = await self.pool.fetchrow(
             "SELECT calculate_training_calories($1, $2, $3) as calories",
-            user_id, training_type_id, duration_minutes,
+            training_type_id, user_id, duration_minutes,
         )
         return float(row["calories"]) if row and row["calories"] else 0.0
 

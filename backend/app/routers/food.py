@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from app.dependencies import DbDep, CurrentUserDep, RedisDep
@@ -6,6 +7,8 @@ from app.repositories.food_repo import FoodRepository
 from app.services import ai_service
 from app.services.cache_service import CacheService
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -42,8 +45,13 @@ async def add_food_manual(body: FoodManualRequest, user_id: CurrentUserDep, db: 
                 fallback_used.append(False)
 
         if ai_needed_foods:
-            ai_items = await ai_service.analyze_food_text(ai_needed_foods, ai_needed_grams)
-            items.extend(ai_items)
+            try:
+                ai_items = await ai_service.analyze_food_text(ai_needed_foods, ai_needed_grams)
+                items.extend(ai_items)
+            except Exception as e:
+                logger.warning("AI food analysis failed: %s", e)
+                for food_name, grams in zip(ai_needed_foods, ai_needed_grams):
+                    items.append({"name": food_name, "grams": grams, "cal": 0, "b": 0, "g": 0, "u": 0, "ai_error": True})
 
         await cache.set(cache_key, items, settings.CACHE_TTL_FOOD_RECOGNITION)
 
@@ -67,7 +75,11 @@ async def add_food_photo(
     food_date: date = Query(default_factory=date.today),
 ):
     image_bytes = await file.read()
-    items = await ai_service.recognize_food_photo(image_bytes)
+    try:
+        items = await ai_service.recognize_food_photo(image_bytes)
+    except Exception as e:
+        logger.warning("AI photo recognition failed: %s", e)
+        raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже или добавьте еду вручную.")
 
     repo = FoodRepository(db)
     for item in items:

@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, Apple, Dumbbell, Droplets, Bot } from "lucide-react";
+import { LayoutDashboard, Apple, Dumbbell, CalendarDays, Bot } from "lucide-react";
 
 const items = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Главная" },
   { href: "/food", icon: Apple, label: "Еда" },
   { href: "/workouts", icon: Dumbbell, label: "Трен." },
-  { href: "/water", icon: Droplets, label: "Вода" },
+  { href: "/summary", icon: CalendarDays, label: "Сводка" },
   { href: "/ai-chat", icon: Bot, label: "AI" },
 ];
 

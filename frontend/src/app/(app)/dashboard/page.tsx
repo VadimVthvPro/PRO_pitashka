@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import MetricCard from "@/components/dashboard/MetricCard";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, Droplets, Check } from "lucide-react";
+
+const WATER_TARGET = 8;
 
 interface DashboardData {
   food: { cal: number; protein: number; fat: number; carbs: number };
@@ -18,6 +20,52 @@ interface Profile {
   daily_cal?: number;
 }
 
+function WaterRing({ count, adding, onAdd }: { count: number; adding: boolean; onAdd: () => void }) {
+  const progress = Math.min(count / WATER_TARGET, 1);
+  const size = 160;
+  const stroke = 12;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - progress);
+  const done = count >= WATER_TARGET;
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative mb-4" style={{ width: size, height: size }}>
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rotate-[-90deg]">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--color-sand)" strokeWidth={stroke} />
+          <circle
+            cx={size / 2} cy={size / 2} r={r} fill="none"
+            stroke={done ? "var(--success)" : "var(--accent)"}
+            strokeWidth={stroke} strokeLinecap="round"
+            strokeDasharray={c} strokeDashoffset={offset}
+            className="transition-[stroke-dashoffset] duration-500 ease-out"
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="font-display text-4xl font-bold text-[var(--foreground)] tabular-nums">{count}</span>
+          <span className="text-[10px] text-[var(--muted-foreground)] uppercase tracking-wide">из {WATER_TARGET}</span>
+        </div>
+      </div>
+      <p className="font-mono text-lg font-semibold text-[var(--foreground)]">
+        {count * 300} <span className="text-sm font-medium text-[var(--muted)]">мл</span>
+      </p>
+      <button
+        onClick={onAdd}
+        disabled={adding}
+        className={`mt-4 flex items-center gap-2 w-full justify-center py-3 font-semibold rounded-[var(--radius-lg)] transition-all active:scale-[0.97] disabled:opacity-50 ${
+          done
+            ? "bg-[var(--success)]/15 text-[var(--success)] border border-[var(--success)]/30"
+            : "bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] shadow-[var(--shadow-1)]"
+        }`}
+      >
+        {adding ? <Loader2 size={18} className="animate-spin" /> : done ? <Check size={18} /> : <Droplets size={18} />}
+        {adding ? "Добавление…" : done ? "Норма выполнена!" : "+ Стакан воды"}
+      </button>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -25,10 +73,12 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [waterAdding, setWaterAdding] = useState(false);
 
+  const todayStr = new Date().toISOString().split("T")[0];
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api<DashboardData>("/api/summary/day?date=" + new Date().toISOString().split("T")[0]),
+      api<DashboardData>("/api/summary/day?date=" + todayStr),
       api<Profile>("/api/users/me"),
     ])
       .then(([summary, prof]) => {
@@ -37,13 +87,13 @@ export default function DashboardPage() {
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Не удалось загрузить данные"))
       .finally(() => setLoading(false));
-  }, []);
+  }, [todayStr]);
 
   async function addWater() {
     setWaterAdding(true);
     try {
       await api("/api/water", { method: "POST" });
-      const updated = await api<DashboardData>("/api/summary/day?date=" + new Date().toISOString().split("T")[0]);
+      const updated = await api<DashboardData>("/api/summary/day?date=" + todayStr);
       setData(updated);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось добавить воду");
@@ -95,6 +145,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
+        {/* Тренировки */}
         <div className="lg:col-span-2 bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
           <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
             Тренировки сегодня
@@ -120,27 +171,17 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Вода — полноценный виджет */}
         <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
           <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
+            <Droplets size={13} className="inline mr-1.5 -mt-0.5" />
             Вода
           </h2>
-          <p className="font-mono text-4xl font-bold text-[var(--foreground)] leading-none">
-            {data?.water || 0}
-          </p>
-          <p className="text-sm text-[var(--muted)] mt-1 mb-4">
-            стаканов ({(data?.water || 0) * 300} мл)
-          </p>
-          <button
-            onClick={addWater}
-            disabled={waterAdding}
-            className="flex items-center gap-2 w-full justify-center py-2.5 bg-[var(--accent)] text-white font-medium rounded-[var(--radius)] hover:bg-[var(--accent-hover)] transition-colors active:scale-[0.97] disabled:opacity-50"
-          >
-            {waterAdding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            Добавить стакан
-          </button>
+          <WaterRing count={data?.water || 0} adding={waterAdding} onAdd={addWater} />
         </div>
       </div>
 
+      {/* Еда */}
       <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
         <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
           Еда сегодня

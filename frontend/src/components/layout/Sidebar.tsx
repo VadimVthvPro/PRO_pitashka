@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard, Apple, Dumbbell, Droplets,
+  LayoutDashboard, Apple, Dumbbell,
   CalendarDays, Bot, ClipboardList, CookingPot,
   Settings, ShieldCheck,
 } from "lucide-react";
@@ -12,7 +12,6 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, labelKey: "nav_dashboard" },
   { href: "/food", icon: Apple, labelKey: "nav_food" },
   { href: "/workouts", icon: Dumbbell, labelKey: "nav_workouts" },
-  { href: "/water", icon: Droplets, labelKey: "nav_water" },
   { href: "/summary", icon: CalendarDays, labelKey: "nav_summary" },
   { href: "/ai-chat", icon: Bot, labelKey: "nav_ai" },
   { href: "/plans", icon: ClipboardList, labelKey: "nav_plans" },
@@ -22,10 +21,9 @@ const navItems = [
 ];
 
 const labels: Record<string, string> = {
-  nav_dashboard: "Dashboard",
+  nav_dashboard: "Главная",
   nav_food: "Питание",
   nav_workouts: "Тренировки",
-  nav_water: "Вода",
   nav_summary: "Сводка",
   nav_ai: "AI-Ассистент",
   nav_plans: "Планы",
