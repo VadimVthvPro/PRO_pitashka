@@ -30,13 +30,20 @@ export default function Sidebar() {
     <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-screen sticky top-0 bg-transparent border-r border-[var(--border)] px-4 py-6 backdrop-blur-[2px]">
       <Link
         href="/dashboard"
-        className="flex items-center gap-2 mb-10 px-2 group"
+        className="block mb-10 px-2 group"
       >
+        <span className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
+          PRO
+        </span>
         <span
-          className="text-3xl font-bold text-[var(--foreground)] tracking-tight transition-transform group-hover:scale-[1.02]"
-          style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.02em" }}
+          className="block text-[2.1rem] font-bold text-[var(--foreground)] leading-[0.9] transition-transform group-hover:-rotate-[1deg] origin-left"
+          style={{
+            fontFamily: "var(--font-display)",
+            letterSpacing: "-0.035em",
+          }}
         >
-          PROpitashka
+          pitashka
+          <span className="text-[var(--accent)]">.</span>
         </span>
       </Link>
 
@@ -79,6 +86,17 @@ export default function Sidebar() {
           );
         })}
       </nav>
+
+      <div className="mt-6 px-3 py-4 border-t border-dashed border-[var(--border)]">
+        <p
+          className="text-xs text-[var(--muted-foreground)] leading-snug"
+          style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "13px" }}
+        >
+          «Лучшая диета та,
+          <br />
+          которую ты не забросил»
+        </p>
+      </div>
     </aside>
   );
 }

@@ -2,8 +2,13 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { api } from "@/lib/api";
 import { type Lang, getTranslator } from "@/lib/i18n";
+import { HandDrawnUnderline } from "@/components/hand/HandDrawnUnderline";
+import { HandArrow } from "@/components/hand/HandArrow";
+import { Sticker } from "@/components/hand/Sticker";
+import { Highlight } from "@/components/hand/Highlight";
 
 type Step = "username" | "code";
 
@@ -50,10 +55,16 @@ export default function LoginPage() {
     setLoading(true);
     setError("");
     try {
-      const res = await api<{ needs_onboarding: boolean }>("/api/auth/verify-otp", {
-        method: "POST",
-        body: JSON.stringify({ telegram_username: username.trim().replace(/^@/, ""), code: fullCode }),
-      });
+      const res = await api<{ needs_onboarding: boolean }>(
+        "/api/auth/verify-otp",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            telegram_username: username.trim().replace(/^@/, ""),
+            code: fullCode,
+          }),
+        },
+      );
       router.push(res.needs_onboarding ? "/onboarding" : "/dashboard");
     } catch (e) {
       setError(e instanceof Error ? e.message : t("error"));
@@ -87,7 +98,10 @@ export default function LoginPage() {
   }
 
   function handleCodePaste(e: React.ClipboardEvent) {
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4);
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, 4);
     if (pasted.length >= 4) {
       e.preventDefault();
       setCode(pasted.split(""));
@@ -96,108 +110,259 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--background)] px-4">
-      <div className="w-full max-w-sm">
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-8 shadow-[var(--shadow-1)]">
-          <h1
-            className="text-center mb-1"
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.25rem, 8vw, 3rem)",
-              letterSpacing: "-0.03em",
-              lineHeight: 0.95,
-              fontWeight: 700,
-            }}
-          >
-            PRO<span className="text-[var(--accent)]">pitashka</span>
-          </h1>
-          <p className="text-sm text-[var(--muted)] text-center mb-8">
-            {t("login_subtitle")}
-          </p>
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Atmospheric mesh background */}
+      <div className="absolute inset-0 mesh-warm opacity-80" aria-hidden />
+      <div
+        className="absolute top-[-10%] right-[-15%] w-[60vw] h-[60vw] rounded-full blur-[120px] opacity-40"
+        style={{ background: "var(--accent)" }}
+        aria-hidden
+      />
+      <div
+        className="absolute bottom-[-20%] left-[-10%] w-[45vw] h-[45vw] rounded-full blur-[120px] opacity-30"
+        style={{ background: "var(--color-sage)" }}
+        aria-hidden
+      />
 
-          {step === "username" && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-                  Telegram username
-                </label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleRequestOTP()}
-                  placeholder={t("login_username_placeholder")}
-                  autoFocus
-                  className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
+      <div className="relative z-10 min-h-screen grid lg:grid-cols-[1.1fr_1fr]">
+        {/* ============ LEFT: brand + pitch ============ */}
+        <div className="flex flex-col justify-between px-6 py-10 lg:px-16 lg:py-14">
+          <div>
+            <motion.p
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]"
+            >
+              PRO · pitashka
+            </motion.p>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.05 }}
+              className="mt-8 text-[var(--foreground)]"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "clamp(3rem, 7vw, 6.5rem)",
+                lineHeight: 0.88,
+                letterSpacing: "-0.035em",
+              }}
+            >
+              Ешь.
+              <br />
+              <span className="relative inline-block">
+                Двигайся.
+                <HandDrawnUnderline
+                  color="var(--accent)"
+                  strokeWidth={5}
+                  variant={2}
+                  className="absolute left-0 -bottom-1 w-full h-4"
                 />
-              </div>
-              <button
-                onClick={handleRequestOTP}
-                disabled={loading || !username.trim()}
-                className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97]"
-              >
-                {loading ? t("loading") : t("login_send_code")}
-              </button>
-            </div>
-          )}
+              </span>
+              <br />
+              Считай —{" "}
+              <span className="text-[var(--accent)]">без занудства.</span>
+            </motion.h1>
 
-          {step === "code" && (
-            <div className="space-y-4">
-              <p className="text-sm text-[var(--success)] text-center">
-                {t("login_code_sent")}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="mt-10 max-w-md"
+            >
+              <p
+                className="text-lg text-[var(--muted)]"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                Трекер питания, воды и тренировок с{" "}
+                <Highlight color="oklch(72% 0.15 80 / 0.5)">
+                  <span className="relative px-1">AI-помощником</span>
+                </Highlight>
+                . Фотай еду — распознаем. Спрашивай — ответим. Забывай — напомним.
               </p>
-              <div className="flex justify-center gap-3" onPaste={handleCodePaste}>
-                {code.map((digit, i) => (
-                  <input
-                    key={i}
-                    id={`otp-${i}`}
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleCodeChange(i, e.target.value)}
-                    onKeyDown={(e) => handleCodeKeyDown(i, e)}
-                    autoFocus={i === 0}
-                    className="w-14 h-14 text-center font-mono text-2xl font-bold bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
-                  />
-                ))}
-              </div>
-              <button
-                onClick={handleVerifyOTP}
-                disabled={loading || code.join("").length < 4}
-                className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97]"
-              >
-                {loading ? t("loading") : t("login_submit")}
-              </button>
-              <button
-                onClick={() => { setStep("username"); setCode(["", "", "", ""]); setError(""); }}
-                className="w-full py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-              >
-                {t("login_send_code")}
-              </button>
-            </div>
-          )}
+            </motion.div>
+          </div>
 
-          {error && (
-            <p className="mt-4 text-sm text-[var(--destructive)] text-center">{error}</p>
-          )}
+          {/* Footer / testimonial-ish */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.7 }}
+            className="hidden lg:flex items-center gap-4 mt-14"
+          >
+            <Sticker color="cream" font="arkhip" rotate={-3} size="sm">
+              честно
+            </Sticker>
+            <p
+              className="text-sm text-[var(--muted-foreground)] max-w-sm"
+              style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "16px" }}
+            >
+              никаких спам-уведомлений и продающих баннеров. только ты и цифры.
+            </p>
+          </motion.div>
         </div>
 
-        <div className="flex justify-center gap-4 mt-6">
-          {LANGS.map(({ code: lc, label }) => (
-            <button
-              key={lc}
-              onClick={() => setLang(lc)}
-              className={`text-xs font-medium transition-colors ${
-                lang === lc
-                  ? "text-[var(--accent)] font-bold"
-                  : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-              }`}
+        {/* ============ RIGHT: form ============ */}
+        <div className="flex items-center justify-center px-6 py-10 lg:px-10">
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="w-full max-w-sm relative"
+          >
+            {/* Little pointing arrow, visible on desktop */}
+            <div className="hidden lg:block absolute -left-16 top-4">
+              <HandArrow
+                variant="curve-right"
+                className="w-14 h-10 text-[var(--accent)] opacity-70"
+              />
+              <p
+                className="mt-1 text-xs text-[var(--muted-foreground)] pl-2"
+                style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "13px" }}
+              >
+                начинается здесь
+              </p>
+            </div>
+
+            <div
+              className="card-base p-8 relative"
+              style={{ background: "var(--card)" }}
             >
-              {label}
-            </button>
-          ))}
+              <div
+                className="absolute -top-3 -right-3"
+                style={{ transform: "rotate(8deg)" }}
+              >
+                <Sticker color="amber" rotate={8} font="appetite" size="sm">
+                  1 минута
+                </Sticker>
+              </div>
+
+              <h2
+                className="mb-1"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: "1.875rem",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                {step === "username" ? "Заходим" : "Код прилетел?"}
+              </h2>
+              <p className="text-sm text-[var(--muted)] mb-6">
+                {step === "username"
+                  ? "Введи телеграм-никнейм — вышлем код в бот"
+                  : "Скопируй 4 цифры из сообщения в боте"}
+              </p>
+
+              {step === "username" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
+                      Telegram
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
+                        @
+                      </span>
+                      <input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && handleRequestOTP()
+                        }
+                        placeholder="твой_ник"
+                        autoFocus
+                        className="w-full pl-10 pr-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <motion.button
+                    whileHover={{ scale: loading ? 1 : 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleRequestOTP}
+                    disabled={loading || !username.trim()}
+                    className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)]"
+                  >
+                    {loading ? "Отправляем…" : "Прислать код"}
+                  </motion.button>
+                </div>
+              )}
+
+              {step === "code" && (
+                <div className="space-y-4">
+                  <div
+                    className="flex justify-between gap-3"
+                    onPaste={handleCodePaste}
+                  >
+                    {code.map((digit, i) => (
+                      <motion.input
+                        key={i}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.07, duration: 0.35 }}
+                        id={`otp-${i}`}
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleCodeChange(i, e.target.value)}
+                        onKeyDown={(e) => handleCodeKeyDown(i, e)}
+                        autoFocus={i === 0}
+                        className="flex-1 h-16 text-center font-mono text-3xl font-bold bg-[var(--input-bg)] border-2 border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/20 transition-colors"
+                        style={{ fontFamily: "var(--font-mono)" }}
+                      />
+                    ))}
+                  </div>
+                  <motion.button
+                    whileTap={{ scale: 0.97 }}
+                    onClick={handleVerifyOTP}
+                    disabled={loading || code.join("").length < 4}
+                    className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)]"
+                  >
+                    {loading ? "Проверяем…" : "Зайти"}
+                  </motion.button>
+                  <button
+                    onClick={() => {
+                      setStep("username");
+                      setCode(["", "", "", ""]);
+                      setError("");
+                    }}
+                    className="w-full py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                  >
+                    ← Ввести другой ник
+                  </button>
+                </div>
+              )}
+
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-4 text-sm text-[var(--destructive)] text-center"
+                >
+                  {error}
+                </motion.p>
+              )}
+            </div>
+
+            <div className="flex justify-center gap-4 mt-8">
+              {LANGS.map(({ code: lc, label }) => (
+                <button
+                  key={lc}
+                  onClick={() => setLang(lc)}
+                  className={`text-[11px] font-bold tracking-widest transition-colors ${
+                    lang === lc
+                      ? "text-[var(--accent)]"
+                      : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>

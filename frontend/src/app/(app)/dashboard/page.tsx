@@ -9,6 +9,12 @@ import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { ScrollReveal, Stagger, StaggerItem } from "@/components/motion/ScrollReveal";
 import { WaterWave } from "@/components/water/WaterWave";
 import { fireConfetti } from "@/components/motion/confetti";
+import { HandDrawnUnderline } from "@/components/hand/HandDrawnUnderline";
+import { Highlight } from "@/components/hand/Highlight";
+import { HandArrow } from "@/components/hand/HandArrow";
+import { Scribble } from "@/components/hand/Scribble";
+import { Sticker } from "@/components/hand/Sticker";
+import { greeting, heroSubtitle, EMPTY_COPY, CTA } from "@/lib/copy";
 
 const WATER_TARGET = 8;
 
@@ -42,7 +48,13 @@ function WaterWidget({
         className="display-number text-2xl text-[var(--foreground)] mt-4 tabular-nums"
         style={{ fontFamily: "var(--font-display)" }}
       >
-        <AnimatedNumber value={count * 300} /> <span className="text-sm text-[var(--muted)] font-normal" style={{ fontFamily: "var(--font-body)" }}>мл</span>
+        <AnimatedNumber value={count * 300} />{" "}
+        <span
+          className="text-sm text-[var(--muted)] font-normal"
+          style={{ fontFamily: "var(--font-body)" }}
+        >
+          мл
+        </span>
       </p>
       <motion.button
         whileHover={{ scale: adding ? 1 : 1.02 }}
@@ -62,7 +74,7 @@ function WaterWidget({
         ) : (
           <Icon icon="solar:cup-bold-duotone" width={20} />
         )}
-        {adding ? "Добавляем…" : done ? "Норма выполнена!" : "+ Стакан воды"}
+        {adding ? CTA.add_water_loading : done ? CTA.add_water_done : CTA.add_water}
       </motion.button>
     </div>
   );
@@ -99,9 +111,10 @@ export default function DashboardPage() {
     setWaterAdding(true);
     try {
       await api("/api/water", { method: "POST" });
-      const updated = await api<DashboardData>("/api/summary/day?date=" + todayStr);
+      const updated = await api<DashboardData>(
+        "/api/summary/day?date=" + todayStr,
+      );
       setData(updated);
-      // Fire confetti the first time the daily goal is reached
       if (updated.water >= WATER_TARGET && !hitWaterGoal.current) {
         hitWaterGoal.current = true;
         setTimeout(() => fireConfetti({ y: 0.4 }), 120);
@@ -116,11 +129,10 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="space-y-8">
-        <div className="skeleton h-12 w-72" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="skeleton h-36 rounded-[var(--radius-lg)]" />
-          ))}
+        <div className="skeleton h-24 w-full max-w-3xl rounded-[var(--radius-xl)]" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="skeleton h-48 lg:col-span-2 rounded-[var(--radius-lg)]" />
+          <div className="skeleton h-48 rounded-[var(--radius-lg)]" />
         </div>
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="skeleton h-56 lg:col-span-2 rounded-[var(--radius-lg)]" />
@@ -133,17 +145,16 @@ export default function DashboardPage() {
   if (error) {
     return (
       <div className="py-12 text-center">
-        <Icon
-          icon="solar:sad-circle-bold-duotone"
-          width={56}
-          className="mx-auto text-[var(--destructive)] mb-4"
+        <Scribble
+          variant="empty-plate"
+          className="w-32 h-32 mx-auto text-[var(--destructive)] mb-4"
         />
         <p className="text-sm text-[var(--destructive)]">{error}</p>
         <button
           onClick={() => window.location.reload()}
           className="mt-4 text-sm text-[var(--accent)] hover:underline"
         >
-          Попробовать снова
+          {CTA.try_again}
         </button>
       </div>
     );
@@ -154,69 +165,124 @@ export default function DashboardPage() {
   const fatTarget = Math.round((dailyCal * 0.25) / 9);
   const carbsTarget = Math.round((dailyCal * 0.45) / 4);
 
+  const foodCal = data?.food.cal || 0;
+  const trainCal = data?.training.cal || 0;
+  const net = Math.round(foodCal - trainCal);
+  const left = Math.max(dailyCal - net, 0);
+
   const now = new Date();
-  const hour = now.getHours();
-  const greeting =
-    hour < 6
-      ? "Доброй ночи"
-      : hour < 12
-      ? "Доброе утро"
-      : hour < 18
-      ? "Добрый день"
-      : "Добрый вечер";
+  const hello = greeting();
+  const subtitle = heroSubtitle({
+    caloriesEaten: foodCal,
+    caloriesTarget: dailyCal,
+    waterGlasses: data?.water || 0,
+    workouts: data?.training_items.length || 0,
+  });
 
   return (
-    <div className="space-y-10">
-      {/* Hero */}
+    <div className="space-y-12">
+      {/* ============= HERO — asymmetric, hand-drawn accents ============= */}
       <ScrollReveal>
-        <div className="relative rounded-[var(--radius-xl)] mesh-hero p-8 overflow-hidden border border-[var(--card-border)] shadow-[var(--shadow-1)]">
-          <motion.div
-            aria-hidden
-            className="absolute -right-10 -bottom-10 w-64 h-64 rounded-full blur-3xl opacity-30"
-            style={{ background: "oklch(58% 0.16 35)" }}
-            animate={{ scale: [1, 1.08, 1], rotate: [0, 8, 0] }}
-            transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-          />
-          <p className="relative text-xs uppercase tracking-widest text-[var(--muted)] mb-2">
-            {now.toLocaleDateString("ru-RU", {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </p>
-          <h1
-            className="relative text-5xl md:text-6xl text-[var(--foreground)]"
-            style={{
-              fontFamily: "var(--font-display)",
-              letterSpacing: "-0.025em",
-              lineHeight: 0.95,
-            }}
-          >
-            {greeting}
-            {profile?.user_name ? (
-              <>
-                ,<br />
-                <span className="text-[var(--accent)]">{profile.user_name}</span>
-              </>
-            ) : (
-              "!"
-            )}
-          </h1>
+        <div className="relative pt-2">
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+            <div className="lg:max-w-[70%]">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-3">
+                {now.toLocaleDateString("ru-RU", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
+              </p>
+              <h1
+                className="text-[var(--foreground)]"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: "clamp(2.75rem, 2rem + 4vw, 5rem)",
+                  letterSpacing: "-0.03em",
+                  lineHeight: 0.92,
+                }}
+              >
+                {hello}
+                {profile?.user_name ? (
+                  <>
+                    ,
+                    <br />
+                    <span className="relative inline-block">
+                      <span className="text-[var(--accent)]">
+                        {profile.user_name}
+                      </span>
+                      <HandDrawnUnderline
+                        color="var(--accent)"
+                        strokeWidth={4}
+                        variant={
+                          ((profile.user_name.length % 4) + 1) as 1 | 2 | 3 | 4
+                        }
+                        className="absolute left-0 -bottom-2 w-full h-3"
+                      />
+                    </span>
+                  </>
+                ) : (
+                  "!"
+                )}
+              </h1>
+              <p
+                className="mt-5 text-lg text-[var(--muted)] max-w-[44ch]"
+                style={{ fontFamily: "var(--font-body)" }}
+              >
+                {subtitle}
+              </p>
+            </div>
+
+            {/* Right-side live ticker — looks hand-pinned */}
+            <div className="relative shrink-0">
+              <div
+                className="relative inline-flex flex-col items-start gap-2 pr-6"
+                style={{ transform: "rotate(-1.2deg)" }}
+              >
+                <Sticker color="cream" font="arkhip" size="sm" rotate={-2}>
+                  заметка дня
+                </Sticker>
+                <div
+                  className="flex items-baseline gap-2"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  <span className="display-number text-6xl text-[var(--foreground)]">
+                    <AnimatedNumber value={left} />
+                  </span>
+                  <span className="text-sm text-[var(--muted)]" style={{ fontFamily: "var(--font-body)" }}>
+                    ккал до нормы
+                  </span>
+                </div>
+                <p
+                  className="text-xs text-[var(--muted-foreground)]"
+                  style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "14px" }}
+                >
+                  съел {Math.round(foodCal)} · сжёг {Math.round(trainCal)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </ScrollReveal>
 
-      {/* Metrics */}
-      <Stagger className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StaggerItem>
+      {/* ============= METRICS — 1 big + 3 small asymmetric ============= */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-fr">
+        <ScrollReveal delay={0.05} className="col-span-2 lg:row-span-2">
           <MetricCard
-            label="Калории"
-            value={data?.food.cal || 0}
+            label="Съел сегодня"
+            value={foodCal}
             target={dailyCal}
             unit="ккал"
             color="var(--accent)"
+            big
+            note={
+              foodCal > 0
+                ? `${Math.round((foodCal / dailyCal) * 100)}% нормы`
+                : "ещё ничего"
+            }
           />
-        </StaggerItem>
-        <StaggerItem>
+        </ScrollReveal>
+        <ScrollReveal delay={0.1}>
           <MetricCard
             label="Белки"
             value={data?.food.protein || 0}
@@ -224,8 +290,8 @@ export default function DashboardPage() {
             unit="г"
             color="var(--success)"
           />
-        </StaggerItem>
-        <StaggerItem>
+        </ScrollReveal>
+        <ScrollReveal delay={0.15}>
           <MetricCard
             label="Жиры"
             value={data?.food.fat || 0}
@@ -233,8 +299,8 @@ export default function DashboardPage() {
             unit="г"
             color="var(--warning)"
           />
-        </StaggerItem>
-        <StaggerItem>
+        </ScrollReveal>
+        <ScrollReveal delay={0.2} className="col-span-2 lg:col-span-2">
           <MetricCard
             label="Углеводы"
             value={data?.food.carbs || 0}
@@ -242,23 +308,37 @@ export default function DashboardPage() {
             unit="г"
             color="var(--accent)"
           />
-        </StaggerItem>
-      </Stagger>
+        </ScrollReveal>
+      </div>
 
+      {/* ============= BOTTOM ROW — workouts + water ============= */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {/* Тренировки */}
         <ScrollReveal className="lg:col-span-2" delay={0.05}>
-          <div className="card-base p-6 h-full">
+          <div className="card-base p-6 h-full relative">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
-                Тренировки сегодня
-              </h2>
-              <Icon
-                icon="solar:dumbbell-large-bold-duotone"
-                width={22}
-                className="text-[var(--accent)]"
-              />
+              <div className="flex items-center gap-3">
+                <Icon
+                  icon="solar:dumbbell-large-bold-duotone"
+                  width={22}
+                  className="text-[var(--accent)]"
+                />
+                <h2
+                  className="text-2xl text-[var(--foreground)]"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  Тренировки
+                </h2>
+              </div>
+              {data?.training_items.length ? (
+                <Sticker color="sage" size="sm" rotate={3}>
+                  {data.training_items.length} шт
+                </Sticker>
+              ) : null}
             </div>
+
             {data?.training_items.length ? (
               <div className="space-y-2">
                 {data.training_items.map((t, i) => (
@@ -267,7 +347,7 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05, duration: 0.4 }}
-                    className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
+                    className="flex items-center justify-between py-2.5 border-b border-dashed border-[var(--border)] last:border-0"
                   >
                     <span className="text-sm">{t.training_name}</span>
                     <div className="flex gap-4 text-sm">
@@ -280,31 +360,71 @@ export default function DashboardPage() {
                 ))}
                 <div className="pt-3 flex justify-between font-semibold">
                   <span>Итого</span>
-                  <span className="display-number text-xl">
-                    <AnimatedNumber value={Math.round(data.training.cal)} /> ккал
+                  <span
+                    className="display-number text-xl"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    <AnimatedNumber value={Math.round(trainCal)} />{" "}
+                    <span
+                      className="text-sm text-[var(--muted)] font-normal"
+                      style={{ fontFamily: "var(--font-body)" }}
+                    >
+                      ккал
+                    </span>
                   </span>
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-[var(--muted-foreground)]">
-                Нет тренировок за сегодня
-              </p>
+              <div className="flex items-center gap-6 py-4">
+                <Scribble
+                  variant="empty-dumbbell"
+                  className="w-24 h-16 shrink-0 text-[var(--color-latte)]"
+                />
+                <div>
+                  <p
+                    className="text-lg"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    {EMPTY_COPY.workouts_today.title}
+                  </p>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1 max-w-[36ch]">
+                    {EMPTY_COPY.workouts_today.subtitle}
+                  </p>
+                </div>
+              </div>
             )}
           </div>
         </ScrollReveal>
 
-        {/* Вода */}
+        {/* Water */}
         <ScrollReveal delay={0.1}>
-          <div className="card-base p-6 h-full">
+          <div className="card-base p-6 h-full relative overflow-hidden">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
-                Вода
-              </h2>
-              <Icon
-                icon="solar:cup-bold-duotone"
-                width={22}
-                className="text-[var(--accent)]"
-              />
+              <div className="flex items-center gap-3">
+                <Icon
+                  icon="solar:cup-bold-duotone"
+                  width={22}
+                  className="text-[var(--accent)]"
+                />
+                <h2
+                  className="text-2xl text-[var(--foreground)]"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  Вода
+                </h2>
+              </div>
+              {(data?.water ?? 0) === 0 && (
+                <HandArrow
+                  variant="curve-down"
+                  className="absolute right-8 top-14 w-8 h-16 text-[var(--accent)] opacity-60"
+                />
+              )}
             </div>
             <WaterWidget
               count={data?.water || 0}
@@ -315,19 +435,33 @@ export default function DashboardPage() {
         </ScrollReveal>
       </div>
 
-      {/* Еда */}
+      {/* ============= FOOD TABLE ============= */}
       <ScrollReveal delay={0.12}>
         <div className="card-base p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
-              Еда сегодня
-            </h2>
-            <Icon
-              icon="solar:plate-bold-duotone"
-              width={22}
-              className="text-[var(--accent)]"
-            />
+            <div className="flex items-center gap-3">
+              <Icon
+                icon="solar:plate-bold-duotone"
+                width={22}
+                className="text-[var(--accent)]"
+              />
+              <h2
+                className="text-2xl text-[var(--foreground)]"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  letterSpacing: "-0.02em",
+                }}
+              >
+                Что поел
+              </h2>
+            </div>
+            {data?.food_items.length ? (
+              <Sticker color="amber" size="sm" rotate={-4} font="appetite">
+                {data.food_items.length} {data.food_items.length === 1 ? "блюдо" : "блюд"}
+              </Sticker>
+            ) : null}
           </div>
+
           {data?.food_items.length ? (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -347,7 +481,7 @@ export default function DashboardPage() {
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: i * 0.04, duration: 0.35 }}
-                      className="border-t border-[var(--border)] hover:bg-[var(--color-sand)]/40 transition-colors"
+                      className="border-t border-dashed border-[var(--border)] hover:bg-[var(--color-sand)]/40 transition-colors"
                     >
                       <td className="py-2.5">{f.name_of_food}</td>
                       <td className="py-2.5 text-right font-mono text-xs tabular-nums">
@@ -368,9 +502,35 @@ export default function DashboardPage() {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Нет записей за сегодня
-            </p>
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6 py-4">
+              <Scribble
+                variant="empty-plate"
+                className="w-28 h-28 shrink-0 text-[var(--color-latte)]"
+              />
+              <div className="flex-1">
+                <p
+                  className="text-2xl"
+                  style={{
+                    fontFamily: "var(--font-display)",
+                    letterSpacing: "-0.01em",
+                  }}
+                >
+                  <Highlight color="oklch(72% 0.15 80 / 0.35)">
+                    {EMPTY_COPY.food_today.title}
+                  </Highlight>
+                </p>
+                <p className="text-sm text-[var(--muted-foreground)] mt-2 max-w-[48ch]">
+                  {EMPTY_COPY.food_today.subtitle}
+                </p>
+                <a
+                  href="/food"
+                  className="inline-flex items-center gap-2 mt-3 text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]"
+                >
+                  <Icon icon="solar:arrow-right-bold-duotone" width={16} />
+                  {EMPTY_COPY.food_today.cta}
+                </a>
+              </div>
+            </div>
           )}
         </div>
       </ScrollReveal>

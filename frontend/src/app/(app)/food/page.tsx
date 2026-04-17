@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api, apiUpload } from "@/lib/api";
+import { Icon } from "@iconify/react";
+import { motion } from "motion/react";
+import { Sticker } from "@/components/hand/Sticker";
+import { Scribble } from "@/components/hand/Scribble";
+import { Highlight } from "@/components/hand/Highlight";
+import { ScrollReveal } from "@/components/motion/ScrollReveal";
 
 type Tab = "photo" | "manual";
 
@@ -160,34 +166,61 @@ export default function FoodPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="page-title">Питание</h1>
-        <p className="text-sm text-[var(--muted)] mt-1">
-          {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
-        </p>
-      </div>
+      <ScrollReveal>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
+              {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </p>
+            <h1
+              className="text-[var(--foreground)]"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "clamp(2.5rem, 1.8rem + 3vw, 4rem)",
+                letterSpacing: "-0.03em",
+                lineHeight: 0.92,
+              }}
+            >
+              Что <Highlight color="oklch(72% 0.15 80 / 0.45)">положим</Highlight>
+              <br />
+              в тарелку?
+            </h1>
+          </div>
+          <Sticker color="cream" font="arkhip" rotate={-4} size="md">
+            фото или руками
+          </Sticker>
+        </div>
+      </ScrollReveal>
 
-      <div className="flex gap-2 p-1 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius-lg)] w-fit">
+      <div className="flex gap-2 p-1 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius-lg)] w-fit relative">
         {(
           [
-            ["photo", "По фото"],
-            ["manual", "Вручную"],
+            ["photo", "Снял — распознаю", "solar:camera-bold-duotone"],
+            ["manual", "Записать руками", "solar:pen-bold-duotone"],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, label, icon]) => (
           <button
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`px-4 py-2 rounded-[var(--radius)] text-sm font-medium transition-colors ${
+            className={`relative flex items-center gap-2 px-4 py-2 rounded-[var(--radius)] text-sm font-medium transition-colors ${
               tab === id
-                ? "bg-[var(--card)] text-[var(--foreground)] shadow-[var(--shadow-1)]"
+                ? "text-[var(--foreground)]"
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
+            {tab === id && (
+              <motion.span
+                layoutId="food-tab-pill"
+                className="absolute inset-0 bg-[var(--card)] rounded-[var(--radius)] shadow-[var(--shadow-1)] -z-10"
+                transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              />
+            )}
+            <Icon icon={icon} width={16} />
             {label}
           </button>
         ))}
@@ -285,43 +318,89 @@ export default function FoodPage() {
         </div>
       )}
 
-      <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
-        <h2 className="font-display text-lg font-semibold text-[var(--foreground)] mb-4">
-          Сегодня
-        </h2>
+      <ScrollReveal>
+      <div className="card-base p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2
+            className="text-2xl text-[var(--foreground)]"
+            style={{
+              fontFamily: "var(--font-display)",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Сегодня на тарелке
+          </h2>
+          {foodDay && foodDay.items.length > 0 && (
+            <Sticker color="sage" size="sm" rotate={3}>
+              {foodDay.items.length} блюд
+            </Sticker>
+          )}
+        </div>
         {dayError && (
           <p className="text-sm text-[var(--destructive)] mb-4">{dayError}</p>
         )}
         {loadingDay && !dayError && (
-          <p className="text-sm text-[var(--muted-foreground)]">Загрузка…</p>
+          <div className="space-y-3">
+            <div className="skeleton h-20 w-full rounded-[var(--radius)]" />
+            <div className="skeleton h-10 w-full rounded-[var(--radius)]" />
+          </div>
         )}
         {!loadingDay && foodDay && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
-                ["Ккал", foodDay.totals.total_cal, ""],
-                ["Белки", foodDay.totals.total_protein, "г"],
-                ["Жиры", foodDay.totals.total_fat, "г"],
-                ["Углеводы", foodDay.totals.total_carbs, "г"],
-              ].map(([label, val, unit]) => (
+                ["Ккал", foodDay.totals.total_cal, "", "var(--accent)"],
+                ["Белки", foodDay.totals.total_protein, "г", "var(--success)"],
+                ["Жиры", foodDay.totals.total_fat, "г", "var(--warning)"],
+                ["Углеводы", foodDay.totals.total_carbs, "г", "var(--accent)"],
+              ].map(([label, val, unit, color]) => (
                 <div
                   key={String(label)}
-                  className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2"
+                  className="relative rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2.5 overflow-hidden"
                 >
-                  <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
+                  <div
+                    className="absolute top-0 right-0 w-1 h-full"
+                    style={{ background: String(color) }}
+                    aria-hidden
+                  />
+                  <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
                     {label}
                   </p>
-                  <p className="font-mono text-lg font-semibold text-[var(--foreground)]">
+                  <p
+                    className="display-number text-2xl text-[var(--foreground)] tabular-nums"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
                     {Math.round(Number(val))}
                     {unit && (
-                      <span className="text-sm font-normal text-[var(--muted)] ml-0.5">{unit}</span>
+                      <span className="text-sm font-normal text-[var(--muted)] ml-0.5" style={{ fontFamily: "var(--font-body)" }}>
+                        {unit}
+                      </span>
                     )}
                   </p>
                 </div>
               ))}
             </div>
             {foodDay.items.length === 0 ? (
-              <p className="text-sm text-[var(--muted-foreground)]">Пока нет записей</p>
+              <div className="flex flex-col md:flex-row items-start md:items-center gap-6 py-4">
+                <Scribble
+                  variant="empty-plate"
+                  className="w-28 h-28 shrink-0 text-[var(--color-latte)]"
+                />
+                <div>
+                  <p
+                    className="text-xl"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      letterSpacing: "-0.01em",
+                    }}
+                  >
+                    Ничего не ел?
+                  </p>
+                  <p className="text-sm text-[var(--muted-foreground)] mt-1.5 max-w-[46ch]">
+                    Так и запишем. Когда будет что добавить — сюда же.
+                  </p>
+                </div>
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -356,6 +435,7 @@ export default function FoodPage() {
           </>
         )}
       </div>
+      </ScrollReveal>
     </div>
   );
 }

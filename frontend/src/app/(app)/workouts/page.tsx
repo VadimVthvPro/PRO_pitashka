@@ -6,6 +6,9 @@ import { WorkoutIcon } from "@/components/workouts/WorkoutIcon";
 import { ScrollReveal, Stagger, StaggerItem } from "@/components/motion/ScrollReveal";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { motion, AnimatePresence } from "motion/react";
+import { Sticker } from "@/components/hand/Sticker";
+import { Highlight } from "@/components/hand/Highlight";
+import { Scribble } from "@/components/hand/Scribble";
 
 interface WorkoutType {
   id: number;
@@ -141,15 +144,33 @@ export default function WorkoutsPage() {
   return (
     <div className="space-y-8">
       <ScrollReveal>
-        <div>
-          <h1 className="page-title">Тренировки</h1>
-          <p className="page-subtitle">
-            {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-          </p>
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
+              {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </p>
+            <h1
+              className="text-[var(--foreground)]"
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "clamp(2.5rem, 1.8rem + 3vw, 4rem)",
+                letterSpacing: "-0.03em",
+                lineHeight: 0.92,
+              }}
+            >
+              Сегодня{" "}
+              <Highlight color="oklch(72% 0.15 80 / 0.5)">
+                <span className="px-1">двигаемся</span>
+              </Highlight>
+            </h1>
+          </div>
+          <Sticker color="amber" font="appetite" rotate={4} size="md">
+            выбери нагрузку
+          </Sticker>
         </div>
       </ScrollReveal>
 
@@ -243,7 +264,18 @@ export default function WorkoutsPage() {
       )}
 
       {!typesLoading && types.length === 0 && !typesError && (
-        <p className="text-sm text-[var(--muted-foreground)]">Нет доступных типов тренировок</p>
+        <div className="flex items-center gap-6 py-8">
+          <Scribble
+            variant="empty-dumbbell"
+            className="w-32 h-20 shrink-0 text-[var(--color-latte)]"
+          />
+          <p
+            className="text-lg text-[var(--muted-foreground)]"
+            style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
+          >
+            Типы тренировок пока не загрузились
+          </p>
+        </div>
       )}
 
       <AnimatePresence>
