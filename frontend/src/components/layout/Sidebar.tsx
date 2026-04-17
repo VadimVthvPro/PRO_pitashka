@@ -17,6 +17,8 @@ const navItems: NavItem[] = [
   { href: "/food", icon: "solar:plate-bold-duotone", label: "Питание" },
   { href: "/workouts", icon: "solar:dumbbell-large-bold-duotone", label: "Тренировки" },
   { href: "/summary", icon: "solar:graph-new-up-bold-duotone", label: "Прогресс" },
+  { href: "/weight", icon: "solar:scale-bold-duotone", label: "Вес" },
+  { href: "/digest", icon: "solar:letter-opened-bold-duotone", label: "Дайджест" },
   { href: "/achievements", icon: "solar:medal-ribbon-star-bold-duotone", label: "Достижения" },
   { href: "/ai-chat", icon: "solar:magic-stick-3-bold-duotone", label: "AI-Ассистент" },
   { href: "/plans", icon: "solar:clipboard-check-bold-duotone", label: "Планы" },

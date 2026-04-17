@@ -133,10 +133,13 @@ class StreakRepository:
 
     async def user_daily_cal(self, user_id: int) -> Optional[int]:
         row = await self.pool.fetchrow(
-            "SELECT daily_cal FROM user_main WHERE user_id = $1",
+            "SELECT daily_cal FROM user_aims WHERE user_id = $1",
             user_id,
         )
-        return int(row["daily_cal"]) if row and row.get("daily_cal") else None
+        if not row:
+            return None
+        val = row["daily_cal"]
+        return int(val) if val else None
 
     # ---------- badges ----------
 

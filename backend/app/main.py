@@ -56,7 +56,10 @@ app.add_middleware(
 )
 
 # Routers
-from app.routers import auth, users, food, workouts, water, summary, ai, settings, admin, streaks
+from app.routers import (
+    auth, users, food, workouts, water, summary, ai, settings, admin,
+    streaks, weight, digest,
+)
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
@@ -68,6 +71,8 @@ app.include_router(ai.router, prefix="/api/ai", tags=["ai"])
 app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(streaks.router, prefix="/api/streaks", tags=["streaks"])
+app.include_router(weight.router, prefix="/api/weight", tags=["weight"])
+app.include_router(digest.router, prefix="/api/digest", tags=["digest"])
 
 
 @app.get("/api/health")

@@ -100,6 +100,33 @@ async def generate_recipe(meal_type: str, user_info: dict, lang: str = "ru") -> 
 
 
 @async_retry(attempts=3, delay=1.0)
+async def weekly_digest(stats: dict, lang: str = "ru") -> dict:
+    """
+    Returns a short structured digest:
+    { "summary": "...", "wins": [...], "focus": [...], "tip": "..." }
+    Defensive: never raises to caller (retry already handles transient errors).
+    """
+    model = _get_model()
+    prompt = (
+        "You are a friendly nutrition coach. Look at the user's weekly stats (JSON below) "
+        "and give a concise personal digest. Reply ONLY in JSON with keys: "
+        "summary (2-3 sentences), wins (2-3 bullets), focus (2-3 bullets), tip (one actionable sentence). "
+        f"Language: {lang}.\n\nStats JSON:\n{json.dumps(stats, ensure_ascii=False)}"
+    )
+    response = await model.generate_content_async(prompt)
+    text = response.text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0]
+    data = json.loads(text)
+    return {
+        "summary": str(data.get("summary", "")),
+        "wins": [str(x) for x in (data.get("wins") or [])][:5],
+        "focus": [str(x) for x in (data.get("focus") or [])][:5],
+        "tip": str(data.get("tip", "")),
+    }
+
+
+@async_retry(attempts=3, delay=1.0)
 async def chat(message: str, context: list[dict], user_info: dict, lang: str = "ru") -> str:
     model = _get_model()
     system = (

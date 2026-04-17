@@ -226,7 +226,7 @@ export default function LoginPage() {
             </div>
 
             <div
-              className="card-base p-8 relative"
+              className="card-base p-5 sm:p-8 relative"
               style={{ background: "var(--card)" }}
             >
               <div
@@ -292,7 +292,7 @@ export default function LoginPage() {
               {step === "code" && (
                 <div className="space-y-4">
                   <div
-                    className="flex justify-between gap-3"
+                    className="grid grid-cols-4 gap-2 sm:gap-3"
                     onPaste={handleCodePaste}
                   >
                     {code.map((digit, i) => (
@@ -306,11 +306,12 @@ export default function LoginPage() {
                         inputMode="numeric"
                         autoComplete="one-time-code"
                         maxLength={1}
+                        size={1}
                         value={digit}
                         onChange={(e) => handleCodeChange(i, e.target.value)}
                         onKeyDown={(e) => handleCodeKeyDown(i, e)}
                         autoFocus={i === 0}
-                        className="flex-1 h-16 text-center font-mono text-3xl font-bold bg-[var(--input-bg)] border-2 border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/20 transition-colors"
+                        className="w-full min-w-0 aspect-square sm:h-16 sm:aspect-auto text-center font-mono text-2xl sm:text-3xl font-bold bg-[var(--input-bg)] border-2 border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/20 transition-colors"
                         style={{ fontFamily: "var(--font-mono)" }}
                       />
                     ))}

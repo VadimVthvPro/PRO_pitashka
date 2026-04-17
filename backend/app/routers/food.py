@@ -69,7 +69,7 @@ async def add_food_manual(body: FoodManualRequest, user_id: CurrentUserDep, db: 
     streak = None
     new_badges: list = []
     if saved and body.food_date == date.today():
-        update = await streak_service.touch_activity(db, user_id)
+        update = await streak_service.safe_touch_activity(db, user_id)
         streak = {
             "current": update.current,
             "longest": update.longest,
@@ -106,7 +106,7 @@ async def add_food_photo(
     streak = None
     new_badges: list = []
     if items and food_date == date.today():
-        update = await streak_service.touch_activity(db, user_id)
+        update = await streak_service.safe_touch_activity(db, user_id)
         streak = {
             "current": update.current,
             "longest": update.longest,
@@ -127,6 +127,16 @@ async def get_food(
     items = await repo.get_by_date(user_id, food_date)
     totals = await repo.get_daily_totals(user_id, food_date)
     return {"date": food_date.isoformat(), "items": items, "totals": totals}
+
+
+@router.get("/search")
+async def search_foods_endpoint(
+    user_id: CurrentUserDep,
+    q: str = Query(..., min_length=1, max_length=64),
+    limit: int = Query(default=10, ge=1, le=30),
+):
+    from app.utils.food_fallback import search_foods
+    return {"items": search_foods(q, limit)}
 
 
 @router.get("/favorites")
@@ -175,7 +185,7 @@ async def repeat_day(
     update = None
     new_badges: list = []
     if target_date == date.today():
-        streak_update = await streak_service.touch_activity(db, user_id)
+        streak_update = await streak_service.safe_touch_activity(db, user_id)
         update = {
             "current": streak_update.current,
             "longest": streak_update.longest,

@@ -36,6 +36,17 @@ class StreakUpdate:
     newly_earned_badges: list[dict]
 
 
+def empty_update() -> "StreakUpdate":
+    return StreakUpdate(
+        current=0,
+        longest=0,
+        status="none",
+        freezes_available=0,
+        last_active_date=None,
+        newly_earned_badges=[],
+    )
+
+
 def _monday(d: date) -> date:
     return d - timedelta(days=d.weekday())
 
@@ -88,6 +99,10 @@ async def touch_activity(pool: asyncpg.Pool, user_id: int) -> StreakUpdate:
     Update the streak for today and evaluate badges.
     Idempotent — calling it 10 times today still leaves the streak unchanged
     on subsequent calls.
+
+    Any failure here MUST NOT break the calling business action (food save,
+    water add etc). The caller should wrap this in a try/except and degrade
+    gracefully — or use `safe_touch_activity` below.
     """
     repo = StreakRepository(pool)
     today = date.today()
@@ -222,3 +237,12 @@ async def _evaluate_badges(
         await try_grant("workout_5wk")
 
     return newly
+
+
+async def safe_touch_activity(pool: asyncpg.Pool, user_id: int) -> StreakUpdate:
+    """Never raises. Returns empty_update() on any internal error."""
+    try:
+        return await touch_activity(pool, user_id)
+    except Exception as e:
+        logger.warning("streak touch_activity failed for user %s: %s", user_id, e)
+        return empty_update()

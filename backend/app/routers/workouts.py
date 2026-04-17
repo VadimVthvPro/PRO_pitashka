@@ -47,7 +47,7 @@ async def save_workout(body: WorkoutSaveRequest, user_id: CurrentUserDep, db: Db
     streak = None
     new_badges: list = []
     if body.workout_date == date.today():
-        update = await streak_service.touch_activity(db, user_id)
+        update = await streak_service.safe_touch_activity(db, user_id)
         streak = {
             "current": update.current,
             "longest": update.longest,

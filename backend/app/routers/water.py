@@ -14,7 +14,7 @@ GLASS_ML = 300
 async def add_water(user_id: CurrentUserDep, db: DbDep):
     repo = WaterRepository(db)
     count = await repo.add_glass(user_id)
-    update = await streak_service.touch_activity(db, user_id)
+    update = await streak_service.safe_touch_activity(db, user_id)
     return {
         "count": count,
         "ml": count * GLASS_ML,

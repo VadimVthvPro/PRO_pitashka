@@ -582,6 +582,70 @@ export default function DashboardPage() {
             )}
         </div>
       </ScrollReveal>
+
+      <ScrollReveal delay={0.1}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <a
+            href="/weight"
+            className="card-base card-hover p-5 flex items-center gap-4 group"
+          >
+            <div
+              className="w-12 h-12 rounded-[var(--radius)] flex items-center justify-center"
+              style={{ background: "color-mix(in oklch, var(--accent) 12%, transparent)" }}
+            >
+              <Icon icon="solar:scale-bold-duotone" width={26} className="text-[var(--accent)]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-lg"
+                style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
+              >
+                График веса
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                с AI-прогнозом тренда
+              </p>
+            </div>
+            <Icon
+              icon="solar:arrow-right-linear"
+              width={18}
+              className="text-[var(--muted)] group-hover:text-[var(--accent)] group-hover:translate-x-1 transition"
+            />
+          </a>
+
+          <a
+            href="/digest"
+            className="card-base card-hover p-5 flex items-center gap-4 group"
+          >
+            <div
+              className="w-12 h-12 rounded-[var(--radius)] flex items-center justify-center"
+              style={{ background: "color-mix(in oklch, var(--color-sage) 18%, transparent)" }}
+            >
+              <Icon
+                icon="solar:letter-opened-bold-duotone"
+                width={26}
+                className="text-[var(--color-sage)]"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-lg"
+                style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
+              >
+                Дайджест недели
+              </p>
+              <p className="text-xs text-[var(--muted-foreground)]">
+                AI разбирает последние 7 дней
+              </p>
+            </div>
+            <Icon
+              icon="solar:arrow-right-linear"
+              width={18}
+              className="text-[var(--muted)] group-hover:text-[var(--accent)] group-hover:translate-x-1 transition"
+            />
+          </a>
+        </div>
+      </ScrollReveal>
     </div>
   );
 }
