@@ -5,31 +5,33 @@ import { AnimatePresence, motion } from "motion/react";
 import { Icon } from "@iconify/react";
 import { type BadgeDTO, dequeueBadge, useStreakStore } from "@/lib/streaks";
 import { fireConfetti } from "@/components/motion/confetti";
+import { useI18n } from "@/lib/i18n";
 
-const TIER_STYLES: Record<BadgeDTO["tier"], { bg: string; border: string; label: string }> = {
+const TIER_STYLES: Record<BadgeDTO["tier"], { bg: string; border: string; labelKey: string }> = {
   bronze: {
     bg: "oklch(72% 0.08 55)",
     border: "oklch(52% 0.1 55)",
-    label: "Бронза",
+    labelKey: "achievements_tier_bronze",
   },
   silver: {
     bg: "oklch(82% 0.02 240)",
     border: "oklch(55% 0.02 240)",
-    label: "Серебро",
+    labelKey: "achievements_tier_silver",
   },
   gold: {
     bg: "oklch(82% 0.15 85)",
     border: "oklch(55% 0.15 80)",
-    label: "Золото",
+    labelKey: "achievements_tier_gold",
   },
   legend: {
     bg: "oklch(62% 0.2 320)",
     border: "oklch(40% 0.22 320)",
-    label: "Легенда",
+    labelKey: "achievements_tier_legend",
   },
 };
 
 export function BadgeToast() {
+  const { t } = useI18n();
   const { badgeQueue } = useStreakStore();
   const [current, setCurrent] = useState<BadgeDTO | null>(null);
 
@@ -39,8 +41,8 @@ export function BadgeToast() {
     const next = dequeueBadge();
     setCurrent(next);
     fireConfetti({ y: 0.3 });
-    const t = setTimeout(() => setCurrent(null), 5000);
-    return () => clearTimeout(t);
+    const dismissTimer = setTimeout(() => setCurrent(null), 5000);
+    return () => clearTimeout(dismissTimer);
   }, [badgeQueue, current]);
 
   const style = current ? TIER_STYLES[current.tier] : null;
@@ -81,7 +83,7 @@ export function BadgeToast() {
                 className="text-[10px] uppercase tracking-[0.2em] font-semibold"
                 style={{ color: style.border }}
               >
-                Новое · {style.label}
+                {t("badge_toast_new_prefix")} {t(style.labelKey)}
               </p>
               <p
                 className="text-lg leading-tight"

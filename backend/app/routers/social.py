@@ -1,14 +1,23 @@
-"""Social network: feed, likes, follows, leaderboard."""
+"""Social network: feed, likes, follows, leaderboard, photo uploads."""
 
 from __future__ import annotations
 
+import io
+import os
+import secrets
+from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
 
 from app.dependencies import CurrentUserDep, DbDep
 
 router = APIRouter()
+
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "/data/uploads"))
+SOCIAL_PHOTO_DIR = UPLOADS_DIR / "social"
+MAX_PHOTO_BYTES = 6 * 1024 * 1024  # 6 MB
+ALLOWED_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
 VALID_KINDS = {"form", "meal", "workout"}
 MAX_TAGS = 6
@@ -145,6 +154,63 @@ async def create_post(
 def _to_jsonb(d: dict) -> str:
     import json
     return json.dumps(d, ensure_ascii=False)
+
+
+@router.post("/posts/photo")
+async def upload_post_photo(
+    user_id: CurrentUserDep,
+    file: UploadFile = File(...),
+):
+    """Upload a photo for a social post and return its public URL.
+
+    The frontend calls this BEFORE creating the post, then puts the returned
+    URL into ``payload.photo_url`` of the create-post request. This keeps the
+    post-creation endpoint pure-JSON (so we don't need multipart there) and
+    lets the user retry uploads independently of the post text.
+    """
+    ctype = (file.content_type or "").lower()
+    if ctype not in ALLOWED_PHOTO_TYPES:
+        raise HTTPException(
+            status_code=415,
+            detail="Поддерживаются только JPEG, PNG и WebP",
+        )
+
+    raw = await file.read()
+    if len(raw) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Файл слишком большой (макс. 6 МБ)")
+    if len(raw) < 64:
+        raise HTTPException(status_code=400, detail="Файл пустой или повреждён")
+
+    try:
+        from PIL import Image, ImageOps  # local import: heavy
+        img = Image.open(io.BytesIO(raw))
+        img = ImageOps.exif_transpose(img)
+        # Strip EXIF, normalise to RGB, downscale long side to 1600 px so we
+        # don't ship 12-MP phone shots to every viewer.
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        max_side = 1600
+        if max(img.size) > max_side:
+            ratio = max_side / max(img.size)
+            new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
+            img = img.resize(new_size, Image.LANCZOS)
+
+        out_buf = io.BytesIO()
+        img.convert("RGB").save(out_buf, format="JPEG", quality=85, optimize=True)
+        out_bytes = out_buf.getvalue()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Не удалось обработать изображение: {exc}")
+
+    user_dir = SOCIAL_PHOTO_DIR / str(user_id)
+    user_dir.mkdir(parents=True, exist_ok=True)
+    name = f"{secrets.token_urlsafe(12)}.jpg"
+    path = user_dir / name
+    path.write_bytes(out_bytes)
+
+    public_url = f"/uploads/social/{user_id}/{name}"
+    return {"url": public_url, "size": len(out_bytes), "width": img.size[0], "height": img.size[1]}
 
 
 @router.delete("/posts/{post_id}")

@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
+import { useI18n } from "@/lib/i18n";
 
 interface WaterWaveProps {
   glasses: number;
@@ -18,6 +19,7 @@ interface WaterWaveProps {
  * Only the level-rise spring is snapped to an instant transition.
  */
 export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
+  const { t } = useI18n();
   const reduced = useReducedMotion();
   const pct = Math.min(glasses / Math.max(goal, 1), 1);
   const fillY = (1 - pct) * 100;
@@ -30,7 +32,7 @@ export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
       <svg
         viewBox="0 0 100 100"
         className="absolute inset-0 w-full h-full drop-shadow-[0_20px_40px_oklch(22%_0.015_55/0.18)]"
-        aria-label={`${glasses} из ${goal} стаканов`}
+        aria-label={t("water_aria_glasses", { glasses, goal })}
       >
         <defs>
           <clipPath id="glass-clip">
@@ -108,7 +110,7 @@ export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
           {glasses}
         </div>
         <div className="text-xs uppercase tracking-widest text-muted mt-1">
-          из {goal}
+          {t("water_label_of_goal", { goal })}
         </div>
       </div>
     </div>

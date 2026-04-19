@@ -179,6 +179,148 @@ async def delete_row(
 
 
 # ---------------------------------------------------------------------------
+# Overview — high-level dashboard for the admin landing screen.
+# All numbers come from real tables; nothing is mocked.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/overview")
+async def admin_overview(request: Request, db: DbDep):
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    # --- users -------------------------------------------------------------
+    users_total = await db.fetchval("SELECT COUNT(*) FROM user_main")
+    users_today = await db.fetchval(
+        "SELECT COUNT(*) FROM user_main WHERE created_at >= NOW() - INTERVAL '1 day'"
+    )
+    users_week = await db.fetchval(
+        "SELECT COUNT(*) FROM user_main WHERE created_at >= NOW() - INTERVAL '7 days'"
+    )
+    # active = at least one audit-log entry in window
+    active_24h = await db.fetchval(
+        "SELECT COUNT(DISTINCT user_id) FROM audit_log "
+        "WHERE user_id IS NOT NULL AND created_at >= NOW() - INTERVAL '1 day'"
+    )
+    active_7d = await db.fetchval(
+        "SELECT COUNT(DISTINCT user_id) FROM audit_log "
+        "WHERE user_id IS NOT NULL AND created_at >= NOW() - INTERVAL '7 days'"
+    )
+
+    # --- food / water / training (today) -----------------------------------
+    food_today = await db.fetchrow(
+        "SELECT COUNT(*) AS rows, COALESCE(SUM(cal),0)::int AS cal "
+        "FROM food WHERE date = CURRENT_DATE"
+    )
+    water_today = await db.fetchval(
+        "SELECT COALESCE(SUM(count),0)::int FROM water WHERE date = CURRENT_DATE"
+    )
+    training_today = await db.fetchrow(
+        "SELECT COUNT(*) AS rows, COALESCE(SUM(training_cal),0)::int AS cal "
+        "FROM user_training WHERE date = CURRENT_DATE"
+    )
+
+    # --- AI usage (last 7 days) -------------------------------------------
+    ai_rows = await db.fetch(
+        """
+        SELECT category, COUNT(*) AS cnt,
+               SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END) AS errs
+        FROM audit_log
+        WHERE created_at >= NOW() - INTERVAL '7 days'
+          AND category LIKE 'ai_%'
+        GROUP BY category
+        ORDER BY cnt DESC
+        """
+    )
+
+    # --- social ------------------------------------------------------------
+    social_posts = await db.fetchval("SELECT COUNT(*) FROM social_posts")
+    social_posts_week = await db.fetchval(
+        "SELECT COUNT(*) FROM social_posts WHERE created_at >= NOW() - INTERVAL '7 days'"
+    )
+    social_likes = await db.fetchval("SELECT COUNT(*) FROM social_likes")
+
+    # --- top users by recent activity -------------------------------------
+    top_users = await db.fetch(
+        """
+        SELECT al.user_id,
+               um.name,
+               um.telegram_username,
+               COUNT(*) AS actions
+        FROM audit_log al
+        JOIN user_main um ON um.user_id = al.user_id
+        WHERE al.created_at >= NOW() - INTERVAL '7 days'
+          AND al.user_id IS NOT NULL
+        GROUP BY al.user_id, um.name, um.telegram_username
+        ORDER BY actions DESC
+        LIMIT 10
+        """
+    )
+
+    # --- recent errors -----------------------------------------------------
+    recent_errors = await db.fetch(
+        """
+        SELECT id, user_id, method, path, status_code, created_at, detail
+        FROM audit_log
+        WHERE status_code >= 500
+        ORDER BY created_at DESC
+        LIMIT 10
+        """
+    )
+
+    return {
+        "users": {
+            "total": int(users_total or 0),
+            "new_today": int(users_today or 0),
+            "new_week": int(users_week or 0),
+            "active_24h": int(active_24h or 0),
+            "active_7d": int(active_7d or 0),
+        },
+        "today": {
+            "food_entries": int(food_today["rows"] or 0),
+            "food_calories": int(food_today["cal"] or 0),
+            "water_glasses": int(water_today or 0),
+            "training_entries": int(training_today["rows"] or 0),
+            "training_calories": int(training_today["cal"] or 0),
+        },
+        "ai_7d": [
+            {
+                "category": r["category"],
+                "count": int(r["cnt"]),
+                "errors": int(r["errs"] or 0),
+            }
+            for r in ai_rows
+        ],
+        "social": {
+            "posts": int(social_posts or 0),
+            "posts_week": int(social_posts_week or 0),
+            "likes": int(social_likes or 0),
+        },
+        "top_users": [
+            {
+                "user_id": r["user_id"],
+                "name": r["name"],
+                "telegram_username": r["telegram_username"],
+                "actions": int(r["actions"]),
+            }
+            for r in top_users
+        ],
+        "recent_errors": [
+            {
+                "id": r["id"],
+                "user_id": r["user_id"],
+                "method": r["method"],
+                "path": r["path"],
+                "status_code": r["status_code"],
+                "detail": dict(r["detail"] or {}),
+                "created_at": r["created_at"].isoformat(),
+            }
+            for r in recent_errors
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
 # Audit log viewer
 # ---------------------------------------------------------------------------
 

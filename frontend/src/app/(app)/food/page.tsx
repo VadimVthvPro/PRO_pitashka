@@ -9,6 +9,7 @@ import { Scribble } from "@/components/hand/Scribble";
 import { Highlight } from "@/components/hand/Highlight";
 import { ScrollReveal } from "@/components/motion/ScrollReveal";
 import { handleActivityResponse } from "@/lib/streaks";
+import { useI18n } from "@/lib/i18n";
 
 type Tab = "photo" | "manual" | "repeat";
 
@@ -60,15 +61,16 @@ function hasErrorPayload(d: unknown): d is { error: string } {
 }
 
 export default function FoodPage() {
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState<Tab>("photo");
   const [date] = useState(todayISO);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const t = params.get("tab");
-    if (t === "repeat" || t === "manual" || t === "photo") {
-      setTab(t);
+    const tabParam = params.get("tab");
+    if (tabParam === "repeat" || tabParam === "manual" || tabParam === "photo") {
+      setTab(tabParam);
     }
   }, []);
 
@@ -100,11 +102,11 @@ export default function FoodPage() {
       setFoodDay(d);
     } catch (e) {
       setFoodDay(null);
-      setDayError(e instanceof Error ? e.message : "Не удалось загрузить данные");
+      setDayError(e instanceof Error ? e.message : t("food_err_load_data"));
     } finally {
       setLoadingDay(false);
     }
-  }, [date]);
+  }, [date, t]);
 
   useEffect(() => {
     void loadDay();
@@ -121,11 +123,11 @@ export default function FoodPage() {
       setFavorites(fav.items);
       setLastDay(last);
     } catch (e) {
-      setRepeatError(e instanceof Error ? e.message : "Не удалось загрузить данные");
+      setRepeatError(e instanceof Error ? e.message : t("food_err_load_data"));
     } finally {
       setRepeatLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (tab === "repeat" && favorites.length === 0 && !lastDay && !repeatLoading) {
@@ -144,7 +146,7 @@ export default function FoodPage() {
       await loadDay();
       await loadRepeatData();
     } catch (e) {
-      setRepeatError(e instanceof Error ? e.message : "Не удалось скопировать");
+      setRepeatError(e instanceof Error ? e.message : t("food_err_copy"));
     } finally {
       setRepeatSubmitting(false);
     }
@@ -165,7 +167,7 @@ export default function FoodPage() {
       handleActivityResponse(res as Parameters<typeof handleActivityResponse>[0]);
       await loadDay();
     } catch (e) {
-      setRepeatError(e instanceof Error ? e.message : "Не удалось добавить");
+      setRepeatError(e instanceof Error ? e.message : t("food_err_add"));
     } finally {
       setRepeatSubmitting(false);
     }
@@ -193,7 +195,7 @@ export default function FoodPage() {
 
   async function submitPhoto() {
     if (!photoFile) {
-      setPhotoError("Выберите файл с фото еды");
+      setPhotoError(t("food_err_pick_photo"));
       return;
     }
     setPhotoError("");
@@ -213,7 +215,7 @@ export default function FoodPage() {
       setPhotoFile(null);
       await loadDay();
     } catch (e) {
-      setPhotoError(e instanceof Error ? e.message : "Ошибка загрузки");
+      setPhotoError(e instanceof Error ? e.message : t("food_err_upload"));
     } finally {
       setPhotoSubmitting(false);
     }
@@ -230,11 +232,11 @@ export default function FoodPage() {
       .filter((n) => !Number.isNaN(n));
 
     if (foods.length === 0) {
-      setManualError("Укажите хотя бы одно блюдо");
+      setManualError(t("food_err_at_least_one"));
       return;
     }
     if (foods.length !== grams.length) {
-      setManualError("Количество блюд и граммов должно совпадать");
+      setManualError(t("food_err_dish_gram_match"));
       return;
     }
 
@@ -258,7 +260,7 @@ export default function FoodPage() {
       setManualGrams("");
       await loadDay();
     } catch (e) {
-      setManualError(e instanceof Error ? e.message : "Ошибка сохранения");
+      setManualError(e instanceof Error ? e.message : t("food_err_save_short"));
     } finally {
       setManualSubmitting(false);
     }
@@ -270,7 +272,7 @@ export default function FoodPage() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
-              {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
+              {new Date(date + "T12:00:00").toLocaleDateString(lang, {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
@@ -285,13 +287,14 @@ export default function FoodPage() {
                 lineHeight: 0.92,
               }}
             >
-              Что <Highlight color="oklch(72% 0.15 80 / 0.45)">положим</Highlight>
+              {t("food_hero_what")}
+              <Highlight color="oklch(72% 0.15 80 / 0.45)">{t("food_hero_put")}</Highlight>
               <br />
-              в тарелку?
+              {t("food_hero_plate")}
             </h1>
           </div>
           <Sticker color="cream" font="arkhip" rotate={-4} size="md">
-            фото или руками
+            {t("food_hero_sub")}
           </Sticker>
         </div>
       </ScrollReveal>
@@ -299,11 +302,11 @@ export default function FoodPage() {
       <div className="flex flex-wrap gap-2 p-1 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius-lg)] w-fit relative">
         {(
           [
-            ["photo", "Снял — распознаю", "solar:camera-bold-duotone"],
-            ["manual", "Записать руками", "solar:pen-bold-duotone"],
-            ["repeat", "Как вчера", "solar:refresh-circle-bold-duotone"],
+            ["photo", "food_tab_snap", "solar:camera-bold-duotone"],
+            ["manual", "food_tab_handwrite", "solar:pen-bold-duotone"],
+            ["repeat", "food_tab_yesterday", "solar:refresh-circle-bold-duotone"],
           ] as const
-        ).map(([id, label, icon]) => (
+        ).map(([id, labelKey, icon]) => (
           <button
             key={id}
             type="button"
@@ -322,7 +325,7 @@ export default function FoodPage() {
               />
             )}
             <Icon icon={icon} width={16} />
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
@@ -341,7 +344,7 @@ export default function FoodPage() {
             }`}
           >
             <p className="text-sm text-[var(--muted)] mb-2">
-              Перетащите фото сюда или выберите файл
+              {t("food_dropzone_extended")}
             </p>
             <input
               type="file"
@@ -357,7 +360,7 @@ export default function FoodPage() {
               htmlFor="food-photo-input"
               className="inline-block px-4 py-2 text-sm font-medium rounded-[var(--radius)] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] cursor-pointer transition-colors"
             >
-              Выбрать файл
+              {t("food_pick_file")}
             </label>
             {photoFile && (
               <p className="mt-3 text-sm text-[var(--foreground)] font-mono truncate max-w-full">
@@ -374,7 +377,7 @@ export default function FoodPage() {
             disabled={photoSubmitting || !photoFile}
             className="w-full py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            {photoSubmitting ? "Отправка…" : "Распознать и сохранить"}
+            {photoSubmitting ? t("food_photo_submitting") : t("food_photo_save")}
           </button>
         </div>
       )}
@@ -383,19 +386,19 @@ export default function FoodPage() {
         <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-6 shadow-[var(--shadow-1)] space-y-4">
           <div>
             <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-              Блюда (через запятую)
+              {t("food_manual_dishes_label")}
             </label>
             <textarea
               value={manualFoods}
               onChange={(e) => setManualFoods(e.target.value)}
               rows={3}
-              placeholder="Овсянка, банан, кофе"
+              placeholder={t("food_manual_dishes_placeholder")}
               className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 resize-y min-h-[88px]"
             />
           </div>
           <div>
             <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-              Граммы (через запятую, в том же порядке)
+              {t("food_manual_grams_ordered")}
             </label>
             <textarea
               value={manualGrams}
@@ -414,7 +417,7 @@ export default function FoodPage() {
             disabled={manualSubmitting}
             className="w-full py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            {manualSubmitting ? "Сохранение…" : "Добавить в дневник"}
+            {manualSubmitting ? t("food_manual_submitting") : t("food_manual_add")}
           </button>
         </div>
       )}
@@ -440,7 +443,7 @@ export default function FoodPage() {
               <div className="relative flex flex-wrap items-start justify-between gap-4 mb-4">
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                    Последний съеденный день
+                    {t("food_repeat_last_day_title")}
                   </p>
                   <h3
                     className="text-2xl mt-1"
@@ -450,20 +453,20 @@ export default function FoodPage() {
                     }}
                   >
                     {new Date(lastDay.date + "T12:00:00").toLocaleDateString(
-                      "ru-RU",
+                      lang,
                       { weekday: "long", day: "numeric", month: "long" },
                     )}
                   </h3>
                   <p className="text-sm text-[var(--muted)] mt-1">
-                    {lastDay.items.length} блюд ·{" "}
-                    {Math.round(lastDay.totals?.total_cal ?? 0)} ккал ·{" "}
+                    {t("food_today_dishes", { n: lastDay.items.length })} ·{" "}
+                    {Math.round(lastDay.totals?.total_cal ?? 0)} {t("kcal")} ·{" "}
                     {Math.round(lastDay.totals?.total_protein ?? 0)}/
                     {Math.round(lastDay.totals?.total_fat ?? 0)}/
-                    {Math.round(lastDay.totals?.total_carbs ?? 0)} БЖУ
+                    {Math.round(lastDay.totals?.total_carbs ?? 0)} {t("food_macros_abbr")}
                   </p>
                 </div>
                 <Sticker color="sage" font="appetite" rotate={3}>
-                  один клик
+                  {t("food_repeat_one_click")}
                 </Sticker>
               </div>
 
@@ -475,13 +478,13 @@ export default function FoodPage() {
                   >
                     <span className="truncate">{it.name_of_food}</span>
                     <span className="font-mono text-xs tabular-nums text-[var(--muted)]">
-                      {Math.round(it.cal)} ккал
+                      {Math.round(it.cal)} {t("kcal")}
                     </span>
                   </div>
                 ))}
                 {lastDay.items.length > 6 && (
                   <p className="text-xs text-[var(--muted-foreground)] pt-1">
-                    + ещё {lastDay.items.length - 6}
+                    {t("food_more_count", { n: lastDay.items.length - 6 })}
                   </p>
                 )}
               </div>
@@ -493,7 +496,7 @@ export default function FoodPage() {
                 className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 shadow-[var(--shadow-accent)] flex items-center justify-center gap-2"
               >
                 <Icon icon="solar:refresh-circle-bold-duotone" width={20} />
-                {repeatSubmitting ? "Копируем…" : "Скопировать в сегодня"}
+                {repeatSubmitting ? t("food_repeat_copying") : t("food_repeat_copy_btn")}
               </motion.button>
             </div>
           )}
@@ -508,14 +511,14 @@ export default function FoodPage() {
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  Твои частые
+                  {t("food_favorites_title")}
                 </h3>
                 <Sticker color="amber" size="sm" rotate={-3} font="arkhip">
-                  топ {favorites.length}
+                  {t("food_favorites_top")} {favorites.length}
                 </Sticker>
               </div>
               <p className="text-sm text-[var(--muted)] mb-4">
-                Клик = добавить с такими же граммами, как обычно
+                {t("food_favorites_hint_long")}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {favorites.map((f, i) => {
@@ -532,7 +535,7 @@ export default function FoodPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium truncate">{f.name}</p>
                         <p className="text-[11px] text-[var(--muted-foreground)] font-mono tabular-nums">
-                          {Math.round(Number(f.cal))} ккал · ×{f.times}
+                          {Math.round(Number(f.cal))} {t("kcal")} · ×{f.times}
                         </p>
                       </div>
                       <Icon
@@ -561,11 +564,10 @@ export default function FoodPage() {
                     letterSpacing: "-0.01em",
                   }}
                 >
-                  Ещё нечего повторять
+                  {t("food_favorites_empty_title")}
                 </p>
                 <p className="text-sm text-[var(--muted-foreground)] mt-1 max-w-[46ch]">
-                  Добавь пару блюд руками или по фото — и тут появится ленивый
-                  способ повторить день.
+                  {t("food_repeat_empty_long")}
                 </p>
               </div>
             </div>
@@ -583,11 +585,11 @@ export default function FoodPage() {
               letterSpacing: "-0.02em",
             }}
           >
-            Сегодня на тарелке
+            {t("food_today_title")}
           </h2>
           {foodDay && foodDay.items.length > 0 && (
             <Sticker color="sage" size="sm" rotate={3}>
-              {foodDay.items.length} блюд
+              {t("food_today_dishes", { n: foodDay.items.length })}
             </Sticker>
           )}
         </div>
@@ -604,10 +606,10 @@ export default function FoodPage() {
           <>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
-                ["Ккал", foodDay.totals.total_cal, "", "var(--accent)"],
-                ["Белки", foodDay.totals.total_protein, "г", "var(--success)"],
-                ["Жиры", foodDay.totals.total_fat, "г", "var(--warning)"],
-                ["Углеводы", foodDay.totals.total_carbs, "г", "var(--accent)"],
+                [t("food_macro_kcal"), foodDay.totals.total_cal, "", "var(--accent)"],
+                [t("protein"), foodDay.totals.total_protein, t("grams_short"), "var(--success)"],
+                [t("fat"), foodDay.totals.total_fat, t("grams_short"), "var(--warning)"],
+                [t("carbs"), foodDay.totals.total_carbs, t("grams_short"), "var(--accent)"],
               ].map(([label, val, unit, color]) => (
                 <div
                   key={String(label)}
@@ -649,10 +651,10 @@ export default function FoodPage() {
                       letterSpacing: "-0.01em",
                     }}
                   >
-                    Ничего не ел?
+                    {t("food_empty_meals_title")}
                   </p>
                   <p className="text-sm text-[var(--muted-foreground)] mt-1.5 max-w-[46ch]">
-                    Так и запишем. Когда будет что добавить — сюда же.
+                    {t("food_empty_sub_note")}
                   </p>
                 </div>
               </div>
@@ -661,11 +663,11 @@ export default function FoodPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-                      <th className="pb-2">Блюдо</th>
-                      <th className="pb-2 text-right">Б</th>
-                      <th className="pb-2 text-right">Ж</th>
-                      <th className="pb-2 text-right">У</th>
-                      <th className="pb-2 text-right">Ккал</th>
+                      <th className="pb-2">{t("food_th_dish")}</th>
+                      <th className="pb-2 text-right">{t("food_macro_protein")}</th>
+                      <th className="pb-2 text-right">{t("food_macro_fat")}</th>
+                      <th className="pb-2 text-right">{t("food_macro_carbs")}</th>
+                      <th className="pb-2 text-right">{t("food_macro_kcal")}</th>
                     </tr>
                   </thead>
                   <tbody>

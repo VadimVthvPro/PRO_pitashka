@@ -64,6 +64,8 @@ services:
         condition: service_healthy
     networks:
       - propitashka-net
+    volumes:
+      - uploads_data:/data/uploads
     ports:
       - "127.0.0.1:${BACKEND_LOCAL_PORT:-8101}:8000"
     command: >
@@ -109,3 +111,4 @@ networks:
 volumes:
   postgres_data:
   redis_data:
+  uploads_data:

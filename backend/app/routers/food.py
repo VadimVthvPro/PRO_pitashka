@@ -6,6 +6,7 @@ from app.models.food import FoodManualRequest
 from app.repositories.food_repo import FoodRepository
 from app.services import ai_service, streak_service
 from app.services.cache_service import CacheService
+from app.repositories.user_repo import UserRepository
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,9 @@ async def add_food_manual(body: FoodManualRequest, user_id: CurrentUserDep, db: 
 
     settings = get_settings()
     cache = CacheService(redis, settings.CACHE_ENABLED)
+    lang = await UserRepository(db).get_lang(user_id) or "ru"
 
-    cache_key = f"food:{':'.join(body.foods)}:{':'.join(str(g) for g in body.grams)}"
+    cache_key = f"food:{lang}:{':'.join(body.foods)}:{':'.join(str(g) for g in body.grams)}"
     cached = await cache.get(cache_key)
 
     if cached:
@@ -46,7 +48,7 @@ async def add_food_manual(body: FoodManualRequest, user_id: CurrentUserDep, db: 
 
         if ai_needed_foods:
             try:
-                ai_items = await ai_service.analyze_food_text(ai_needed_foods, ai_needed_grams)
+                ai_items = await ai_service.analyze_food_text(ai_needed_foods, ai_needed_grams, lang=lang)
                 items.extend(ai_items)
             except Exception as e:
                 logger.warning("AI food analysis failed: %s", e)
@@ -88,8 +90,9 @@ async def add_food_photo(
     food_date: date = Query(default_factory=date.today),
 ):
     image_bytes = await file.read()
+    lang = await UserRepository(db).get_lang(user_id) or "ru"
     try:
-        items = await ai_service.recognize_food_photo(image_bytes)
+        items = await ai_service.recognize_food_photo(image_bytes, lang=lang)
     except Exception as e:
         logger.warning("AI photo recognition failed: %s", e)
         raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже или добавьте еду вручную.")

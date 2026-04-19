@@ -6,13 +6,19 @@ API key looks like ``AIzaSy...`` (39 chars). Anything else (in particular
 by the API with 401/403 — and the user will see "AI quota exceeded" or similar
 opaque errors.
 
-To make misconfiguration loud and obvious we:
+Architecture
+------------
 
-* Validate the key shape in :func:`_get_model` and raise a typed error.
-* Re-create the model whenever the underlying setting changes (so a key swap
-  in ``.env`` is picked up after backend reload without needing a code change).
-* Convert SDK errors into a small set of clear application-level errors so the
-  routers can return clean HTTP responses.
+* Each task (food photo, KBJU calc, meal plan, workout plan, recipe, weekly
+  digest, chat) has its OWN ``GenerativeModel`` instance with its own
+  ``system_instruction``. Models are cached by ``(model_name, key, role)`` so
+  we never re-create them on hot paths.
+* All prompts live in :mod:`app.services.prompts` so they can be audited,
+  versioned and unit-tested in one place.
+* Every call goes through :func:`_call_model` which adds a per-call timeout
+  and translates SDK errors into typed application errors. A separate
+  ``async_retry`` decorator handles transient 503/504/timeout failures with
+  jittered exponential backoff.
 """
 
 from __future__ import annotations
@@ -26,6 +32,7 @@ from typing import Any
 import google.generativeai as genai
 
 from app.config import get_settings
+from app.services import prompts
 from app.utils.retry import async_retry, is_retryable_exception
 
 logger = logging.getLogger(__name__)
@@ -58,21 +65,10 @@ class AITimeoutError(AIUpstreamError):
         super().__init__(message, retryable=True)
 
 
-# Per-call timeout (seconds) — keeps a single hung Gemini request from
-# blocking the whole retry budget. Backed by ``asyncio.wait_for``.
 _PER_CALL_TIMEOUT = 25.0
 
 
 def _ai_retry_predicate(exc: BaseException) -> bool:
-    """Decide whether to retry a Gemini call.
-
-    Hard rules:
-      * ``AIConfigError`` is always permanent.
-      * ``AIQuotaError`` is permanent — retrying just burns the daily quota.
-      * ``AITimeoutError`` and any ``AIUpstreamError(retryable=True)`` are
-        retried.
-    Otherwise we fall back to the generic heuristic.
-    """
     if isinstance(exc, (AIConfigError, AIQuotaError)):
         return False
     if isinstance(exc, AITimeoutError):
@@ -82,9 +78,6 @@ def _ai_retry_predicate(exc: BaseException) -> bool:
     return is_retryable_exception(exc)
 
 
-# Default retry policy for Gemini-backed coroutines:
-#   5 attempts, exponential 1s -> 2s -> 4s -> 8s -> 16s with ±25% jitter,
-#   capped at 20s between attempts and 60s total wall-clock.
 _GEMINI_RETRY = dict(
     attempts=5,
     base_delay=1.0,
@@ -114,10 +107,6 @@ _KNOWN_BAD_PREFIXES = {
 }
 
 
-_model: genai.GenerativeModel | None = None
-_configured_key: str | None = None
-
-
 def _validate_key(key: str) -> None:
     if not key or not key.strip():
         raise AIConfigError(
@@ -128,7 +117,6 @@ def _validate_key(key: str) -> None:
         if key.startswith(bad):
             raise AIConfigError(hint)
     if not any(key.startswith(p) for p in _VALID_KEY_PREFIXES):
-        # Don't hard-fail — Google may add new prefixes — but warn loudly.
         logger.warning(
             "GEMINI_API_KEY does not start with the expected 'AIza' prefix "
             "(got %r...). Continuing, but expect 401/403 if this is wrong.",
@@ -136,37 +124,48 @@ def _validate_key(key: str) -> None:
         )
 
 
-_configured_model_name: str | None = None
+# Cache: keyed by (model_name, key, role) so we keep one model per persona
+# without re-initialising on every request.
+_models: dict[tuple[str, str, str], genai.GenerativeModel] = {}
+_configured_key: str | None = None
 
 
-def _get_model() -> genai.GenerativeModel:
-    """Return a singleton model, re-initialising it if the key or model changed."""
-    global _model, _configured_key, _configured_model_name
+def _ensure_configured(key: str) -> None:
+    global _configured_key
+    if _configured_key != key:
+        _validate_key(key)
+        genai.configure(api_key=key)
+        _configured_key = key
+        logger.info("Gemini configured (key tail: ...%s)", key[-4:])
+
+
+def _model_for(role: str, system_instruction: str) -> genai.GenerativeModel:
+    """Return a memoised model bound to the given system instruction."""
     settings = get_settings()
     key = settings.GEMINI_API_KEY
     model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
-    if _model is None or _configured_key != key or _configured_model_name != model_name:
-        _validate_key(key)
-        genai.configure(api_key=key)
-        _model = genai.GenerativeModel(model_name)
-        _configured_key = key
-        _configured_model_name = model_name
-        logger.info(
-            "Gemini model initialised (model=%s, key tail: ...%s)",
-            model_name, key[-4:],
+    _ensure_configured(key)
+    cache_key = (model_name, key, role)
+    if cache_key not in _models:
+        _models[cache_key] = genai.GenerativeModel(
+            model_name, system_instruction=system_instruction
         )
-    return _model
+        logger.info("Gemini model created (model=%s, role=%s)", model_name, role)
+    return _models[cache_key]
+
+
+def _generation_config(*, json_only: bool, max_tokens: int = 4096) -> dict[str, Any]:
+    cfg: dict[str, Any] = {
+        "temperature": 0.4 if json_only else 0.7,
+        "top_p": 0.95,
+        "max_output_tokens": max_tokens,
+    }
+    if json_only:
+        cfg["response_mime_type"] = "application/json"
+    return cfg
 
 
 def _classify_error(exc: BaseException) -> Exception:
-    """Map a raw SDK / transport exception onto our typed AI errors.
-
-    The mapping is conservative: anything we recognise as ``quota`` becomes
-    a permanent :class:`AIQuotaError`; anything that looks like an auth /
-    config problem becomes :class:`AIConfigError`; everything else ends up
-    as :class:`AIUpstreamError` with ``retryable`` derived from the generic
-    heuristic.
-    """
     msg = str(exc).lower()
     if "quota" in msg or "rate limit" in msg or "resource_exhausted" in msg or "429" in msg:
         return AIQuotaError(str(exc))
@@ -188,13 +187,6 @@ def _classify_error(exc: BaseException) -> Exception:
 
 
 async def _call_model(coro_factory) -> Any:
-    """Invoke a Gemini coroutine with a per-attempt timeout + classification.
-
-    ``coro_factory`` is a zero-arg callable that returns the coroutine to
-    await. We wrap it in ``asyncio.wait_for`` so a single hanging request
-    cannot eat the entire retry budget, and translate every failure into one
-    of our typed errors so the retry decorator can decide what to do.
-    """
     try:
         return await asyncio.wait_for(coro_factory(), timeout=_PER_CALL_TIMEOUT)
     except (AIConfigError, AIQuotaError, AIUpstreamError):
@@ -206,18 +198,39 @@ async def _call_model(coro_factory) -> Any:
 
 
 def _strip_code_fence(text: str) -> str:
-    text = text.strip()
+    text = (text or "").strip()
     if text.startswith("```"):
-        # remove first fence line (``` or ```json) and trailing fence
         first_nl = text.find("\n")
         text = text[first_nl + 1 :] if first_nl != -1 else text
         if text.endswith("```"):
-            text = text[: -3]
+            text = text[:-3]
     return text.strip()
 
 
+def _safe_json_loads(text: str) -> Any:
+    """Best-effort JSON parse — strips markdown fences and trims trailing junk."""
+    cleaned = _strip_code_fence(text)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        # Find first '{' / '[' and last '}' / ']' and try again
+        for opener, closer in (("[", "]"), ("{", "}")):
+            i = cleaned.find(opener)
+            j = cleaned.rfind(closer)
+            if i != -1 and j != -1 and j > i:
+                try:
+                    return json.loads(cleaned[i : j + 1])
+                except json.JSONDecodeError:
+                    continue
+        raise
+
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+
 async def health_check() -> dict[str, Any]:
-    """Light-weight call used by /api/_internal/ai-health to verify config."""
     settings = get_settings()
     key = settings.GEMINI_API_KEY
     info: dict[str, Any] = {
@@ -235,16 +248,15 @@ async def health_check() -> dict[str, Any]:
         return info
 
     try:
-        model = _get_model()
+        model = _model_for("health", "You are a probe. Reply with exactly: OK")
         response = await asyncio.wait_for(
-            model.generate_content_async("Reply with the single word: OK"),
-            timeout=12,
+            model.generate_content_async("ping"), timeout=12,
         )
         info["status"] = "ok"
         info["sample"] = (response.text or "").strip()[:32]
     except asyncio.TimeoutError:
         info["status"] = "timeout"
-    except Exception as e:  # pragma: no cover — diagnostic path
+    except Exception as e:
         wrapped = _classify_error(e)
         info["status"] = "error"
         info["error_type"] = type(wrapped).__name__
@@ -252,91 +264,57 @@ async def health_check() -> dict[str, Any]:
     return info
 
 
+# ---------------------------------------------------------------------------
+# Structured tasks (JSON outputs)
+# ---------------------------------------------------------------------------
+
+
 @async_retry(**_GEMINI_RETRY)
-async def recognize_food_photo(image_bytes: bytes) -> list[dict]:
-    model = _get_model()
-    prompt = (
-        "Analyze this food photo. Return a JSON array of items: "
-        '[{"name": "food name", "grams": estimated_grams, "cal": calories, '
-        '"b": protein_g, "g": fat_g, "u": carbs_g}]. '
-        "Only JSON, no other text."
-    )
+async def recognize_food_photo(image_bytes: bytes, lang: str = "ru") -> list[dict]:
+    model = _model_for(f"food_photo:{lang}", prompts.system_food_photo(lang))
     import PIL.Image  # local import keeps cold-start light
 
     image = PIL.Image.open(io.BytesIO(image_bytes))
-    response = await _call_model(lambda: model.generate_content_async([prompt, image]))
-    return json.loads(_strip_code_fence(response.text))
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            [prompts.PROMPT_FOOD_PHOTO, image],
+            generation_config=_generation_config(json_only=True, max_tokens=2048),
+        )
+    )
+    data = _safe_json_loads(response.text)
+    if not isinstance(data, list):
+        raise AIUpstreamError("food photo response is not a JSON array", retryable=False)
+    return data
 
 
 @async_retry(**_GEMINI_RETRY)
-async def analyze_food_text(foods: list[str], grams: list[float], lang: str = "ru") -> list[dict]:
-    model = _get_model()
-    items = ", ".join(f"{f} {g}g" for f, g in zip(foods, grams))
-    prompt = (
-        f"Calculate KBJU for these foods: {items}. "
-        f'Return JSON array: [{{"name": "...", "grams": N, "cal": N, "b": N, "g": N, "u": N}}]. '
-        f"Language: {lang}. Only JSON."
+async def analyze_food_text(
+    foods: list[str], grams: list[float], lang: str = "ru"
+) -> list[dict]:
+    model = _model_for(f"food_text:{lang}", prompts.system_food_text(lang))
+    items_repr = "\n".join(f"- {f.strip()} — {g}g" for f, g in zip(foods, grams))
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            prompts.prompt_food_text(items_repr),
+            generation_config=_generation_config(json_only=True, max_tokens=2048),
+        )
     )
-    response = await _call_model(lambda: model.generate_content_async(prompt))
-    return json.loads(_strip_code_fence(response.text))
-
-
-@async_retry(**_GEMINI_RETRY)
-async def generate_meal_plan(user_info: dict, lang: str = "ru") -> str:
-    model = _get_model()
-    prompt = (
-        "Create a detailed weekly meal plan (7 days, 3 meals + snacks) for a person with these parameters:\n"
-        f"Sex: {user_info.get('sex', 'unknown')}, Weight: {user_info.get('weight')}kg, "
-        f"Height: {user_info.get('height')}cm, BMI: {user_info.get('imt')}, "
-        f"Goal: {user_info.get('aim')}, Daily calories: {user_info.get('daily_cal')}kcal.\n"
-        f"Include KBJU for each meal. Language: {lang}."
-    )
-    response = await _call_model(lambda: model.generate_content_async(prompt))
-    return response.text
-
-
-@async_retry(**_GEMINI_RETRY)
-async def generate_workout_plan(user_info: dict, lang: str = "ru") -> str:
-    model = _get_model()
-    prompt = (
-        "Create a weekly workout plan (7 days) for:\n"
-        f"Sex: {user_info.get('sex', 'unknown')}, Weight: {user_info.get('weight')}kg, "
-        f"BMI: {user_info.get('imt')}, Goal: {user_info.get('aim')}.\n"
-        f"Include exercise names, sets, reps, rest times. Language: {lang}."
-    )
-    response = await _call_model(lambda: model.generate_content_async(prompt))
-    return response.text
-
-
-@async_retry(**_GEMINI_RETRY)
-async def generate_recipe(meal_type: str, user_info: dict, lang: str = "ru") -> str:
-    model = _get_model()
-    prompt = (
-        f"Generate a healthy {meal_type} recipe for a person with daily calorie target "
-        f"{user_info.get('daily_cal')}kcal, goal: {user_info.get('aim')}.\n"
-        f"Include ingredients, steps, and KBJU. Language: {lang}."
-    )
-    response = await _call_model(lambda: model.generate_content_async(prompt))
-    return response.text
+    data = _safe_json_loads(response.text)
+    if not isinstance(data, list):
+        raise AIUpstreamError("food text response is not a JSON array", retryable=False)
+    return data
 
 
 @async_retry(**_GEMINI_RETRY)
 async def weekly_digest(stats: dict, lang: str = "ru") -> dict:
-    """Return a structured weekly digest. Caller is responsible for fallback."""
-    model = _get_model()
-    prompt = (
-        "You are a friendly nutrition & fitness coach. Look at the user's "
-        "weekly stats (JSON below) and produce a personal digest. "
-        "Reply ONLY in raw JSON (no markdown fences) with keys: "
-        "summary (2-3 sentences, warm and concrete, mention numbers), "
-        "wins (2-3 short bullets in second person), "
-        "focus (2-3 short bullets — what to improve), "
-        "tip (one actionable sentence). "
-        f"Language: {lang}. Avoid generic advice — refer to the actual numbers.\n\n"
-        f"Stats JSON:\n{json.dumps(stats, ensure_ascii=False)}"
+    model = _model_for(f"digest:{lang}", prompts.system_weekly_digest(lang))
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            prompts.prompt_weekly_digest(stats),
+            generation_config=_generation_config(json_only=True, max_tokens=1024),
+        )
     )
-    response = await _call_model(lambda: model.generate_content_async(prompt))
-    data = json.loads(_strip_code_fence(response.text))
+    data = _safe_json_loads(response.text) or {}
     return {
         "summary": str(data.get("summary", "")).strip(),
         "wins": [str(x).strip() for x in (data.get("wins") or [])][:5],
@@ -345,18 +323,88 @@ async def weekly_digest(stats: dict, lang: str = "ru") -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Generative tasks (Markdown outputs)
+# ---------------------------------------------------------------------------
+
+
 @async_retry(**_GEMINI_RETRY)
-async def chat(message: str, context: list[dict], user_info: dict, lang: str = "ru") -> str:
-    model = _get_model()
-    system = (
-        "You are PROpitashka AI assistant — a friendly nutrition and fitness expert. "
-        f"User parameters: {json.dumps(user_info)}. "
-        f"Respond in language: {lang}. Be helpful, specific, and encouraging."
+async def generate_meal_plan(user_info: dict, lang: str = "ru") -> str:
+    model = _model_for(f"meal_plan:{lang}", prompts.system_meal_plan(lang))
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            prompts.prompt_meal_plan(user_info),
+            generation_config=_generation_config(json_only=False, max_tokens=8192),
+        )
     )
-    history_text = "\n".join(
-        f"{'User' if m['message_type'] == 'user' else 'Assistant'}: {m['message_text']}"
-        for m in context[-10:]
+    return (response.text or "").strip()
+
+
+@async_retry(**_GEMINI_RETRY)
+async def generate_workout_plan(user_info: dict, lang: str = "ru") -> str:
+    model = _model_for(f"workout_plan:{lang}", prompts.system_workout_plan(lang))
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            prompts.prompt_workout_plan(user_info),
+            generation_config=_generation_config(json_only=False, max_tokens=6144),
+        )
     )
-    full_prompt = f"{system}\n\nChat history:\n{history_text}\n\nUser: {message}\nAssistant:"
-    response = await _call_model(lambda: model.generate_content_async(full_prompt))
-    return response.text
+    return (response.text or "").strip()
+
+
+@async_retry(**_GEMINI_RETRY)
+async def generate_recipe(meal_type: str, user_info: dict, lang: str = "ru") -> str:
+    model = _model_for(f"recipe:{lang}", prompts.system_recipe(lang))
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            prompts.prompt_recipe(meal_type, user_info),
+            generation_config=_generation_config(json_only=False, max_tokens=2048),
+        )
+    )
+    return (response.text or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# Chat
+# ---------------------------------------------------------------------------
+
+
+@async_retry(**_GEMINI_RETRY)
+async def chat(
+    message: str,
+    history: list[dict],
+    user_info: dict,
+    lang: str = "ru",
+    *,
+    today: dict | None = None,
+    week: dict | None = None,
+    meal_plan: str | None = None,
+    workout_plan: str | None = None,
+) -> str:
+    """Generate a chat reply with full personal context.
+
+    `history` is a list of `{message_type, message_text}` dicts in chronological
+    order. `today`, `week`, `meal_plan`, `workout_plan` are optional context
+    blocks pulled from the routers (so the AI service stays DB-agnostic).
+    """
+    model = _model_for(f"chat:{lang}", prompts.system_chat(lang))
+    context_block = prompts.render_chat_context(
+        user_info=user_info,
+        today=today,
+        week=week,
+        meal_plan=meal_plan,
+        workout_plan=workout_plan,
+    )
+    history_block = prompts.render_chat_history(history)
+    full_prompt = prompts.prompt_chat(
+        context_block=context_block,
+        history_block=history_block,
+        message=message,
+    )
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            full_prompt,
+            generation_config=_generation_config(json_only=False, max_tokens=2048),
+        )
+    )
+    return (response.text or "").strip()

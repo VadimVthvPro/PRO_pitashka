@@ -101,7 +101,9 @@ async def weekly(
 ):
     settings = get_settings()
     cache = CacheService(redis, settings.CACHE_ENABLED)
-    cache_key = f"digest:weekly:{user_id}:{date.today().isoformat()}"
+    from app.repositories.user_repo import UserRepository
+    lang = await UserRepository(db).get_lang(user_id) or "ru"
+    cache_key = f"digest:weekly:{lang}:{user_id}:{date.today().isoformat()}"
 
     if not refresh:
         cached = await cache.get(cache_key)
@@ -122,7 +124,7 @@ async def weekly(
     source: str
     ai_error: str | None = None
     try:
-        digest = await ai_service.weekly_digest(stats)
+        digest = await ai_service.weekly_digest(stats, lang=lang)
         source = "ai"
     except AIConfigError as e:
         logger.warning("weekly_digest: AI misconfigured (%s)", e)

@@ -11,13 +11,33 @@ class ChatRepository:
             user_id, message_type, text,
         )
 
-    async def get_context(self, user_id: int, limit: int = 10) -> list[dict]:
+    async def get_context(self, user_id: int, limit: int = 20) -> list[dict]:
+        """Most recent N messages in chronological order (oldest first)."""
         rows = await self.pool.fetch(
             "SELECT message_type, message_text, created_at FROM chat_history "
             "WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
             user_id, limit,
         )
         return [dict(r) for r in reversed(rows)]
+
+    async def get_history(self, user_id: int, limit: int = 100) -> list[dict]:
+        """Full visible chat history for the UI (chronological, oldest first)."""
+        rows = await self.pool.fetch(
+            "SELECT id, message_type, message_text, created_at FROM chat_history "
+            "WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
+            user_id, limit,
+        )
+        return [dict(r) for r in reversed(rows)]
+
+    async def clear_history(self, user_id: int) -> int:
+        result = await self.pool.execute(
+            "DELETE FROM chat_history WHERE user_id = $1", user_id,
+        )
+        # asyncpg returns "DELETE N"
+        try:
+            return int(result.split()[-1])
+        except (ValueError, IndexError):
+            return 0
 
     async def get_user_info_for_ai(self, user_id: int) -> dict:
         user = await self.pool.fetchrow(

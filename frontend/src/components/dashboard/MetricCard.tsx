@@ -3,6 +3,7 @@
 import { motion } from "motion/react";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { TiltCard } from "@/components/motion/TiltCard";
+import { useI18n } from "@/lib/i18n";
 
 interface MetricCardProps {
   label: string;
@@ -27,6 +28,7 @@ export default function MetricCard({
   big = false,
   note,
 }: MetricCardProps) {
+  const { t } = useI18n();
   const percent =
     target > 0 ? Math.min(Math.round((value / target) * 100), 100) : 0;
   const pctString = `${percent}%`;
@@ -81,7 +83,7 @@ export default function MetricCard({
             big ? "text-sm mb-5" : "text-xs mb-4"
           }`}
         >
-          из {target.toLocaleString("ru-RU")} {unit}
+          {t("metric_of_target", { value: target, unit })}
         </p>
 
         <div

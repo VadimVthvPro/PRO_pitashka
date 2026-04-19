@@ -16,6 +16,7 @@ import { HandArrow } from "@/components/hand/HandArrow";
 import { Scribble } from "@/components/hand/Scribble";
 import { Sticker } from "@/components/hand/Sticker";
 import { greeting, heroSubtitle, EMPTY_COPY, CTA } from "@/lib/copy";
+import { useI18n } from "@/lib/i18n";
 
 const WATER_TARGET = 8;
 
@@ -41,6 +42,7 @@ function WaterWidget({
   adding: boolean;
   onAdd: () => void;
 }) {
+  const { t } = useI18n();
   const done = count >= WATER_TARGET;
   return (
     <div className="flex flex-col items-center">
@@ -54,7 +56,7 @@ function WaterWidget({
           className="text-sm text-[var(--muted)] font-normal"
           style={{ fontFamily: "var(--font-body)" }}
         >
-          мл
+          {t("common_ml")}
         </span>
       </p>
       <motion.button
@@ -82,6 +84,7 @@ function WaterWidget({
 }
 
 export default function DashboardPage() {
+  const { t, lang } = useI18n();
   useLoadStreak();
   const { streak } = useStreakStore();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -105,7 +108,7 @@ export default function DashboardPage() {
         if (summary.water >= WATER_TARGET) hitWaterGoal.current = true;
       })
       .catch((e) =>
-        setError(e instanceof Error ? e.message : "Не удалось загрузить данные"),
+        setError(e instanceof Error ? e.message : t("dashboard_err_load_data")),
       )
       .finally(() => setLoading(false));
   }, [todayStr]);
@@ -129,7 +132,7 @@ export default function DashboardPage() {
         setTimeout(() => fireConfetti({ y: 0.4 }), 120);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось добавить воду");
+      setError(e instanceof Error ? e.message : t("dashboard_err_add_water"));
     } finally {
       setWaterAdding(false);
     }
@@ -196,7 +199,7 @@ export default function DashboardPage() {
           <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
             <div className="lg:max-w-[70%]">
               <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-3">
-                {now.toLocaleDateString("ru-RU", {
+                {now.toLocaleDateString(lang, {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
@@ -249,7 +252,7 @@ export default function DashboardPage() {
                 style={{ transform: "rotate(-1.2deg)" }}
               >
                 <Sticker color="cream" font="arkhip" size="sm" rotate={-2}>
-                  заметка дня
+                  {t("dashboard_note_day")}
                 </Sticker>
                 <div
                   className="flex items-baseline gap-2"
@@ -259,14 +262,17 @@ export default function DashboardPage() {
                     <AnimatedNumber value={left} />
                   </span>
                   <span className="text-sm text-[var(--muted)]" style={{ fontFamily: "var(--font-body)" }}>
-                    ккал до нормы
+                    {t("left_to_norm")}
                   </span>
                 </div>
                 <p
                   className="text-xs text-[var(--muted-foreground)]"
                   style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "14px" }}
                 >
-                  съел {Math.round(foodCal)} · сжёг {Math.round(trainCal)}
+                  {t("ate_burned", {
+                    ate: Math.round(foodCal),
+                    burn: Math.round(trainCal),
+                  })}
                 </p>
               </div>
 
@@ -293,7 +299,7 @@ export default function DashboardPage() {
                       {streak.current}
                     </p>
                     <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                      {streak.status === "at_risk" ? "streak горит" : "дней подряд"}
+                      {streak.status === "at_risk" ? t("streak_at_risk") : t("streak_days")}
                     </p>
                   </div>
                 </a>
@@ -307,43 +313,43 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 auto-rows-fr">
         <ScrollReveal delay={0.05} className="col-span-2 lg:row-span-2">
           <MetricCard
-            label="Съел сегодня"
+            label={t("dashboard_ate_today")}
             value={foodCal}
             target={dailyCal}
-            unit="ккал"
+            unit={t("kcal")}
             color="var(--accent)"
             big
             note={
               foodCal > 0
-                ? `${Math.round((foodCal / dailyCal) * 100)}% нормы`
-                : "ещё ничего"
+                ? `${Math.round((foodCal / dailyCal) * 100)}${t("dashboard_pct_of_goal")}`
+                : t("dashboard_nothing_yet")
             }
           />
         </ScrollReveal>
         <ScrollReveal delay={0.1}>
           <MetricCard
-            label="Белки"
+            label={t("protein")}
             value={data?.food.protein || 0}
             target={proteinTarget}
-            unit="г"
+            unit={t("grams_short")}
             color="var(--success)"
           />
         </ScrollReveal>
         <ScrollReveal delay={0.15}>
           <MetricCard
-            label="Жиры"
+            label={t("fat")}
             value={data?.food.fat || 0}
             target={fatTarget}
-            unit="г"
+            unit={t("grams_short")}
             color="var(--warning)"
           />
         </ScrollReveal>
         <ScrollReveal delay={0.2} className="col-span-2 lg:col-span-2">
           <MetricCard
-            label="Углеводы"
+            label={t("carbs")}
             value={data?.food.carbs || 0}
             target={carbsTarget}
-            unit="г"
+            unit={t("grams_short")}
             color="var(--accent)"
           />
         </ScrollReveal>
@@ -367,19 +373,19 @@ export default function DashboardPage() {
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  Тренировки
+                  {t("dashboard_section_trainings")}
                 </h2>
               </div>
               {data?.training_items.length ? (
                 <Sticker color="sage" size="sm" rotate={3}>
-                  {data.training_items.length} шт
+                  {data.training_items.length} {t("dashboard_trainings_count")}
                 </Sticker>
               ) : null}
             </div>
 
             {data?.training_items.length ? (
               <div className="space-y-2">
-                {data.training_items.map((t, i) => (
+                {data.training_items.map((row, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, x: -8 }}
@@ -387,17 +393,19 @@ export default function DashboardPage() {
                     transition={{ delay: i * 0.05, duration: 0.4 }}
                     className="flex items-center justify-between py-2.5 border-b border-dashed border-[var(--border)] last:border-0"
                   >
-                    <span className="text-sm">{t.training_name}</span>
+                    <span className="text-sm">{row.training_name}</span>
                     <div className="flex gap-4 text-sm">
-                      <span className="text-[var(--muted)]">{t.tren_time} мин</span>
+                      <span className="text-[var(--muted)]">
+                        {row.tren_time} {t("min")}
+                      </span>
                       <span className="font-mono font-medium tabular-nums">
-                        {Math.round(t.training_cal)} ккал
+                        {Math.round(row.training_cal)} {t("kcal")}
                       </span>
                     </div>
                   </motion.div>
                 ))}
                 <div className="pt-3 flex justify-between font-semibold">
-                  <span>Итого</span>
+                  <span>{t("common_total_short")}</span>
                   <span
                     className="display-number text-xl"
                     style={{ fontFamily: "var(--font-display)" }}
@@ -407,7 +415,7 @@ export default function DashboardPage() {
                       className="text-sm text-[var(--muted)] font-normal"
                       style={{ fontFamily: "var(--font-body)" }}
                     >
-                      ккал
+                      {t("kcal")}
                     </span>
                   </span>
                 </div>
@@ -454,7 +462,7 @@ export default function DashboardPage() {
                     letterSpacing: "-0.02em",
                   }}
                 >
-                  Вода
+                  {t("dashboard_section_water")}
                 </h2>
               </div>
               {(data?.water ?? 0) === 0 && (
@@ -490,12 +498,13 @@ export default function DashboardPage() {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Что поел
+                {t("dashboard_section_food")}
               </h2>
             </div>
             {data?.food_items.length ? (
               <Sticker color="amber" size="sm" rotate={-4} font="appetite">
-                {data.food_items.length} {data.food_items.length === 1 ? "блюдо" : "блюд"}
+                {data.food_items.length}{" "}
+                {t("dashboard_food_dish", { n: data.food_items.length })}
               </Sticker>
             ) : null}
           </div>
@@ -505,11 +514,11 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[10px] font-medium uppercase tracking-widest text-[var(--muted-foreground)]">
-                    <th className="pb-3">Блюдо</th>
-                    <th className="pb-3 text-right">Б</th>
-                    <th className="pb-3 text-right">Ж</th>
-                    <th className="pb-3 text-right">У</th>
-                    <th className="pb-3 text-right">Ккал</th>
+                    <th className="pb-3">{t("food_th_dish")}</th>
+                    <th className="pb-3 text-right">{t("food_macro_protein")}</th>
+                    <th className="pb-3 text-right">{t("food_macro_fat")}</th>
+                    <th className="pb-3 text-right">{t("food_macro_carbs")}</th>
+                    <th className="pb-3 text-right">{t("food_macro_kcal")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -574,7 +583,7 @@ export default function DashboardPage() {
                       className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--muted)] hover:text-[var(--foreground)]"
                     >
                       <Icon icon="solar:refresh-circle-bold-duotone" width={16} />
-                      Как вчера
+                      {t("dashboard_link_yesterday")}
                     </a>
                   </div>
                 </div>
@@ -600,10 +609,10 @@ export default function DashboardPage() {
                 className="text-lg"
                 style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
               >
-                График веса
+                {t("dashboard_weight_chart_title")}
               </p>
               <p className="text-xs text-[var(--muted-foreground)]">
-                с AI-прогнозом тренда
+                {t("dashboard_weight_chart_sub")}
               </p>
             </div>
             <Icon
@@ -632,10 +641,10 @@ export default function DashboardPage() {
                 className="text-lg"
                 style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
               >
-                Дайджест недели
+                {t("dashboard_digest_card_title")}
               </p>
               <p className="text-xs text-[var(--muted-foreground)]">
-                AI разбирает последние 7 дней
+                {t("dashboard_digest_card_sub")}
               </p>
             </div>
             <Icon

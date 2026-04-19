@@ -1,7 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
 from app.database import init_db, close_db
@@ -78,6 +81,13 @@ app.include_router(streaks.router, prefix="/api/streaks", tags=["streaks"])
 app.include_router(weight.router, prefix="/api/weight", tags=["weight"])
 app.include_router(digest.router, prefix="/api/digest", tags=["digest"])
 app.include_router(social.router, prefix="/api/social", tags=["social"])
+
+# User-uploaded media (currently social post photos). Mounted under
+# /uploads/ so it never collides with API routes; the directory is
+# persisted via a docker volume in production (see docker-compose.yml).
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "/data/uploads"))
+UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 
 @app.get("/api/health")

@@ -5,8 +5,10 @@ import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import MobileMenu from "./MobileMenu";
+import { useI18n } from "@/lib/i18n";
 
 export default function MobileTopBar() {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
 
   return (
@@ -33,7 +35,7 @@ export default function MobileTopBar() {
             whileTap={{ scale: 0.92 }}
             onClick={() => setOpen(true)}
             className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)] transition"
-            aria-label="Открыть меню"
+            aria-label={t("layout_aria_open_menu")}
           >
             <Icon
               icon="solar:hamburger-menu-bold-duotone"

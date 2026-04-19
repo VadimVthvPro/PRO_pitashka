@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import { useLoadStreak, useStreakStore } from "@/lib/streaks";
 import Link from "next/link";
+import { useI18n } from "@/lib/i18n";
 
 /**
  * Small sidebar / bottomnav flame with the current streak count.
@@ -13,6 +14,7 @@ import Link from "next/link";
 export function StreakFlame() {
   useLoadStreak();
   const { streak } = useStreakStore();
+  const { t } = useI18n();
   const reduced = useReducedMotion();
 
   if (!streak || streak.current <= 0) {
@@ -35,8 +37,8 @@ export function StreakFlame() {
       className="group flex items-center gap-2 px-3 py-2 rounded-[var(--radius)] hover:bg-[var(--color-sand)]/50 transition-colors"
       title={
         status === "at_risk"
-          ? "Streak в опасности — добавь что-нибудь сегодня"
-          : `${current} дней подряд`
+          ? t("streak_flame_title_risk")
+          : t("streak_flame_title_days", { n: current })
       }
     >
       <motion.svg
@@ -69,7 +71,7 @@ export function StreakFlame() {
           {current}
         </span>
         <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-          {status === "at_risk" ? "на грани" : "подряд"}
+          {status === "at_risk" ? t("streak_flame_sub_at_risk") : t("streak_flame_sub_ok")}
         </span>
       </div>
     </Link>

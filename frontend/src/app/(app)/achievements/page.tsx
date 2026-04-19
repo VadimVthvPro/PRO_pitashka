@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import { type BadgeDTO, type StreakDTO, useLoadStreak, useStreakStore } from "@/lib/streaks";
 import { ScrollReveal, Stagger, StaggerItem } from "@/components/motion/ScrollReveal";
 import { Sticker } from "@/components/hand/Sticker";
@@ -24,14 +25,15 @@ const TIER_BG: Record<BadgeDTO["tier"], string> = {
   legend: "linear-gradient(135deg, oklch(68% 0.22 320), oklch(45% 0.22 320))",
 };
 
-const TIER_LABEL: Record<BadgeDTO["tier"], string> = {
-  bronze: "Бронза",
-  silver: "Серебро",
-  gold: "Золото",
-  legend: "Легенда",
+const TIER_LABEL_KEY: Record<BadgeDTO["tier"], string> = {
+  bronze: "achievements_tier_bronze",
+  silver: "achievements_tier_silver",
+  gold: "achievements_tier_gold",
+  legend: "achievements_tier_legend",
 };
 
 function BadgeCard({ badge, earned }: { badge: BadgeDTO; earned: boolean }) {
+  const { t, lang } = useI18n();
   return (
     <motion.div
       whileHover={earned ? { y: -4, scale: 1.02 } : { y: -1 }}
@@ -59,11 +61,11 @@ function BadgeCard({ badge, earned }: { badge: BadgeDTO; earned: boolean }) {
             className="text-[9px] uppercase tracking-[0.2em] font-semibold"
             style={{ color: "var(--muted-foreground)" }}
           >
-            {TIER_LABEL[badge.tier]}
+            {t(TIER_LABEL_KEY[badge.tier])}
             {earned && badge.earned_at ? (
               <>
                 {" · "}
-                {new Date(badge.earned_at).toLocaleDateString("ru-RU", {
+                {new Date(badge.earned_at).toLocaleDateString(lang, {
                   day: "numeric",
                   month: "short",
                 })}
@@ -95,6 +97,7 @@ function BadgeCard({ badge, earned }: { badge: BadgeDTO; earned: boolean }) {
 }
 
 export default function AchievementsPage() {
+  const { t } = useI18n();
   useLoadStreak();
   const { streak } = useStreakStore();
 
@@ -111,7 +114,7 @@ export default function AchievementsPage() {
       })
       .catch((e) => {
         if (!cancelled)
-          setError(e instanceof Error ? e.message : "Не удалось загрузить достижения");
+          setError(e instanceof Error ? e.message : t("achievements_err_load"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -119,7 +122,7 @@ export default function AchievementsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
 
   const earnedCount = data?.earned.length ?? 0;
   const total = data?.total ?? 0;
@@ -131,7 +134,7 @@ export default function AchievementsPage() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
-              Коллекция
+              {t("achievements_collection")}
             </p>
             <h1
               style={{
@@ -141,9 +144,9 @@ export default function AchievementsPage() {
                 lineHeight: 0.92,
               }}
             >
-              Твои{" "}
+              {t("achievements_your")}{" "}
               <Highlight color="oklch(82% 0.15 85 / 0.5)">
-                <span className="px-1">трофеи</span>
+                <span className="px-1">{t("achievements_trophies")}</span>
               </Highlight>
             </h1>
           </div>
@@ -162,7 +165,7 @@ export default function AchievementsPage() {
           <div className="relative flex items-end justify-between gap-4 flex-wrap mb-4">
             <div>
               <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                Собрано
+                {t("achievements_collected")}
               </p>
               <p
                 className="display-number text-6xl leading-none"
@@ -173,7 +176,7 @@ export default function AchievementsPage() {
                   className="text-2xl text-[var(--muted)] font-normal ml-2"
                   style={{ fontFamily: "var(--font-body)" }}
                 >
-                  из {total}
+                  {t("achievements_of_total")} {total}
                 </span>
               </p>
             </div>
@@ -225,7 +228,7 @@ export default function AchievementsPage() {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Уже твои
+                {t("achievements_unlocked")}
               </h2>
               <Stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {data.earned.map((b) => (
@@ -246,7 +249,7 @@ export default function AchievementsPage() {
                   letterSpacing: "-0.02em",
                 }}
               >
-                Ещё в пути
+                {t("achievements_locked")}
               </h2>
               <Stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {data.locked.map((b) => (
@@ -264,13 +267,14 @@ export default function AchievementsPage() {
 }
 
 function StreakBadgeSummary({ streak }: { streak: StreakDTO }) {
+  const { t } = useI18n();
   return (
     <div
       className="relative inline-flex flex-col items-start gap-1 pr-6"
       style={{ transform: "rotate(-1.5deg)" }}
     >
       <Sticker color="cream" font="arkhip" size="sm" rotate={-3}>
-        в огне
+        {t("achievements_on_fire")}
       </Sticker>
       <div
         className="flex items-baseline gap-2"
@@ -283,14 +287,14 @@ function StreakBadgeSummary({ streak }: { streak: StreakDTO }) {
           className="text-sm text-[var(--muted)]"
           style={{ fontFamily: "var(--font-body)" }}
         >
-          дней подряд
+          {t("achievements_streak_days")}
         </span>
       </div>
       <p
         className="text-xs text-[var(--muted-foreground)]"
         style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "13px" }}
       >
-        рекорд · {streak.longest}
+        {t("achievements_record")} · {streak.longest}
       </p>
     </div>
   );

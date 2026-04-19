@@ -9,6 +9,8 @@ import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { Sticker } from "@/components/hand/Sticker";
 import { Highlight } from "@/components/hand/Highlight";
 import { Scribble } from "@/components/hand/Scribble";
+import { useI18n } from "@/lib/i18n";
+import type { Lang } from "@/lib/i18n";
 
 interface Point {
   date: string;
@@ -27,15 +29,59 @@ interface ForecastResponse {
   message?: string;
 }
 
+type RangeKey = "7d" | "30d" | "90d" | "1y" | "all";
+
+const RANGE_DAYS: Record<RangeKey, number | null> = {
+  "7d": 7,
+  "30d": 30,
+  "90d": 90,
+  "1y": 365,
+  all: null,
+};
+
+function filterByRange<T extends { date: string }>(items: T[], range: RangeKey): T[] {
+  const days = RANGE_DAYS[range];
+  if (days == null) return items;
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  return items.filter((i) => new Date(i.date + "T00:00:00") >= cutoff);
+}
+
+function formatTick(iso: string, rangeKey: RangeKey, lang: Lang): string {
+  const d = new Date(iso + "T00:00:00");
+  if (rangeKey === "7d" || rangeKey === "30d") {
+    return d.toLocaleDateString(lang, { day: "numeric", month: "short" });
+  }
+  if (rangeKey === "90d") {
+    return d.toLocaleDateString(lang, { day: "numeric", month: "short" });
+  }
+  return d.toLocaleDateString(lang, { month: "short", year: "2-digit" });
+}
+
+function pickXTicks<T extends { date: string }>(items: T[], desired = 5): T[] {
+  if (items.length <= desired) return items;
+  const step = (items.length - 1) / (desired - 1);
+  const out: T[] = [];
+  for (let i = 0; i < desired; i++) {
+    const idx = Math.round(i * step);
+    out.push(items[idx]!);
+  }
+  return out;
+}
+
 function WeightChart({
   history,
   forecast,
   target,
+  range: chartRange,
 }: {
   history: Point[];
   forecast: Point[];
   target: number | null;
+  range: RangeKey;
 }) {
+  const { t, lang } = useI18n();
   const all = [...history, ...forecast];
   if (all.length === 0) return null;
 
@@ -43,7 +89,7 @@ function WeightChart({
   const targetConsidered = target && Number.isFinite(target) ? [target] : [];
   const minW = Math.min(...weights, ...targetConsidered) - 1;
   const maxW = Math.max(...weights, ...targetConsidered) + 1;
-  const range = Math.max(0.1, maxW - minW);
+  const weightSpan = Math.max(0.1, maxW - minW);
 
   const first = new Date(all[0]!.date).getTime();
   const last = new Date(all[all.length - 1]!.date).getTime();
@@ -54,7 +100,7 @@ function WeightChart({
   const padL = 42;
   const padR = 16;
   const padT = 20;
-  const padB = 30;
+  const padB = 38;
   const chartW = width - padL - padR;
   const chartH = height - padT - padB;
 
@@ -62,7 +108,7 @@ function WeightChart({
     const t = new Date(dateIso).getTime();
     return padL + ((t - first) / spanMs) * chartW;
   };
-  const y = (w: number) => padT + chartH - ((w - minW) / range) * chartH;
+  const y = (w: number) => padT + chartH - ((w - minW) / weightSpan) * chartH;
 
   const pointsPath = (pts: Point[]) =>
     pts.map((p, i) => `${i === 0 ? "M" : "L"} ${x(p.date).toFixed(2)} ${y(p.weight).toFixed(2)}`).join(" ");
@@ -110,7 +156,7 @@ function WeightChart({
               fill="var(--color-sage)"
               fontWeight="600"
             >
-              цель · {target} кг
+              {t("weight_goal_line", { kg: target })}
             </text>
           </>
         )}
@@ -182,7 +228,90 @@ function WeightChart({
             {w.toFixed(1)}
           </text>
         ))}
+
+        {/* X axis baseline */}
+        <line
+          x1={padL}
+          x2={width - padR}
+          y1={padT + chartH}
+          y2={padT + chartH}
+          stroke="var(--border)"
+          strokeWidth="1"
+        />
+
+        {/* X axis ticks */}
+        {pickXTicks(all, 6).map((p, i) => {
+          const tx = x(p.date);
+          return (
+            <g key={`xt-${i}`}>
+              <line
+                x1={tx}
+                x2={tx}
+                y1={padT + chartH}
+                y2={padT + chartH + 4}
+                stroke="var(--muted-foreground)"
+                strokeWidth="1"
+                opacity="0.5"
+              />
+              <text
+                x={tx}
+                y={padT + chartH + 18}
+                textAnchor="middle"
+                fontSize="10"
+                fill="var(--muted-foreground)"
+                fontFamily="var(--font-mono)"
+              >
+                {formatTick(p.date, chartRange, lang)}
+              </text>
+            </g>
+          );
+        })}
       </svg>
+    </div>
+  );
+}
+
+function PeriodSelector({
+  value,
+  onChange,
+}: {
+  value: RangeKey;
+  onChange: (v: RangeKey) => void;
+}) {
+  const { t } = useI18n();
+  const options: { id: RangeKey; labelKey: string }[] = [
+    { id: "7d", labelKey: "weight_period_week" },
+    { id: "30d", labelKey: "weight_period_month" },
+    { id: "90d", labelKey: "weight_period_quarter" },
+    { id: "1y", labelKey: "weight_period_year" },
+    { id: "all", labelKey: "weight_period_all" },
+  ];
+  return (
+    <div
+      role="tablist"
+      aria-label={t("weight_chart_period_aria")}
+      className="inline-flex items-center gap-1 p-1 rounded-full border border-[var(--border)] bg-[var(--input-bg)]"
+    >
+      {options.map((o) => {
+        const active = o.id === value;
+        return (
+          <button
+            key={o.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onChange(o.id)}
+            className={[
+              "px-3 py-1.5 text-xs rounded-full transition-colors whitespace-nowrap",
+              active
+                ? "bg-[var(--accent)] text-white shadow-[var(--shadow-1)]"
+                : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
+            ].join(" ")}
+          >
+            {t(o.labelKey)}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -201,16 +330,8 @@ const todayIso = () => {
   return `${y}-${m}-${d}`;
 };
 
-const formatRu = (iso: string) => {
-  try {
-    const d = new Date(iso + "T00:00:00");
-    return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" });
-  } catch {
-    return iso;
-  }
-};
-
 export default function WeightPage() {
+  const { t, lang } = useI18n();
   const [data, setData] = useState<ForecastResponse | null>(null);
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,6 +342,7 @@ export default function WeightPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [chartRange, setChartRange] = useState<RangeKey>("30d");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -233,11 +355,11 @@ export default function WeightPage() {
       setData(forecast);
       setEntries(journal.items || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось загрузить");
+      setError(e instanceof Error ? e.message : t("weight_err_load"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -246,11 +368,11 @@ export default function WeightPage() {
   async function addWeight() {
     const w = parseFloat(weightInput.replace(",", "."));
     if (!Number.isFinite(w) || w < 20 || w > 400) {
-      setSaveError("Вес 20–400 кг");
+      setSaveError(t("weight_err_range_kg"));
       return;
     }
     if (!dateInput || dateInput > todayIso()) {
-      setSaveError("Дата некорректна");
+      setSaveError(t("weight_err_date"));
       return;
     }
     setSaveError("");
@@ -264,7 +386,7 @@ export default function WeightPage() {
       setDateInput(todayIso());
       await load();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Не сохранилось");
+      setSaveError(e instanceof Error ? e.message : t("weight_err_save"));
     } finally {
       setSaving(false);
     }
@@ -283,7 +405,7 @@ export default function WeightPage() {
       await api(`/api/weight/${iso}`, { method: "DELETE" });
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось удалить");
+      setError(e instanceof Error ? e.message : t("weight_err_delete"));
     }
   }
 
@@ -304,13 +426,22 @@ export default function WeightPage() {
     return "stable";
   }, [data?.trend_kg_per_week]);
 
+  function formatRowDate(iso: string) {
+    try {
+      const d = new Date(iso + "T00:00:00");
+      return d.toLocaleDateString(lang, { day: "2-digit", month: "short", year: "numeric" });
+    } catch {
+      return iso;
+    }
+  }
+
   return (
     <div className="space-y-8">
       <ScrollReveal>
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
-              Честное зеркало
+              {t("weight_hero_title")}
             </p>
             <h1
               style={{
@@ -320,9 +451,9 @@ export default function WeightPage() {
                 lineHeight: 0.92,
               }}
             >
-              Твой{" "}
+              {t("weight_hero_your")}{" "}
               <Highlight color="oklch(72% 0.15 80 / 0.5)">
-                <span className="px-1">вес</span>
+                <span className="px-1">{t("weight_hero_word")}</span>
               </Highlight>
             </h1>
           </div>
@@ -332,7 +463,7 @@ export default function WeightPage() {
               style={{ transform: "rotate(-1.5deg)" }}
             >
               <Sticker color="sage" font="arkhip" size="sm" rotate={-2}>
-                сейчас
+                {t("weight_hero_now")}
               </Sticker>
               <div
                 className="flex items-baseline gap-2"
@@ -345,7 +476,7 @@ export default function WeightPage() {
                   className="text-sm text-[var(--muted)]"
                   style={{ fontFamily: "var(--font-body)" }}
                 >
-                  кг
+                  {t("common_kg")}
                 </span>
               </div>
             </div>
@@ -361,13 +492,13 @@ export default function WeightPage() {
               className="text-lg"
               style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
             >
-              Добавить запись
+              {t("weight_btn_add_entry")}
             </p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
             <div>
               <label className="block text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
-                Вес, кг
+                {t("weight_field_weight")}
               </label>
               <input
                 type="number"
@@ -382,7 +513,7 @@ export default function WeightPage() {
             </div>
             <div>
               <label className="block text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
-                Дата
+                {t("weight_field_date")}
               </label>
               <input
                 type="date"
@@ -398,14 +529,14 @@ export default function WeightPage() {
               disabled={saving || !weightInput}
               className="px-5 py-2.5 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 whitespace-nowrap"
             >
-              {saving ? "Сохраняю..." : "Записать"}
+              {saving ? t("weight_saving_ascii") : t("weight_btn_log")}
             </motion.button>
           </div>
           {saveError && (
             <p className="text-xs text-[var(--destructive)] mt-2">{saveError}</p>
           )}
           <p className="text-xs text-[var(--muted-foreground)] mt-3">
-            Записал не сегодня? Поменяй дату — задним числом тоже можно.
+            {t("weight_hint_date_change")}
           </p>
         </div>
       </ScrollReveal>
@@ -432,10 +563,10 @@ export default function WeightPage() {
                     className="text-2xl"
                     style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
                   >
-                    Пока пусто
+                    {t("weight_empty_title")}
                   </p>
                   <p className="text-sm text-[var(--muted-foreground)] mt-1 max-w-[46ch]">
-                    Запиши свой вес — появится график. Взвешивайся раз в 2-3 дня с утра натощак.
+                    {t("weight_empty_chart_hint")}
                   </p>
                 </div>
               </div>
@@ -443,18 +574,27 @@ export default function WeightPage() {
           ) : (
             <>
               <ScrollReveal delay={0.1}>
-                <WeightChart
-                  history={data.points}
-                  forecast={data.forecast}
-                  target={data.target_weight}
-                />
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                      {t("weight_block_dynamics")}
+                    </p>
+                    <PeriodSelector value={chartRange} onChange={setChartRange} />
+                  </div>
+                  <WeightChart
+                    history={filterByRange(data.points, chartRange)}
+                    forecast={chartRange === "all" || chartRange === "1y" ? data.forecast : []}
+                    target={data.target_weight}
+                    range={chartRange}
+                  />
+                </div>
               </ScrollReveal>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <ScrollReveal delay={0.15}>
                   <div className="card-base p-5">
                     <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                      Тренд / неделя
+                      {t("weight_block_trend_week")}
                     </p>
                     <p
                       className="display-number text-3xl mt-1 flex items-center gap-2"
@@ -478,7 +618,7 @@ export default function WeightPage() {
                             className="text-sm text-[var(--muted)]"
                             style={{ fontFamily: "var(--font-body)" }}
                           >
-                            кг
+                            {t("common_kg")}
                           </span>
                         </>
                       ) : (
@@ -491,7 +631,7 @@ export default function WeightPage() {
                 <ScrollReveal delay={0.2}>
                   <div className="card-base p-5">
                     <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                      Цель
+                      {t("weight_block_goal")}
                     </p>
                     <p
                       className="display-number text-3xl mt-1"
@@ -504,7 +644,7 @@ export default function WeightPage() {
                             className="text-sm text-[var(--muted)] ml-1"
                             style={{ fontFamily: "var(--font-body)" }}
                           >
-                            кг
+                            {t("common_kg")}
                           </span>
                         </>
                       ) : (
@@ -517,7 +657,7 @@ export default function WeightPage() {
                 <ScrollReveal delay={0.25}>
                   <div className="card-base p-5">
                     <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                      Дней до цели
+                      {t("weight_days_to_goal")}
                     </p>
                     <p
                       className="display-number text-3xl mt-1"
@@ -530,7 +670,7 @@ export default function WeightPage() {
                             className="text-sm text-[var(--muted)] ml-1"
                             style={{ fontFamily: "var(--font-body)" }}
                           >
-                            дн.
+                            {t("weight_days_abbr")}
                           </span>
                         </>
                       ) : (
@@ -565,11 +705,11 @@ export default function WeightPage() {
                   className="text-lg"
                   style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
                 >
-                  Журнал записей
+                  {t("weight_journal_title")}
                 </p>
               </div>
               <span className="text-xs text-[var(--muted-foreground)] tabular-nums">
-                {entries.length} зап.
+                {t("weight_journal_entries", { n: entries.length })}
               </span>
             </div>
 
@@ -577,11 +717,11 @@ export default function WeightPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                    <th className="px-5 py-3 font-medium">Дата</th>
-                    <th className="px-3 py-3 font-medium text-right">Вес, кг</th>
+                    <th className="px-5 py-3 font-medium">{t("weight_th_date")}</th>
+                    <th className="px-3 py-3 font-medium text-right">{t("weight_field_weight")}</th>
                     <th className="px-3 py-3 font-medium text-right">Δ</th>
-                    <th className="px-3 py-3 font-medium text-right hidden sm:table-cell">ИМТ</th>
-                    <th className="px-5 py-3 w-[1%]" aria-label="Действия" />
+                    <th className="px-3 py-3 font-medium text-right hidden sm:table-cell">{t("field_bmi")}</th>
+                    <th className="px-5 py-3 w-[1%]" aria-label={t("weight_actions_aria")} />
                   </tr>
                 </thead>
                 <tbody>
@@ -593,7 +733,7 @@ export default function WeightPage() {
                         key={row.date}
                         className="border-t border-[var(--border)]/60 hover:bg-[var(--color-sand)]/40 transition-colors"
                       >
-                        <td className="px-5 py-3 whitespace-nowrap">{formatRu(row.date)}</td>
+                        <td className="px-5 py-3 whitespace-nowrap">{formatRowDate(row.date)}</td>
                         <td className="px-3 py-3 text-right font-mono tabular-nums font-semibold">
                           {row.weight.toFixed(1)}
                         </td>
@@ -625,10 +765,10 @@ export default function WeightPage() {
                                 ? "bg-[var(--destructive)] text-white"
                                 : "text-[var(--muted)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
                             }`}
-                            title={armed ? "Подтвердить удаление" : "Удалить запись"}
+                            title={armed ? t("weight_delete_confirm_title") : t("weight_delete_row_title")}
                           >
                             {armed ? (
-                              "Подтвердить?"
+                              t("weight_delete_confirm_btn")
                             ) : (
                               <Icon icon="solar:trash-bin-trash-linear" width={16} />
                             )}

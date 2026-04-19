@@ -9,7 +9,6 @@ import { useI18n, SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { HandDrawnUnderline } from "@/components/hand/HandDrawnUnderline";
 import { HandArrow } from "@/components/hand/HandArrow";
 import { Sticker } from "@/components/hand/Sticker";
-import { Highlight } from "@/components/hand/Highlight";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 type Step = "username" | "code";
@@ -31,8 +30,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (resendIn <= 0) return;
-    const t = window.setInterval(() => setResendIn((v) => Math.max(0, v - 1)), 1000);
-    return () => window.clearInterval(t);
+    const intervalId = window.setInterval(() => setResendIn((v) => Math.max(0, v - 1)), 1000);
+    return () => window.clearInterval(intervalId);
   }, [resendIn]);
 
   const requestOtp = useCallback(async () => {
@@ -165,10 +164,10 @@ export default function LoginPage() {
                 letterSpacing: "-0.035em",
               }}
             >
-              Ешь.
+              {t("login_hero_eat")}
               <br />
               <span className="relative inline-block">
-                Двигайся.
+                {t("login_hero_move")}
                 <HandDrawnUnderline
                   color="var(--accent)"
                   strokeWidth={5}
@@ -177,8 +176,17 @@ export default function LoginPage() {
                 />
               </span>
               <br />
-              Считай —{" "}
-              <span className="text-[var(--accent)]">без занудства.</span>
+              {(() => {
+                const s = t("login_hero_count");
+                const i = s.indexOf("—");
+                if (i === -1) return s;
+                return (
+                  <>
+                    {s.slice(0, i + 1)}
+                    <span className="text-[var(--accent)]">{s.slice(i + 1).trimStart()}</span>
+                  </>
+                );
+              })()}
             </motion.h1>
 
             <motion.div
@@ -191,11 +199,7 @@ export default function LoginPage() {
                 className="text-lg text-[var(--muted)]"
                 style={{ fontFamily: "var(--font-body)" }}
               >
-                Трекер питания, воды и тренировок с{" "}
-                <Highlight color="oklch(72% 0.15 80 / 0.5)">
-                  <span className="relative px-1">AI-помощником</span>
-                </Highlight>
-                . Фотай еду — распознаем. Спрашивай — ответим. Забывай — напомним.
+                {t("login_hero_pitch")}
               </p>
             </motion.div>
           </div>
@@ -208,13 +212,13 @@ export default function LoginPage() {
             className="hidden lg:flex items-center gap-4 mt-14"
           >
             <Sticker color="cream" font="arkhip" rotate={-3} size="sm">
-              честно
+              {t("login_sticker_honest")}
             </Sticker>
             <p
               className="text-sm text-[var(--muted-foreground)] max-w-sm"
               style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "16px" }}
             >
-              никаких спам-уведомлений и продающих баннеров. только ты и цифры.
+              {t("login_footer_line")}
             </p>
           </motion.div>
         </div>
@@ -237,7 +241,7 @@ export default function LoginPage() {
                 className="mt-1 text-xs text-[var(--muted-foreground)] pl-2"
                 style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "13px" }}
               >
-                начинается здесь
+                {t("login_starts_here")}
               </p>
             </div>
 
@@ -250,7 +254,7 @@ export default function LoginPage() {
                 style={{ transform: "rotate(8deg)" }}
               >
                 <Sticker color="amber" rotate={8} font="appetite" size="sm">
-                  1 минута
+                  {t("login_one_minute")}
                 </Sticker>
               </div>
 
@@ -262,12 +266,10 @@ export default function LoginPage() {
                   letterSpacing: "-0.02em",
                 }}
               >
-                {step === "username" ? "Заходим" : "Код прилетел?"}
+                {step === "username" ? t("login_step_1") : t("login_step_2")}
               </h2>
               <p className="text-sm text-[var(--muted)] mb-6">
-                {step === "username"
-                  ? "Введи телеграм-никнейм — вышлем код в бот"
-                  : "Скопируй 4 цифры из сообщения в боте"}
+                {step === "username" ? t("login_intro_username") : t("login_intro_code")}
               </p>
 
               {step === "username" && (
@@ -275,18 +277,15 @@ export default function LoginPage() {
                   <ol className="text-xs text-[var(--muted-foreground)] space-y-1.5 mb-3 leading-snug">
                     <li className="flex items-start gap-2">
                       <span className="font-bold text-[var(--accent)]">1.</span>
-                      <span>
-                        Открой нашего бота в Telegram и нажми{" "}
-                        <span className="font-semibold text-[var(--foreground)]">/start</span>
-                      </span>
+                      <span>{t("login_how_1")}</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="font-bold text-[var(--accent)]">2.</span>
-                      <span>Введи свой Telegram-ник ниже — пришлём код в чат с ботом</span>
+                      <span>{t("login_how_2")}</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="font-bold text-[var(--accent)]">3.</span>
-                      <span>Скопируй 4 цифры — и ты внутри</span>
+                      <span>{t("login_how_3")}</span>
                     </li>
                   </ol>
 
@@ -297,12 +296,12 @@ export default function LoginPage() {
                     className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[var(--radius)] border border-[var(--accent)]/40 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition"
                   >
                     <Icon icon="logos:telegram" width={18} />
-                    Открыть @{BOT_USERNAME}
+                    {t("login_open_bot", { bot: BOT_USERNAME })}
                   </a>
 
                   <div>
                     <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
-                      Твой Telegram-ник
+                      {t("login_username_label")}
                     </label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
@@ -315,7 +314,7 @@ export default function LoginPage() {
                         onKeyDown={(e) =>
                           e.key === "Enter" && handleRequestOTP()
                         }
-                        placeholder="твой_ник"
+                        placeholder={t("login_username_placeholder")}
                         autoFocus
                         autoCapitalize="off"
                         autoCorrect="off"
@@ -324,7 +323,7 @@ export default function LoginPage() {
                       />
                     </div>
                     <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                      В Telegram → Настройки → Имя пользователя — это он.
+                      {t("login_username_appsettings")}
                     </p>
                   </div>
                   <motion.button
@@ -334,13 +333,13 @@ export default function LoginPage() {
                     disabled={loading || !username.trim()}
                     className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)]"
                   >
-                    {loading ? "Отправляем…" : "Прислать код"}
+                    {loading ? t("login_sending") : t("login_send_code")}
                   </motion.button>
 
                   <div className="flex items-center gap-3 my-1">
                     <div className="flex-1 h-px bg-[var(--border)]" />
                     <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                      или
+                      {t("login_or")}
                     </span>
                     <div className="flex-1 h-px bg-[var(--border)]" />
                   </div>
@@ -370,11 +369,7 @@ export default function LoginPage() {
                             width={20}
                             className="text-[var(--warning)] shrink-0 mt-0.5"
                           />
-                          <p className="text-sm leading-snug">
-                            Не нашли тебя в боте. Сначала{" "}
-                            <span className="font-semibold">нажми /start</span> у бота —
-                            потом сюда придёт код.
-                          </p>
+                          <p className="text-sm leading-snug">{t("login_needs_bot_start_body")}</p>
                         </div>
                         <a
                           href={`https://t.me/${BOT_USERNAME}?start=login`}
@@ -383,7 +378,7 @@ export default function LoginPage() {
                           className="flex items-center justify-center gap-2 w-full py-2 rounded-[var(--radius)] bg-[var(--warning)] text-white text-sm font-semibold"
                         >
                           <Icon icon="logos:telegram" width={16} />
-                          Открыть бота и нажать /start
+                          {t("login_not_found_action")}
                         </a>
                       </motion.div>
                     )}
@@ -420,7 +415,7 @@ export default function LoginPage() {
                     disabled={loading || code.join("").length < 4}
                     className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)]"
                   >
-                    {loading ? "Проверяем…" : "Зайти"}
+                    {loading ? t("login_verifying") : t("login_btn_enter")}
                   </motion.button>
                   <div className="flex items-center justify-between text-xs">
                     <button
@@ -432,16 +427,14 @@ export default function LoginPage() {
                       }}
                       className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
                     >
-                      ← Другой ник
+                      {t("login_back_username")}
                     </button>
                     <button
                       onClick={() => void handleResend()}
                       disabled={resendIn > 0 || loading}
                       className="text-[var(--accent)] hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed"
                     >
-                      {resendIn > 0
-                        ? `Перевыслать через ${resendIn}с`
-                        : "Перевыслать код"}
+                      {resendIn > 0 ? t("login_resend_in", { seconds: resendIn }) : t("login_resend_now")}
                     </button>
                   </div>
                 </div>

@@ -69,7 +69,7 @@ export default function SettingsPage() {
           });
         }
       })
-      .catch((e) => setError(e instanceof Error ? e.message : "Ошибка загрузки"));
+      .catch((e) => setError(e instanceof Error ? e.message : t("settings_err_load")));
     // run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -93,7 +93,7 @@ export default function SettingsPage() {
       });
       flash(t("settings_saved"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось сохранить");
+      setError(e instanceof Error ? e.message : t("settings_err_save"));
     } finally {
       setSaving(false);
     }
@@ -119,11 +119,11 @@ export default function SettingsPage() {
     const w = parseFloat(profileDraft.weight.replace(",", "."));
     const h = parseFloat(profileDraft.height.replace(",", "."));
     if (!Number.isFinite(w) || w < 20 || w > 400) {
-      setError("Вес 20–400 кг");
+      setError(t("settings_weight_range"));
       return;
     }
     if (!Number.isFinite(h) || h < 80 || h > 250) {
-      setError("Рост 80–250 см");
+      setError(t("settings_height_range"));
       return;
     }
     setError("");
@@ -141,7 +141,7 @@ export default function SettingsPage() {
       setProfile(fresh);
       flash(t("settings_saved"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не сохранилось");
+      setError(e instanceof Error ? e.message : t("err_save"));
     } finally {
       setSaving(false);
     }
@@ -178,7 +178,10 @@ export default function SettingsPage() {
           {profile && (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5 text-sm">
-                <Stat label={t("field_sex")} value={profile.user_sex === "M" ? "М" : "Ж"} />
+                <Stat
+                  label={t("field_sex")}
+                  value={profile.user_sex === "M" ? t("settings_sex_m_short") : t("settings_sex_f_short")}
+                />
                 <Stat label={t("field_bmi")} value={profile.bmi ? profile.bmi.toFixed(1) : "—"} />
                 <Stat label={t("field_daily_kcal")} value={profile.daily_cal?.toString() ?? "—"} />
                 <Stat

@@ -71,7 +71,7 @@ export default function BottomNav() {
           <button
             onClick={() => setMenuOpen(true)}
             className="relative flex flex-col items-center gap-0.5 min-w-[56px] min-h-[48px] justify-center rounded-[var(--radius)]"
-            aria-label="Открыть меню"
+            aria-label={t("layout_aria_open_menu")}
           >
             <motion.div whileTap={{ scale: 0.92 }}>
               <Icon

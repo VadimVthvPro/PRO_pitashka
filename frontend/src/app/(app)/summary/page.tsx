@@ -12,6 +12,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { useI18n } from "@/lib/i18n";
 
 const CHART_COLOR = "var(--accent, #c06240)";
 
@@ -58,6 +59,7 @@ function StatBox({
   unit: string;
   accent?: string;
 }) {
+  const { lang } = useI18n();
   return (
     <div
       className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]"
@@ -67,7 +69,7 @@ function StatBox({
         {label}
       </p>
       <p className="font-mono text-2xl sm:text-3xl font-bold text-[var(--foreground)] leading-none">
-        {typeof value === "number" ? value.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) : value}
+        {typeof value === "number" ? value.toLocaleString(lang, { maximumFractionDigits: 1 }) : value}
       </p>
       <p className="text-xs text-[var(--muted)] mt-1">{unit}</p>
     </div>
@@ -78,22 +80,23 @@ function daysInMonth(year: number, month: number) {
   return new Date(year, month, 0).getDate();
 }
 
-const MONTH_NAMES = [
-  "Янв",
-  "Фев",
-  "Мар",
-  "Апр",
-  "Май",
-  "Июн",
-  "Июл",
-  "Авг",
-  "Сен",
-  "Окт",
-  "Ноя",
-  "Дек",
-];
+const MONTH_KEYS = [
+  "summary_month_jan",
+  "summary_month_feb",
+  "summary_month_mar",
+  "summary_month_apr",
+  "summary_month_may",
+  "summary_month_jun",
+  "summary_month_jul",
+  "summary_month_aug",
+  "summary_month_sep",
+  "summary_month_oct",
+  "summary_month_nov",
+  "summary_month_dec",
+] as const;
 
 export default function SummaryPage() {
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState<Tab>("day");
 
   const today = new Date();
@@ -116,12 +119,12 @@ export default function SummaryPage() {
       const d = await api<DaySummary>(`/api/summary/day?date=${encodeURIComponent(dayDate)}`);
       setDayData(d);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось загрузить сводку за день");
+      setError(e instanceof Error ? e.message : t("summary_err_day"));
       setDayData(null);
     } finally {
       setLoading(false);
     }
-  }, [dayDate]);
+  }, [dayDate, t]);
 
   const loadMonth = useCallback(async () => {
     setLoading(true);
@@ -132,12 +135,12 @@ export default function SummaryPage() {
       );
       setMonthData(m);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось загрузить сводку за месяц");
+      setError(e instanceof Error ? e.message : t("summary_err_month"));
       setMonthData(null);
     } finally {
       setLoading(false);
     }
-  }, [monthYear, monthNum]);
+  }, [monthYear, monthNum, t]);
 
   const loadYear = useCallback(async () => {
     setLoading(true);
@@ -146,12 +149,12 @@ export default function SummaryPage() {
       const y = await api<YearSummaryRaw>(`/api/summary/year?year=${yearOnly}`);
       setYearData(y);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось загрузить сводку за год");
+      setError(e instanceof Error ? e.message : t("summary_err_year"));
       setYearData(null);
     } finally {
       setLoading(false);
     }
-  }, [yearOnly]);
+  }, [yearOnly, t]);
 
   useEffect(() => {
     if (tab === "day") void loadDay();
@@ -183,28 +186,28 @@ export default function SummaryPage() {
       const dim = daysInMonth(yearData.year, row.month);
       return {
         month: row.month,
-        label: MONTH_NAMES[row.month - 1] ?? String(row.month),
+        label: t(MONTH_KEYS[row.month - 1] ?? "summary_month_jan"),
         avg_cal: dim > 0 ? row.cal / dim : 0,
         total_cal: row.cal,
       };
     });
-  }, [yearData]);
+  }, [yearData, t]);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="page-title">Прогресс</h1>
-        <p className="text-sm text-[var(--muted)] mt-1">Питание, тренировки и динамика</p>
+        <h1 className="page-title">{t("summary_headline")}</h1>
+        <p className="text-sm text-[var(--muted)] mt-1">{t("summary_subtitle")}</p>
       </div>
 
       <div className="flex flex-wrap gap-2 p-1 bg-[var(--input-bg)] rounded-[var(--radius-lg)] border border-[var(--border)] w-fit">
         {(
           [
-            ["day", "День"],
-            ["month", "Месяц"],
-            ["year", "Год"],
+            ["day", "summary_day"],
+            ["month", "summary_month"],
+            ["year", "summary_year"],
           ] as const
-        ).map(([id, label]) => (
+        ).map(([id, labelKey]) => (
           <button
             key={id}
             type="button"
@@ -215,7 +218,7 @@ export default function SummaryPage() {
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
             }`}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
@@ -233,7 +236,7 @@ export default function SummaryPage() {
         <div className="space-y-6">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-              Дата
+              {t("summary_label_date")}
               <input
                 type="date"
                 value={dayDate}
@@ -247,68 +250,68 @@ export default function SummaryPage() {
               disabled={loading}
               className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50"
             >
-              Обновить
+              {t("summary_btn_refresh")}
             </button>
           </div>
 
           {loading && !dayData && (
-            <p className="text-sm text-[var(--muted-foreground)]">Загрузка…</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{t("summary_loading")}</p>
           )}
 
           {dayData && (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatBox label="Калории" value={Math.round(dayData.food.cal)} unit="ккал" />
+                <StatBox label={t("summary_card_calories")} value={Math.round(dayData.food.cal)} unit={t("kcal")} />
                 <StatBox
-                  label="Белки"
+                  label={t("protein")}
                   value={Math.round(dayData.food.protein)}
-                  unit="г"
+                  unit={t("grams_short")}
                   accent="var(--success)"
                 />
                 <StatBox
-                  label="Жиры"
+                  label={t("fat")}
                   value={Math.round(dayData.food.fat)}
-                  unit="г"
+                  unit={t("grams_short")}
                   accent="var(--warning)"
                 />
-                <StatBox label="Углеводы" value={Math.round(dayData.food.carbs)} unit="г" />
+                <StatBox label={t("carbs")} value={Math.round(dayData.food.carbs)} unit={t("grams_short")} />
               </div>
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
                   <h2 className="font-display text-sm font-semibold text-[var(--foreground)] mb-3">
-                    Вода
+                    {t("summary_card_water")}
                   </h2>
                   <p className="font-mono text-3xl font-bold">{dayData.water}</p>
                   <p className="text-sm text-[var(--muted)] mt-1">
-                    стаканов · {dayData.water * 300} мл
+                    {t("summary_water_glasses_ml", { glasses: dayData.water, ml: dayData.water * 300 })}
                   </p>
                 </div>
                 <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
                   <h2 className="font-display text-sm font-semibold text-[var(--foreground)] mb-3">
-                    Вес
+                    {t("summary_card_weight")}
                   </h2>
                   <p className="font-mono text-3xl font-bold">
                     {dayData.weight != null ? `${dayData.weight.toFixed(1)}` : "—"}
                   </p>
-                  <p className="text-sm text-[var(--muted)] mt-1">кг</p>
+                  <p className="text-sm text-[var(--muted)] mt-1">{t("common_kg")}</p>
                 </div>
               </div>
 
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
                 <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-                  Еда
+                  {t("summary_card_food")}
                 </h2>
                 {dayData.food_items.length ? (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="text-left text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
-                          <th className="pb-2">Блюдо</th>
-                          <th className="pb-2 text-right">Б</th>
-                          <th className="pb-2 text-right">Ж</th>
-                          <th className="pb-2 text-right">У</th>
-                          <th className="pb-2 text-right">Ккал</th>
+                          <th className="pb-2">{t("food_th_dish")}</th>
+                          <th className="pb-2 text-right">{t("food_macro_protein")}</th>
+                          <th className="pb-2 text-right">{t("food_macro_fat")}</th>
+                          <th className="pb-2 text-right">{t("food_macro_carbs")}</th>
+                          <th className="pb-2 text-right">{t("food_macro_kcal")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -327,39 +330,42 @@ export default function SummaryPage() {
                     </table>
                   </div>
                 ) : (
-                  <p className="text-sm text-[var(--muted-foreground)]">Нет записей</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{t("summary_food_no_entries")}</p>
                 )}
               </div>
 
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
                 <h2 className="text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-4">
-                  Тренировки
+                  {t("summary_card_trainings")}
                 </h2>
                 {dayData.training_items.length ? (
                   <div className="space-y-2">
-                    {dayData.training_items.map((t, i) => (
+                    {dayData.training_items.map((row, i) => (
                       <div
                         key={i}
                         className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
                       >
-                        <span className="text-sm">{t.training_name}</span>
+                        <span className="text-sm">{row.training_name}</span>
                         <div className="flex gap-4 text-sm">
-                          <span className="text-[var(--muted)] font-mono">{t.tren_time} мин</span>
+                          <span className="text-[var(--muted)] font-mono">
+                            {row.tren_time} {t("min")}
+                          </span>
                           <span className="font-mono font-medium">
-                            {Math.round(t.training_cal)} ккал
+                            {Math.round(row.training_cal)} {t("kcal")}
                           </span>
                         </div>
                       </div>
                     ))}
                     <div className="pt-2 flex justify-between font-medium text-sm">
-                      <span>Итого</span>
+                      <span>{t("summary_day_trainings_total")}</span>
                       <span className="font-mono">
-                        {Math.round(dayData.training.cal)} ккал · {dayData.training.duration} мин
+                        {Math.round(dayData.training.cal)} {t("kcal")} · {dayData.training.duration}{" "}
+                        {t("min")}
                       </span>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-[var(--muted-foreground)]">Нет тренировок</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{t("summary_no_workouts_today")}</p>
                 )}
               </div>
             </>
@@ -371,7 +377,7 @@ export default function SummaryPage() {
         <div className="space-y-6">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-              Год
+              {t("summary_year")}
               <input
                 type="number"
                 value={monthYear}
@@ -380,15 +386,15 @@ export default function SummaryPage() {
               />
             </label>
             <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-              Месяц
+              {t("summary_month")}
               <select
                 value={monthNum}
                 onChange={(e) => setMonthNum(Number(e.target.value))}
                 className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm"
               >
-                {MONTH_NAMES.map((name, idx) => (
-                  <option key={name} value={idx + 1}>
-                    {name}
+                {MONTH_KEYS.map((key, idx) => (
+                  <option key={key} value={idx + 1}>
+                    {t(key)}
                   </option>
                 ))}
               </select>
@@ -399,51 +405,51 @@ export default function SummaryPage() {
               disabled={loading}
               className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] disabled:opacity-50"
             >
-              Обновить
+              {t("summary_btn_refresh")}
             </button>
           </div>
 
           {loading && !monthData && (
-            <p className="text-sm text-[var(--muted-foreground)]">Загрузка…</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{t("summary_loading")}</p>
           )}
 
           {monthStats && (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatBox label="Средние ккал / день" value={monthStats.avgCal} unit="ккал" />
-                <StatBox label="Средние белки / день" value={monthStats.avgProtein} unit="г" />
-                <StatBox label="Средние жиры / день" value={monthStats.avgFat} unit="г" />
-                <StatBox label="Средние углеводы / день" value={monthStats.avgCarbs} unit="г" />
+                <StatBox label={t("summary_avg_kcal_per_day")} value={monthStats.avgCal} unit={t("kcal")} />
+                <StatBox label={t("summary_avg_protein_per_day")} value={monthStats.avgProtein} unit={t("grams_short")} />
+                <StatBox label={t("summary_avg_fat_per_day")} value={monthStats.avgFat} unit={t("grams_short")} />
+                <StatBox label={t("summary_avg_carbs_per_day")} value={monthStats.avgCarbs} unit={t("grams_short")} />
               </div>
 
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatBox
-                  label="Тренировки: ккал"
+                  label={t("summary_train_kcal")}
                   value={Math.round(monthStats.training.cal)}
-                  unit="ккал за месяц"
+                  unit={t("summary_train_kcal_month_unit")}
                 />
                 <StatBox
-                  label="Длительность"
+                  label={t("summary_train_duration")}
                   value={Math.round(monthStats.training.duration)}
-                  unit="мин"
+                  unit={t("min")}
                 />
-                <StatBox label="Сессий" value={monthStats.training.count} unit="шт." />
+                <StatBox label={t("summary_train_sessions")} value={monthStats.training.count} unit={t("common_count_pcs")} />
                 <StatBox
-                  label="Вода (средн. / день)"
+                  label={t("summary_water_avg_day_label")}
                   value={monthStats.avgGlasses.toFixed(1)}
-                  unit="стаканов"
+                  unit={t("summary_glasses_unit")}
                 />
               </div>
               <p className="text-xs text-[var(--muted-foreground)]">
-                Всего калорий за месяц:{" "}
+                {t("summary_total_kcal_month")}:{" "}
                 <span className="font-mono text-[var(--foreground)]">
-                  {Math.round(monthStats.totalCal).toLocaleString("ru-RU")}
+                  {Math.round(monthStats.totalCal).toLocaleString(lang)}
                 </span>{" "}
-                ккал
+                {t("kcal")}
               </p>
 
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-2)]">
-                <h2 className="font-display text-sm font-semibold mb-4">Вес по дням</h2>
+                <h2 className="font-display text-sm font-semibold mb-4">{t("summary_weight_by_days")}</h2>
                 {monthStats.weightTrend.length ? (
                   <div className="h-64 w-full min-w-0">
                     <ResponsiveContainer width="100%" height="100%">
@@ -453,7 +459,7 @@ export default function SummaryPage() {
                           tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                           tickFormatter={(v) => {
                             try {
-                              return new Date(v).toLocaleDateString("ru-RU", {
+                              return new Date(v).toLocaleDateString(lang, {
                                 day: "numeric",
                                 month: "short",
                               });
@@ -472,8 +478,8 @@ export default function SummaryPage() {
                           }}
                           labelFormatter={(v) => String(v)}
                           formatter={(value) => [
-                            `${Number(value ?? 0).toFixed(1)} кг`,
-                            "Вес",
+                            `${Number(value ?? 0).toFixed(1)} ${t("common_kg")}`,
+                            t("summary_tooltip_series_weight"),
                           ]}
                         />
                         <Bar dataKey="weight" fill={CHART_COLOR} radius={[4, 4, 0, 0]} />
@@ -481,25 +487,25 @@ export default function SummaryPage() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <p className="text-sm text-[var(--muted-foreground)]">Нет данных о весе</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{t("summary_no_weight")}</p>
                 )}
               </div>
 
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
-                <h2 className="font-display text-sm font-semibold mb-3">Топ тренировок</h2>
+                <h2 className="font-display text-sm font-semibold mb-3">{t("summary_top_trainings")}</h2>
                 {monthStats.top5.length ? (
                   <ol className="list-decimal list-inside space-y-2 text-sm">
-                    {monthStats.top5.map((t, i) => (
-                      <li key={`${t.training_name}-${i}`} className="text-[var(--foreground)]">
-                        <span className="font-medium">{t.training_name}</span>
+                    {monthStats.top5.map((row, i) => (
+                      <li key={`${row.training_name}-${i}`} className="text-[var(--foreground)]">
+                        <span className="font-medium">{row.training_name}</span>
                         <span className="text-[var(--muted)] font-mono ml-2">
-                          {Math.round(t.total_cal)} ккал · {t.cnt}×
+                          {Math.round(row.total_cal)} {t("kcal")} · {row.cnt}×
                         </span>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <p className="text-sm text-[var(--muted-foreground)]">Нет данных</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{t("summary_no_data")}</p>
                 )}
               </div>
             </>
@@ -511,7 +517,7 @@ export default function SummaryPage() {
         <div className="space-y-6">
           <div className="flex flex-wrap items-end gap-4">
             <label className="flex flex-col gap-1 text-xs text-[var(--muted-foreground)]">
-              Год
+              {t("summary_year")}
               <input
                 type="number"
                 value={yearOnly}
@@ -525,51 +531,51 @@ export default function SummaryPage() {
               disabled={loading}
               className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] disabled:opacity-50"
             >
-              Обновить
+              {t("summary_btn_refresh")}
             </button>
           </div>
 
           {loading && !yearData && (
-            <p className="text-sm text-[var(--muted-foreground)]">Загрузка…</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{t("summary_loading")}</p>
           )}
 
           {yearData && (
             <>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatBox
-                  label="Всего ккал (год)"
+                  label={t("summary_year_label_total_kcal")}
                   value={Math.round(yearData.food.cal)}
-                  unit="ккал"
+                  unit={t("kcal")}
                 />
                 <StatBox
-                  label="Средние ккал / день *"
+                  label={`${t("summary_avg_kcal_per_day")} *`}
                   value={
                     yearData.food.cal > 0
                       ? (yearData.food.cal / 365).toFixed(0)
                       : "0"
                   }
-                  unit="* грубо по 365 дням"
+                  unit={t("summary_year_avg_note")}
                 />
                 <StatBox
-                  label="Тренировки: ккал"
+                  label={t("summary_train_kcal")}
                   value={Math.round(yearData.training.cal)}
-                  unit="ккал"
+                  unit={t("kcal")}
                 />
                 <StatBox
-                  label="Длительность тренировок"
+                  label={t("summary_train_duration_full")}
                   value={Math.round(yearData.training.duration)}
-                  unit="мин"
+                  unit={t("min")}
                 />
               </div>
               <p className="text-xs text-[var(--muted-foreground)]">
-                Вода за год:{" "}
+                {t("summary_year_label_water")}{" "}
                 <span className="font-mono text-[var(--foreground)]">{yearData.water_total}</span>{" "}
-                стаканов
+                {t("summary_glasses_unit")}
               </p>
 
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-2)]">
                 <h2 className="font-display text-sm font-semibold mb-4">
-                  Средние калории по месяцам (ккал / день)
+                  {t("summary_avg_kcal_chart_title")}
                 </h2>
                 {yearChartData.length ? (
                   <div className="h-64 w-full min-w-0">
@@ -584,8 +590,8 @@ export default function SummaryPage() {
                             borderRadius: "var(--radius)",
                           }}
                           formatter={(value) => [
-                            `${Math.round(Number(value ?? 0))} ккал/день`,
-                            "Среднее",
+                            t("summary_chart_formatter_kcal_day", { n: Math.round(Number(value ?? 0)) }),
+                            t("summary_tooltip_series_avg"),
                           ]}
                         />
                         <Line
@@ -600,25 +606,25 @@ export default function SummaryPage() {
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <p className="text-sm text-[var(--muted-foreground)]">Нет данных о питании</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{t("summary_no_food")}</p>
                 )}
               </div>
 
               <div className="bg-[var(--card)] border border-[var(--border)] rounded-[var(--radius-lg)] p-5 shadow-[var(--shadow-1)]">
-                <h2 className="font-display text-sm font-semibold mb-3">Топ тренировок за год</h2>
+                <h2 className="font-display text-sm font-semibold mb-3">{t("summary_top_trainings_year")}</h2>
                 {yearData.top5_training.length ? (
                   <ol className="list-decimal list-inside space-y-2 text-sm">
-                    {yearData.top5_training.map((t, i) => (
-                      <li key={`${t.training_name}-${i}`}>
-                        <span className="font-medium">{t.training_name}</span>
+                    {yearData.top5_training.map((row, i) => (
+                      <li key={`${row.training_name}-${i}`}>
+                        <span className="font-medium">{row.training_name}</span>
                         <span className="text-[var(--muted)] font-mono ml-2">
-                          {Math.round(t.total_cal)} ккал · {t.cnt}×
+                          {Math.round(row.total_cal)} {t("kcal")} · {row.cnt}×
                         </span>
                       </li>
                     ))}
                   </ol>
                 ) : (
-                  <p className="text-sm text-[var(--muted-foreground)]">Нет данных</p>
+                  <p className="text-sm text-[var(--muted-foreground)]">{t("summary_no_data")}</p>
                 )}
               </div>
             </>

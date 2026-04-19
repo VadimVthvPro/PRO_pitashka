@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 
 const STEPS = ["height", "dob", "sex", "aim", "weight"] as const;
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -52,7 +54,7 @@ export default function OnboardingPage() {
       });
       router.push("/dashboard");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка сохранения");
+      setError(e instanceof Error ? e.message : t("err_save"));
       setLoading(false);
     }
   }
@@ -63,7 +65,7 @@ export default function OnboardingPage() {
         {/* Progress bar */}
         <div className="mb-8">
           <div className="flex justify-between text-xs text-[var(--muted-foreground)] mb-2">
-            <span>Шаг {currentStep + 1} из {STEPS.length}</span>
+            <span>{t("onboarding_step_progress", { current: currentStep + 1, total: STEPS.length })}</span>
             <span>{Math.round(progress)}%</span>
           </div>
           <div className="h-1.5 bg-[var(--color-sand)] rounded-full overflow-hidden">
@@ -78,7 +80,7 @@ export default function OnboardingPage() {
           {/* Height */}
           {step === "height" && (
             <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold">Ваш рост</h2>
+              <h2 className="font-display text-xl font-bold">{t("onboarding_height")}</h2>
               <div className="relative">
                 <input
                   type="number"
@@ -88,7 +90,7 @@ export default function OnboardingPage() {
                   min={50} max={300}
                   className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] font-mono text-lg focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] text-sm">см</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] text-sm">{t("common_cm")}</span>
               </div>
             </div>
           )}
@@ -96,7 +98,7 @@ export default function OnboardingPage() {
           {/* Date of birth */}
           {step === "dob" && (
             <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold">Дата рождения</h2>
+              <h2 className="font-display text-xl font-bold">{t("onboarding_dob")}</h2>
               <input
                 type="date"
                 value={form.date_of_birth}
@@ -110,12 +112,12 @@ export default function OnboardingPage() {
           {/* Sex */}
           {step === "sex" && (
             <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold">Пол</h2>
+              <h2 className="font-display text-xl font-bold">{t("onboarding_sex")}</h2>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { value: "M", label: "Мужчина" },
-                  { value: "F", label: "Женщина" },
-                ].map(({ value, label }) => (
+                  { value: "M", labelKey: "onboarding_sex_m" as const },
+                  { value: "F", labelKey: "onboarding_sex_f" as const },
+                ].map(({ value, labelKey }) => (
                   <button
                     key={value}
                     onClick={() => setForm({ ...form, sex: value })}
@@ -125,7 +127,7 @@ export default function OnboardingPage() {
                         : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--muted-foreground)]"
                     }`}
                   >
-                    {label}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
@@ -135,13 +137,13 @@ export default function OnboardingPage() {
           {/* Aim */}
           {step === "aim" && (
             <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold">Ваша цель</h2>
+              <h2 className="font-display text-xl font-bold">{t("onboarding_aim")}</h2>
               <div className="space-y-3">
                 {[
-                  { value: "weight_loss", label: "Сброс веса" },
-                  { value: "maintain", label: "Удержание" },
-                  { value: "weight_gain", label: "Набор массы" },
-                ].map(({ value, label }) => (
+                  { value: "weight_loss", labelKey: "onboarding_aim_loss" as const },
+                  { value: "maintain", labelKey: "onboarding_aim_maintain" as const },
+                  { value: "weight_gain", labelKey: "onboarding_aim_gain" as const },
+                ].map(({ value, labelKey }) => (
                   <button
                     key={value}
                     onClick={() => setForm({ ...form, aim: value })}
@@ -151,7 +153,7 @@ export default function OnboardingPage() {
                         : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--muted-foreground)]"
                     }`}
                   >
-                    {label}
+                    {t(labelKey)}
                   </button>
                 ))}
               </div>
@@ -161,7 +163,7 @@ export default function OnboardingPage() {
           {/* Weight */}
           {step === "weight" && (
             <div className="space-y-4">
-              <h2 className="font-display text-xl font-bold">Ваш вес</h2>
+              <h2 className="font-display text-xl font-bold">{t("onboarding_weight")}</h2>
               <div className="relative">
                 <input
                   type="number"
@@ -171,7 +173,7 @@ export default function OnboardingPage() {
                   min={20} max={500}
                   className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] font-mono text-lg focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
                 />
-                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] text-sm">кг</span>
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] text-sm">{t("common_kg")}</span>
               </div>
             </div>
           )}
@@ -187,7 +189,7 @@ export default function OnboardingPage() {
                 onClick={() => setCurrentStep(currentStep - 1)}
                 className="flex-1 py-3 border border-[var(--border)] text-[var(--muted)] rounded-[var(--radius)] font-medium hover:bg-[var(--color-sand)] transition-colors"
               >
-                Назад
+                {t("onboarding_back")}
               </button>
             )}
             <button
@@ -195,7 +197,7 @@ export default function OnboardingPage() {
               disabled={!canProceed() || loading}
               className="flex-1 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97]"
             >
-              {loading ? "Сохранение..." : currentStep === STEPS.length - 1 ? "Завершить" : "Далее"}
+              {loading ? t("onboarding_saving") : currentStep === STEPS.length - 1 ? t("onboarding_finish") : t("onboarding_next")}
             </button>
           </div>
         </div>

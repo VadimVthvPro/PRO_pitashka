@@ -97,7 +97,7 @@ export default function MobileMenu({ open, onClose }: Props) {
             className="lg:hidden fixed top-0 right-0 bottom-0 z-[70] w-[88vw] max-w-[360px] bg-[var(--card)] shadow-[var(--shadow-3)] border-l border-[var(--border)] flex flex-col"
             role="dialog"
             aria-modal="true"
-            aria-label="Главное меню"
+            aria-label={t("layout_aria_main_menu")}
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <div>
@@ -114,7 +114,7 @@ export default function MobileMenu({ open, onClose }: Props) {
               <button
                 onClick={onClose}
                 className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)] transition"
-                aria-label="Закрыть меню"
+                aria-label={t("layout_aria_close_menu")}
               >
                 <Icon icon="solar:close-circle-bold-duotone" width={26} className="text-[var(--muted)]" />
               </button>

@@ -10,6 +10,7 @@ import { Sticker } from "@/components/hand/Sticker";
 import { Highlight } from "@/components/hand/Highlight";
 import { Scribble } from "@/components/hand/Scribble";
 import { handleActivityResponse, type StreakDTO, type BadgeDTO } from "@/lib/streaks";
+import { useI18n } from "@/lib/i18n";
 
 interface WorkoutType {
   id: number;
@@ -40,6 +41,7 @@ function todayISO(): string {
 }
 
 export default function WorkoutsPage() {
+  const { t, lang } = useI18n();
   const [date] = useState(todayISO);
 
   const [types, setTypes] = useState<WorkoutType[]>([]);
@@ -65,11 +67,11 @@ export default function WorkoutsPage() {
       setTypes(list);
     } catch (e) {
       setTypes([]);
-      setTypesError(e instanceof Error ? e.message : "Не удалось загрузить типы тренировок");
+      setTypesError(e instanceof Error ? e.message : t("workouts_err_types"));
     } finally {
       setTypesLoading(false);
     }
-  }, []);
+  }, [t]);
 
   const loadDay = useCallback(async () => {
     setDayError("");
@@ -84,11 +86,11 @@ export default function WorkoutsPage() {
     } catch (e) {
       setTotalsCal(null);
       setTotalsMin(null);
-      setDayError(e instanceof Error ? e.message : "Не удалось загрузить тренировки");
+      setDayError(e instanceof Error ? e.message : t("workouts_err_day"));
     } finally {
       setDayLoading(false);
     }
-  }, [date]);
+  }, [date, t]);
 
   useEffect(() => {
     void loadTypes();
@@ -113,7 +115,7 @@ export default function WorkoutsPage() {
     if (!modalType) return;
     const duration = parseInt(durationStr, 10);
     if (Number.isNaN(duration) || duration < 1 || duration > 600) {
-      setSubmitError("Введите длительность от 1 до 600 минут");
+      setSubmitError(t("workouts_err_duration_long"));
       return;
     }
     setSubmitError("");
@@ -137,7 +139,7 @@ export default function WorkoutsPage() {
       setModalType(null);
       await loadDay();
     } catch (e) {
-      setSubmitError(e instanceof Error ? e.message : "Ошибка сохранения");
+      setSubmitError(e instanceof Error ? e.message : t("workouts_err_save_short"));
     } finally {
       setSubmitting(false);
     }
@@ -151,7 +153,7 @@ export default function WorkoutsPage() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
-              {new Date(date + "T12:00:00").toLocaleDateString("ru-RU", {
+              {new Date(date + "T12:00:00").toLocaleDateString(lang, {
                 weekday: "long",
                 day: "numeric",
                 month: "long",
@@ -166,14 +168,14 @@ export default function WorkoutsPage() {
                 lineHeight: 0.92,
               }}
             >
-              Сегодня{" "}
+              {t("workouts_hero_before")}
               <Highlight color="oklch(72% 0.15 80 / 0.5)">
-                <span className="px-1">двигаемся</span>
+                <span className="px-1">{t("workouts_hero_em")}</span>
               </Highlight>
             </h1>
           </div>
           <Sticker color="amber" font="appetite" rotate={4} size="md">
-            выбери нагрузку
+            {t("workouts_hero_sub")}
           </Sticker>
         </div>
       </ScrollReveal>
@@ -181,7 +183,7 @@ export default function WorkoutsPage() {
       <ScrollReveal delay={0.05}>
         <div className="card-base card-hover mesh-warm p-6">
           <h2 className="text-xs font-medium uppercase tracking-widest text-[var(--muted-foreground)] mb-4">
-            Итого за сегодня
+            {t("workouts_today_total")}
           </h2>
           {(typesError || dayError) && (
             <p className="text-sm text-[var(--destructive)] mb-2">{typesError || dayError}</p>
@@ -196,23 +198,23 @@ export default function WorkoutsPage() {
             <div className="flex flex-wrap gap-10">
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
-                  Калории
+                  {t("workouts_calories_label")}
                 </p>
                 <p className="display-number text-5xl text-[var(--foreground)]">
                   <AnimatedNumber value={Math.round(totalsCal)} />
                   <span className="text-xl font-medium text-[var(--muted)] ml-2" style={{ fontFamily: "var(--font-body)" }}>
-                    ккал
+                    {t("kcal")}
                   </span>
                 </p>
               </div>
               <div>
                 <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
-                  Время
+                  {t("workouts_time_label")}
                 </p>
                 <p className="display-number text-5xl text-[var(--foreground)]">
                   <AnimatedNumber value={totalsMin} />
                   <span className="text-xl font-medium text-[var(--muted)] ml-2" style={{ fontFamily: "var(--font-body)" }}>
-                    мин
+                    {t("min")}
                   </span>
                 </p>
               </div>
@@ -230,11 +232,11 @@ export default function WorkoutsPage() {
       )}
       {!typesLoading && types.length > 0 && (
         <Stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {types.map((t) => (
-            <StaggerItem key={t.id}>
+          {types.map((wt) => (
+            <StaggerItem key={wt.id}>
               <motion.button
                 type="button"
-                onClick={() => openModal(t)}
+                onClick={() => openModal(wt)}
                 whileHover={{ y: -4, scale: 1.01 }}
                 whileTap={{ scale: 0.98 }}
                 transition={{ type: "spring", stiffness: 350, damping: 22 }}
@@ -242,22 +244,22 @@ export default function WorkoutsPage() {
               >
                 <div className="flex items-start gap-4">
                   <div className="shrink-0 w-14 h-14 rounded-[var(--radius)] bg-gradient-to-br from-[var(--color-sand)] to-[var(--color-cream)] flex items-center justify-center text-[var(--accent)]">
-                    <WorkoutIcon id={t.id} size={32} />
+                    <WorkoutIcon id={wt.id} size={32} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3
                       className="font-bold text-lg text-[var(--foreground)] leading-tight"
                       style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
                     >
-                      {t.name}
+                      {wt.name}
                     </h3>
-                    {t.description ? (
+                    {wt.description ? (
                       <p className="text-xs text-[var(--muted-foreground)] mt-1 line-clamp-2">
-                        {t.description}
+                        {wt.description}
                       </p>
                     ) : null}
                     <p className="text-[10px] font-mono text-[var(--muted)] mt-2">
-                      коэф. {t.base_coefficient}
+                      {t("workout_coef_short")} {wt.base_coefficient}
                     </p>
                   </div>
                 </div>
@@ -277,7 +279,7 @@ export default function WorkoutsPage() {
             className="text-lg text-[var(--muted-foreground)]"
             style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
           >
-            Типы тренировок пока не загрузились
+            {t("workouts_types_loading")}
           </p>
         </div>
       )}
@@ -298,7 +300,7 @@ export default function WorkoutsPage() {
             <button
               type="button"
               className="absolute inset-0 cursor-default"
-              aria-label="Закрыть"
+              aria-label={t("common_close")}
               onClick={closeModal}
             />
             <motion.div
@@ -322,12 +324,12 @@ export default function WorkoutsPage() {
                     {modalType.name}
                   </h2>
                   <p className="text-xs text-[var(--muted-foreground)]">
-                    Укажите длительность в минутах
+                    {t("workouts_modal_subhint")}
                   </p>
                 </div>
               </div>
             <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-              Длительность (мин)
+              {t("workouts_modal_duration")}
             </label>
             <input
               type="number"
@@ -347,7 +349,7 @@ export default function WorkoutsPage() {
                 disabled={submitting}
                 className="flex-1 py-2.5 rounded-[var(--radius)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 disabled:opacity-50"
               >
-                Отмена
+                {t("workouts_modal_cancel")}
               </button>
               <button
                 type="button"
@@ -355,7 +357,7 @@ export default function WorkoutsPage() {
                 disabled={submitting}
                 className="flex-1 py-2.5 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] disabled:opacity-50 active:scale-[0.97] transition-transform"
               >
-                {submitting ? "Сохранение…" : "Сохранить"}
+                {submitting ? t("workouts_modal_saving") : t("workouts_modal_save")}
               </button>
             </div>
             </motion.div>

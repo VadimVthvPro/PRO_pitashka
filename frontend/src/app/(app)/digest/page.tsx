@@ -9,6 +9,7 @@ import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { Sticker } from "@/components/hand/Sticker";
 import { Highlight } from "@/components/hand/Highlight";
 import { Scribble } from "@/components/hand/Scribble";
+import { useI18n } from "@/lib/i18n";
 
 interface DigestResponse {
   stats: {
@@ -48,6 +49,7 @@ interface DigestResponse {
 }
 
 export default function DigestPage() {
+  const { t } = useI18n();
   const [data, setData] = useState<DigestResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,12 +65,12 @@ export default function DigestPage() {
       );
       setData(res);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось загрузить");
+      setError(e instanceof Error ? e.message : t("digest_err_load"));
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load();
@@ -80,7 +82,7 @@ export default function DigestPage() {
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
-              Итог недели
+              {t("digest_title")}
             </p>
             <h1
               style={{
@@ -90,16 +92,16 @@ export default function DigestPage() {
                 lineHeight: 0.92,
               }}
             >
-              Твой{" "}
+              {t("digest_your_word")}{" "}
               <Highlight color="oklch(75% 0.13 150 / 0.45)">
-                <span className="px-1">дайджест</span>
+                <span className="px-1">{t("digest_word_digest")}</span>
               </Highlight>
             </h1>
             <p
               className="text-sm text-[var(--muted-foreground)] mt-3"
               style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "15px" }}
             >
-              — смотрю на цифры последних 7 дней и говорю, что круто, а куда тянуть
+              {t("digest_tagline")}
             </p>
           </div>
           <motion.button
@@ -113,7 +115,7 @@ export default function DigestPage() {
               width={18}
               className={refreshing ? "animate-spin text-[var(--accent)]" : "text-[var(--accent)]"}
             />
-            {refreshing ? "Обновляю..." : "Перегенерировать"}
+            {refreshing ? t("digest_refresh_dots") : t("digest_regenerate")}
           </motion.button>
         </div>
       </ScrollReveal>
@@ -130,13 +132,13 @@ export default function DigestPage() {
               className="text-[var(--warning)] shrink-0 mt-0.5"
             />
             <div className="text-sm">
-              <p className="font-semibold mb-1">Это резервная версия — без AI</p>
+              <p className="font-semibold mb-1">{t("digest_fallback_banner")}</p>
               <p className="text-[var(--muted-foreground)] leading-snug">
                 {data.ai_error === "ai_misconfigured"
-                  ? "AI-ключ не настроен. Сообщи администратору — стандартный ответ ниже основан на правилах."
+                  ? t("digest_fallback_body_no_key")
                   : data.ai_error === "ai_quota_exceeded"
-                    ? "Лимит AI на сегодня исчерпан. Попробуй обновить позже — пока показал базовый разбор."
-                    : "AI временно недоступен. Жми «Перегенерировать», когда вернётся."}
+                    ? t("digest_fallback_body_quota")
+                    : t("digest_fallback_body_unavailable")}
               </p>
             </div>
           </div>
@@ -163,10 +165,10 @@ export default function DigestPage() {
                 className="text-2xl"
                 style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
               >
-                Пока данных мало
+                {t("digest_empty_title")}
               </p>
               <p className="text-sm text-[var(--muted-foreground)] mt-1 max-w-[52ch]">
-                {data.message ?? "Добавь еду, воду или тренировку — и я соберу дайджест"}
+                {data.message ?? t("digest_empty_hint")}
               </p>
             </div>
           </div>
@@ -203,7 +205,7 @@ export default function DigestPage() {
               <div className="card-base p-6 h-full">
                 <div className="flex items-center gap-2 mb-3">
                   <Sticker color="sage" font="arkhip" size="sm" rotate={-1.5}>
-                    ты молодец
+                    {t("digest_sticker_wins")}
                   </Sticker>
                 </div>
                 <ul className="space-y-3 mt-4">
@@ -225,7 +227,7 @@ export default function DigestPage() {
                   ))}
                   {data.digest.wins.length === 0 && (
                     <li className="text-sm text-[var(--muted-foreground)] italic">
-                      — пока без очевидных побед. Следующую неделю закроем
+                      {t("digest_wins_empty_alt")}
                     </li>
                   )}
                 </ul>
@@ -236,7 +238,7 @@ export default function DigestPage() {
               <div className="card-base p-6 h-full">
                 <div className="flex items-center gap-2 mb-3">
                   <Sticker color="amber" font="arkhip" size="sm" rotate={1.5}>
-                    точки роста
+                    {t("digest_sticker_growth")}
                   </Sticker>
                 </div>
                 <ul className="space-y-3 mt-4">
@@ -258,7 +260,7 @@ export default function DigestPage() {
                   ))}
                   {data.digest.focus.length === 0 && (
                     <li className="text-sm text-[var(--muted-foreground)] italic">
-                      — всё в порядке, держи темп
+                      {t("digest_focus_empty_alt")}
                     </li>
                   )}
                 </ul>
@@ -283,7 +285,7 @@ export default function DigestPage() {
                   />
                   <div>
                     <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
-                      совет на неделю
+                      {t("digest_tip_section_title")}
                     </p>
                     <p
                       className="text-base"
@@ -302,27 +304,27 @@ export default function DigestPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <StatBlock
                 icon="solar:plate-bold-duotone"
-                label="Записей еды"
+                label={t("digest_stat_food_entries")}
                 value={data.stats.food.entries}
-                hint={`${data.stats.food.days_logged} из 7 дней`}
+                hint={t("digest_stat_food_hint_days", { logged: data.stats.food.days_logged })}
               />
               <StatBlock
                 icon="solar:glass-water-bold-duotone"
-                label="Стаканов воды"
+                label={t("digest_stat_water")}
                 value={data.stats.water.glasses_total}
-                hint={`≈ ${data.stats.water.avg_daily}/день`}
+                hint={t("digest_stat_water_hint", { avg: data.stats.water.avg_daily })}
               />
               <StatBlock
                 icon="solar:dumbbell-large-bold-duotone"
-                label="Тренировок"
+                label={t("digest_stat_workouts")}
                 value={data.stats.workouts.sessions}
-                hint={`${data.stats.workouts.minutes} минут`}
+                hint={t("digest_stat_workouts_hint_min", { m: data.stats.workouts.minutes })}
               />
               <StatBlock
                 icon="solar:fire-bold-duotone"
-                label="Сжёг на тренировках"
+                label={t("digest_stat_burned")}
                 value={data.stats.workouts.cal_burned}
-                hint="ккал"
+                hint={t("digest_hint_kcal")}
               />
             </div>
           </ScrollReveal>
