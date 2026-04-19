@@ -45,7 +45,11 @@ async def onboarding(body: OnboardingRequest, user_id: CurrentUserDep, db: DbDep
 @router.put("/me")
 async def update_profile(body: UpdateProfileRequest, user_id: CurrentUserDep, db: DbDep):
     svc = UserService(db)
-    if body.weight is not None or body.height is not None:
-        result = await svc.update_profile_data(user_id, weight=body.weight, height=body.height)
-        return result
+    if body.weight is not None or body.height is not None or body.aim is not None:
+        return await svc.update_profile_data(
+            user_id,
+            weight=body.weight,
+            height=body.height,
+            aim=body.aim,
+        )
     return {"message": "No changes"}

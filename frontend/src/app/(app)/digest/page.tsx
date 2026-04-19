@@ -42,24 +42,31 @@ interface DigestResponse {
     focus: string[];
     tip: string;
   } | null;
+  source?: "ai" | "fallback" | null;
+  ai_error?: "ai_misconfigured" | "ai_quota_exceeded" | "ai_unavailable";
   message?: string;
 }
 
 export default function DigestPage() {
   const [data, setData] = useState<DigestResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (refresh = false) => {
+    if (refresh) setRefreshing(true);
+    else setLoading(true);
     setError("");
     try {
-      const res = await api<DigestResponse>("/api/digest/weekly");
+      const res = await api<DigestResponse>(
+        `/api/digest/weekly${refresh ? "?refresh=true" : ""}`,
+      );
       setData(res);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось загрузить");
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
@@ -70,31 +77,71 @@ export default function DigestPage() {
   return (
     <div className="space-y-8">
       <ScrollReveal>
-        <div>
-          <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
-            Итог недели
-          </p>
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.5rem, 1.8rem + 3vw, 4rem)",
-              letterSpacing: "-0.03em",
-              lineHeight: 0.92,
-            }}
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div>
+            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
+              Итог недели
+            </p>
+            <h1
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: "clamp(2.5rem, 1.8rem + 3vw, 4rem)",
+                letterSpacing: "-0.03em",
+                lineHeight: 0.92,
+              }}
+            >
+              Твой{" "}
+              <Highlight color="oklch(75% 0.13 150 / 0.45)">
+                <span className="px-1">дайджест</span>
+              </Highlight>
+            </h1>
+            <p
+              className="text-sm text-[var(--muted-foreground)] mt-3"
+              style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "15px" }}
+            >
+              — смотрю на цифры последних 7 дней и говорю, что круто, а куда тянуть
+            </p>
+          </div>
+          <motion.button
+            whileTap={{ scale: 0.95 }}
+            onClick={() => void load(true)}
+            disabled={loading || refreshing}
+            className="px-4 py-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] hover:border-[var(--accent)] flex items-center gap-2 text-sm disabled:opacity-50"
           >
-            Твой{" "}
-            <Highlight color="oklch(75% 0.13 150 / 0.45)">
-              <span className="px-1">дайджест</span>
-            </Highlight>
-          </h1>
-          <p
-            className="text-sm text-[var(--muted-foreground)] mt-3"
-            style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "15px" }}
-          >
-            — смотрю на цифры последних 7 дней и говорю, что круто, а куда тянуть
-          </p>
+            <Icon
+              icon="solar:refresh-bold-duotone"
+              width={18}
+              className={refreshing ? "animate-spin text-[var(--accent)]" : "text-[var(--accent)]"}
+            />
+            {refreshing ? "Обновляю..." : "Перегенерировать"}
+          </motion.button>
         </div>
       </ScrollReveal>
+
+      {data?.source === "fallback" && (
+        <ScrollReveal>
+          <div
+            className="card-base p-4 flex items-start gap-3 border-2 border-dashed"
+            style={{ borderColor: "var(--warning)" }}
+          >
+            <Icon
+              icon="solar:info-circle-bold-duotone"
+              width={22}
+              className="text-[var(--warning)] shrink-0 mt-0.5"
+            />
+            <div className="text-sm">
+              <p className="font-semibold mb-1">Это резервная версия — без AI</p>
+              <p className="text-[var(--muted-foreground)] leading-snug">
+                {data.ai_error === "ai_misconfigured"
+                  ? "AI-ключ не настроен. Сообщи администратору — стандартный ответ ниже основан на правилах."
+                  : data.ai_error === "ai_quota_exceeded"
+                    ? "Лимит AI на сегодня исчерпан. Попробуй обновить позже — пока показал базовый разбор."
+                    : "AI временно недоступен. Жми «Перегенерировать», когда вернётся."}
+              </p>
+            </div>
+          </div>
+        </ScrollReveal>
+      )}
 
       {loading && (
         <div className="card-base p-6">

@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     # AI
     GEMINI_API_KEY: str = ""
+    # Default model — override via env if Google deprecates it. As of 2026-04
+    # gemini-2.5-flash is the current stable multimodal flash model.
+    GEMINI_MODEL: str = "gemini-2.5-flash"
 
     # JWT
     JWT_SECRET_KEY: str = "change-me-in-production"
@@ -34,6 +37,10 @@ class Settings(BaseSettings):
 
     # Admin
     ADMIN_SECRET_KEY: str = "change-me-in-production"
+    ADMIN_PASSWORD: str = ""
+
+    # Google OAuth (optional — leave blank to disable Google sign-in)
+    GOOGLE_CLIENT_ID: str = ""
 
     # App
     ENVIRONMENT: str = "development"

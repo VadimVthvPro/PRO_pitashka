@@ -1,37 +1,17 @@
-# Git
-.git
-.gitignore
-
-# IDE-specific
-.idea
-.vscode
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.env
-bin/
-lib/
-share/
-include/
-
-# macOS
-.DS_Store
-
-# Logs
+**/__pycache__
+**/*.pyc
+**/.git
+**/.venv
+**/venv
+**/node_modules
+**/.next
+**/.pytest_cache
+**/.mypy_cache
 *.log
-
-# Build artifacts
-PROpitashka Admin.app/
-PROpitashka Admin.spec
-dist/
-build/
-
-
-
-
-
-
-
+.DS_Store
+*.pem
+*.key
+__pycache__
+backend/__pycache__
+frontend/.next
+frontend/node_modules

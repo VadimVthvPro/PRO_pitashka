@@ -58,32 +58,34 @@
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-cream: oklch(15% 0.01 55);
-    --color-warm-white: oklch(20% 0.012 55);
-    --color-espresso: oklch(92% 0.008 75);
-    --color-dark-roast: oklch(70% 0.01 55);
-    --color-latte: oklch(50% 0.015 55);
-    --color-terracotta: oklch(62% 0.16 35);
-    --color-sand: oklch(25% 0.012 55);
-    --color-clay: oklch(35% 0.01 55);
+/* Dark theme: applied by ThemeProvider via [data-theme="dark"] on <html>.
+ * The "auto" mode also resolves to either "light" or "dark" data attribute
+ * before paint, so the body never flickers between palettes.
+ */
+[data-theme="dark"] {
+  --color-cream: oklch(15% 0.01 55);
+  --color-warm-white: oklch(20% 0.012 55);
+  --color-espresso: oklch(92% 0.008 75);
+  --color-dark-roast: oklch(70% 0.01 55);
+  --color-latte: oklch(50% 0.015 55);
+  --color-terracotta: oklch(62% 0.16 35);
+  --color-sand: oklch(25% 0.012 55);
+  --color-clay: oklch(35% 0.01 55);
 
-    --background: var(--color-cream);
-    --foreground: var(--color-espresso);
-    --card: var(--color-warm-white);
-    --card-border: var(--color-sand);
-    --muted: var(--color-dark-roast);
-    --muted-foreground: var(--color-latte);
-    --accent: var(--color-terracotta);
-    --border: var(--color-sand);
-    --input-bg: var(--color-warm-white);
+  --background: var(--color-cream);
+  --foreground: var(--color-espresso);
+  --card: var(--color-warm-white);
+  --card-border: var(--color-sand);
+  --muted: var(--color-dark-roast);
+  --muted-foreground: var(--color-latte);
+  --accent: var(--color-terracotta);
+  --border: var(--color-sand);
+  --input-bg: var(--color-warm-white);
 
-    --shadow-1: 0 1px 3px oklch(5% 0 0 / 0.3), 0 4px 12px oklch(5% 0 0 / 0.2);
-    --shadow-2: 0 2px 6px oklch(5% 0 0 / 0.4), 0 12px 32px oklch(5% 0 0 / 0.3);
-    --shadow-3: 0 4px 12px oklch(5% 0 0 / 0.5), 0 20px 48px oklch(5% 0 0 / 0.4);
-    --shadow-accent: 0 4px 14px oklch(62% 0.16 35 / 0.3), 0 12px 32px oklch(62% 0.16 35 / 0.2);
-  }
+  --shadow-1: 0 1px 3px oklch(5% 0 0 / 0.3), 0 4px 12px oklch(5% 0 0 / 0.2);
+  --shadow-2: 0 2px 6px oklch(5% 0 0 / 0.4), 0 12px 32px oklch(5% 0 0 / 0.3);
+  --shadow-3: 0 4px 12px oklch(5% 0 0 / 0.5), 0 20px 48px oklch(5% 0 0 / 0.4);
+  --shadow-accent: 0 4px 14px oklch(62% 0.16 35 / 0.3), 0 12px 32px oklch(62% 0.16 35 / 0.2);
 }
 
 @theme inline {
@@ -116,6 +118,31 @@
 
   --radius-card: var(--radius-lg);
   --radius-xl: var(--radius-xl);
+}
+
+/* Telegram Mini App + iOS safe areas.
+ * - In TG, hide our top bar (TG draws its own) and trim mesh;
+ * - everywhere, expose env(safe-area-inset-*) so layouts can pad themselves.
+ */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+html[data-tma="1"] body {
+  /* Solid background — Telegram blends webview with native chrome and
+     gradient mesh causes seams on certain devices. */
+  background-image: none !important;
+}
+html[data-tma="1"] [data-mobile-topbar] {
+  display: none !important;
+}
+
+/* Mobile-first table sanity: avoid horizontal page scroll caused by wide
+   tables — they should scroll *inside* their container instead. */
+@media (max-width: 1023px) {
+  table { max-width: 100%; }
+  .card-base { border-radius: var(--radius); }
 }
 
 /* Base styles */
@@ -312,9 +339,14 @@ body {
   border-radius: var(--radius);
 }
 
-/* Respect user preference */
+/* Respect user preference, but keep ambient/identity loops alive
+ * (water wave, slow shimmer, streak flame) — these are continuous, soft
+ * indicators rather than distracting motion, and removing them turns the
+ * UI into a static screenshot, especially on phones where many users have
+ * "reduce motion" forced on by the system. Components that *do* respect
+ * the preference call useReducedMotion() in JS and snap their own springs. */
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
+  *:not(.motion-keep):not(.motion-keep *), *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;

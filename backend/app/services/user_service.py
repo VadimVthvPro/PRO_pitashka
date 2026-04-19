@@ -47,6 +47,7 @@ class UserService:
         self, user_id: int,
         weight: float | None = None,
         height: float | None = None,
+        aim: str | None = None,
     ) -> dict:
         health = await self.repo.get_health(user_id)
         current_height = health["height"] if health else 170
@@ -58,17 +59,17 @@ class UserService:
         final_height = height if height is not None else current_height
         age = calculate_age(user["date_of_birth"]) if user and user["date_of_birth"] else 25
         sex = user["user_sex"] if user else "M"
-        aim = aims["user_aim"] if aims else "maintain"
+        final_aim = aim if aim is not None else (aims["user_aim"] if aims else "maintain")
 
         bmi = calculate_bmi(final_weight, final_height)
         bmi_class = classify_bmi(bmi)
-        daily_cal = calculate_daily_calories(final_weight, final_height, age, sex, aim)
+        daily_cal = calculate_daily_calories(final_weight, final_height, age, sex, final_aim)
 
         await self.repo.save_onboarding(
             user_id=user_id,
             height=final_height, weight=final_weight,
             date_of_birth=user["date_of_birth"] if user else date.today(),
-            sex=sex, aim=aim,
+            sex=sex, aim=final_aim,
             imt=bmi, imt_str=bmi_class, daily_cal=daily_cal,
         )
-        return {"bmi": bmi, "bmi_class": bmi_class, "daily_cal": daily_cal}
+        return {"bmi": bmi, "bmi_class": bmi_class, "daily_cal": daily_cal, "aim": final_aim}

@@ -1,6 +1,6 @@
 from datetime import date, timedelta
 from statistics import mean
-from fastapi import APIRouter, Body, HTTPException, Query
+from fastapi import APIRouter, Body, HTTPException, Path, Query
 
 from app.dependencies import DbDep, CurrentUserDep
 from app.repositories.weight_repo import WeightRepository
@@ -15,6 +15,27 @@ async def history(user_id: CurrentUserDep, db: DbDep, days: int = Query(default=
     return {"items": items, "days": days}
 
 
+@router.get("/list")
+async def list_entries(user_id: CurrentUserDep, db: DbDep, limit: int = Query(default=100, ge=1, le=365)):
+    """Newest-first list for the editable journal."""
+    repo = WeightRepository(db)
+    return {"items": await repo.list_entries(user_id, limit=limit)}
+
+
+def _parse_date(value: str | None) -> date | None:
+    if not value:
+        return None
+    try:
+        d = date.fromisoformat(value)
+    except ValueError:
+        raise HTTPException(status_code=422, detail="date must be ISO YYYY-MM-DD")
+    if d > date.today():
+        raise HTTPException(status_code=422, detail="date can't be in the future")
+    if d < date(2000, 1, 1):
+        raise HTTPException(status_code=422, detail="date too old")
+    return d
+
+
 @router.post("")
 async def add_weight(
     user_id: CurrentUserDep, db: DbDep,
@@ -24,9 +45,26 @@ async def add_weight(
     if not isinstance(weight, (int, float)) or weight <= 20 or weight > 400:
         raise HTTPException(status_code=422, detail="weight must be 20..400 kg")
 
+    on_date = _parse_date(body.get("date"))
+
     repo = WeightRepository(db)
-    saved = await repo.add_or_update(user_id, float(weight))
+    saved = await repo.add_or_update(user_id, float(weight), on_date=on_date)
     return saved
+
+
+@router.delete("/{on_date}")
+async def delete_entry(
+    user_id: CurrentUserDep, db: DbDep,
+    on_date: str = Path(..., description="ISO date YYYY-MM-DD"),
+):
+    parsed = _parse_date(on_date)
+    if parsed is None:
+        raise HTTPException(status_code=422, detail="date is required")
+    repo = WeightRepository(db)
+    ok = await repo.delete(user_id, parsed)
+    if not ok:
+        raise HTTPException(status_code=404, detail="entry not found")
+    return {"deleted": True, "date": parsed.isoformat()}
 
 
 def _linear_fit(points: list[tuple[float, float]]) -> tuple[float, float] | None:

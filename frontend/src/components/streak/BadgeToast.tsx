@@ -38,7 +38,7 @@ export function BadgeToast() {
     if (badgeQueue.length === 0) return;
     const next = dequeueBadge();
     setCurrent(next);
-    fireConfetti({ y: 0.3, particleCount: 80 });
+    fireConfetti({ y: 0.3 });
     const t = setTimeout(() => setCurrent(null), 5000);
     return () => clearTimeout(t);
   }, [badgeQueue, current]);

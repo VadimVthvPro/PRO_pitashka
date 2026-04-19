@@ -55,13 +55,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.middleware.audit import AuditLogMiddleware
+app.add_middleware(AuditLogMiddleware)
+
 # Routers
 from app.routers import (
     auth, users, food, workouts, water, summary, ai, settings, admin,
-    streaks, weight, digest,
+    streaks, weight, digest, google_auth, social,
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(google_auth.router, prefix="/api/auth/google", tags=["auth"])
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(food.router, prefix="/api/food", tags=["food"])
 app.include_router(workouts.router, prefix="/api/workouts", tags=["workouts"])
@@ -73,8 +77,20 @@ app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(streaks.router, prefix="/api/streaks", tags=["streaks"])
 app.include_router(weight.router, prefix="/api/weight", tags=["weight"])
 app.include_router(digest.router, prefix="/api/digest", tags=["digest"])
+app.include_router(social.router, prefix="/api/social", tags=["social"])
 
 
 @app.get("/api/health")
 async def health_check():
     return {"status": "ok", "version": "2.0.0"}
+
+
+@app.get("/api/_internal/ai-health")
+async def ai_health():
+    """Diagnostic endpoint — verifies the Gemini key actually works.
+
+    Hidden behind /_internal/ on purpose: don't link from the UI, but it is
+    safe enough to leave open (only returns the key prefix/tail, never the key).
+    """
+    from app.services import ai_service
+    return await ai_service.health_check()

@@ -37,17 +37,7 @@ async def verify_otp(body: OTPVerify, db: DbDep, settings: SettingsDep, request:
         ip_address=request.client.host if request.client else None,
     )
 
-    response.set_cookie(
-        key="access_token", value=access,
-        httponly=True, secure=settings.ENVIRONMENT == "production",
-        samesite="lax", max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-    response.set_cookie(
-        key="refresh_token", value=refresh,
-        httponly=True, secure=settings.ENVIRONMENT == "production",
-        samesite="lax", max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-        path="/api/auth/refresh",
-    )
+    _set_auth_cookies(response, settings, access, refresh)
 
     health = await db.fetchrow(
         "SELECT imt FROM user_health WHERE user_id = $1 ORDER BY date DESC LIMIT 1", user_id
@@ -71,17 +61,7 @@ async def refresh_token(request: Request, db: DbDep, settings: SettingsDep, resp
     payload = auth_service.decode_token(access)
     user_id = int(payload["sub"])
 
-    response.set_cookie(
-        key="access_token", value=access,
-        httponly=True, secure=settings.ENVIRONMENT == "production",
-        samesite="lax", max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-    response.set_cookie(
-        key="refresh_token", value=new_refresh,
-        httponly=True, secure=settings.ENVIRONMENT == "production",
-        samesite="lax", max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-        path="/api/auth/refresh",
-    )
+    _set_auth_cookies(response, settings, access, new_refresh)
 
     return TokenResponse(access_token=access, user_id=user_id)
 
@@ -91,6 +71,26 @@ async def logout(request: Request, db: DbDep, response: Response):
     token = request.cookies.get("access_token")
     if token:
         await auth_service.invalidate_session(db, token)
-    response.delete_cookie("access_token")
+    response.delete_cookie("access_token", path="/")
+    # Delete refresh on both the new path (/) and the legacy path
+    # (/api/auth/refresh) to clean up cookies issued before the path migration.
+    response.delete_cookie("refresh_token", path="/")
     response.delete_cookie("refresh_token", path="/api/auth/refresh")
     return {"message": "Logged out"}
+
+
+def _set_auth_cookies(response: Response, settings, access: str, refresh: str) -> None:
+    """Issue auth cookies on the SAME path so the Next.js middleware can do
+    silent refresh from any protected route (was a major source of bogus
+    "redirected to /login on every navigation" bugs)."""
+    secure = settings.ENVIRONMENT == "production"
+    response.set_cookie(
+        key="access_token", value=access,
+        httponly=True, secure=secure, samesite="lax", path="/",
+        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
+    response.set_cookie(
+        key="refresh_token", value=refresh,
+        httponly=True, secure=secure, samesite="lax", path="/",
+        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+    )

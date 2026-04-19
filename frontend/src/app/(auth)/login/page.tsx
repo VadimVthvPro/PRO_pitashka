@@ -1,52 +1,68 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
+import { Icon } from "@iconify/react";
 import { api } from "@/lib/api";
-import { type Lang, getTranslator } from "@/lib/i18n";
+import { useI18n, SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { HandDrawnUnderline } from "@/components/hand/HandDrawnUnderline";
 import { HandArrow } from "@/components/hand/HandArrow";
 import { Sticker } from "@/components/hand/Sticker";
 import { Highlight } from "@/components/hand/Highlight";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 
 type Step = "username" | "code";
 
-const LANGS: { code: Lang; label: string }[] = [
-  { code: "ru", label: "RU" },
-  { code: "en", label: "EN" },
-  { code: "de", label: "DE" },
-  { code: "fr", label: "FR" },
-  { code: "es", label: "ES" },
-];
+const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "PROpitashka_bot";
+const RESEND_SECONDS = 45;
 
 export default function LoginPage() {
   const router = useRouter();
-  const [lang, setLang] = useState<Lang>("ru");
-  const t = useCallback((key: string) => getTranslator(lang)(key), [lang]);
+  const { lang, setLang, t } = useI18n();
 
   const [step, setStep] = useState<Step>("username");
   const [username, setUsername] = useState("");
   const [code, setCode] = useState(["", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [needsBotStart, setNeedsBotStart] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
 
-  async function handleRequestOTP() {
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = window.setInterval(() => setResendIn((v) => Math.max(0, v - 1)), 1000);
+    return () => window.clearInterval(t);
+  }, [resendIn]);
+
+  const requestOtp = useCallback(async () => {
     const name = username.trim().replace(/^@/, "");
     if (!name) return;
     setLoading(true);
     setError("");
+    setNeedsBotStart(false);
     try {
-      await api("/api/auth/request-otp", {
+      const res = await api<{ sent: boolean }>("/api/auth/request-otp", {
         method: "POST",
         body: JSON.stringify({ telegram_username: name }),
       });
       setStep("code");
+      setResendIn(RESEND_SECONDS);
+      if (!res.sent) setNeedsBotStart(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : t("error"));
     } finally {
       setLoading(false);
     }
+  }, [username, t]);
+
+  async function handleRequestOTP() {
+    await requestOtp();
+  }
+
+  async function handleResend() {
+    if (resendIn > 0) return;
+    await requestOtp();
   }
 
   async function handleVerifyOTP() {
@@ -256,9 +272,37 @@ export default function LoginPage() {
 
               {step === "username" && (
                 <div className="space-y-4">
+                  <ol className="text-xs text-[var(--muted-foreground)] space-y-1.5 mb-3 leading-snug">
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold text-[var(--accent)]">1.</span>
+                      <span>
+                        Открой нашего бота в Telegram и нажми{" "}
+                        <span className="font-semibold text-[var(--foreground)]">/start</span>
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold text-[var(--accent)]">2.</span>
+                      <span>Введи свой Telegram-ник ниже — пришлём код в чат с ботом</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold text-[var(--accent)]">3.</span>
+                      <span>Скопируй 4 цифры — и ты внутри</span>
+                    </li>
+                  </ol>
+
+                  <a
+                    href={`https://t.me/${BOT_USERNAME}?start=login`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[var(--radius)] border border-[var(--accent)]/40 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition"
+                  >
+                    <Icon icon="logos:telegram" width={18} />
+                    Открыть @{BOT_USERNAME}
+                  </a>
+
                   <div>
                     <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
-                      Telegram
+                      Твой Telegram-ник
                     </label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
@@ -273,9 +317,15 @@ export default function LoginPage() {
                         }
                         placeholder="твой_ник"
                         autoFocus
+                        autoCapitalize="off"
+                        autoCorrect="off"
+                        spellCheck={false}
                         className="w-full pl-10 pr-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
                       />
                     </div>
+                    <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                      В Telegram → Настройки → Имя пользователя — это он.
+                    </p>
                   </div>
                   <motion.button
                     whileHover={{ scale: loading ? 1 : 1.02 }}
@@ -286,11 +336,59 @@ export default function LoginPage() {
                   >
                     {loading ? "Отправляем…" : "Прислать код"}
                   </motion.button>
+
+                  <div className="flex items-center gap-3 my-1">
+                    <div className="flex-1 h-px bg-[var(--border)]" />
+                    <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                      или
+                    </span>
+                    <div className="flex-1 h-px bg-[var(--border)]" />
+                  </div>
+
+                  <GoogleSignInButton
+                    onSuccess={(res) =>
+                      router.push(res.needs_onboarding ? "/onboarding" : "/dashboard")
+                    }
+                    onError={(msg) => setError(msg)}
+                  />
                 </div>
               )}
 
               {step === "code" && (
                 <div className="space-y-4">
+                  <AnimatePresence>
+                    {needsBotStart && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0 }}
+                        className="rounded-[var(--radius)] border-2 border-dashed border-[var(--warning)] bg-[var(--warning)]/5 p-3"
+                      >
+                        <div className="flex items-start gap-2 mb-2">
+                          <Icon
+                            icon="solar:info-circle-bold-duotone"
+                            width={20}
+                            className="text-[var(--warning)] shrink-0 mt-0.5"
+                          />
+                          <p className="text-sm leading-snug">
+                            Не нашли тебя в боте. Сначала{" "}
+                            <span className="font-semibold">нажми /start</span> у бота —
+                            потом сюда придёт код.
+                          </p>
+                        </div>
+                        <a
+                          href={`https://t.me/${BOT_USERNAME}?start=login`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center gap-2 w-full py-2 rounded-[var(--radius)] bg-[var(--warning)] text-white text-sm font-semibold"
+                        >
+                          <Icon icon="logos:telegram" width={16} />
+                          Открыть бота и нажать /start
+                        </a>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   <div
                     className="grid grid-cols-4 gap-2 sm:gap-3"
                     onPaste={handleCodePaste}
@@ -324,16 +422,28 @@ export default function LoginPage() {
                   >
                     {loading ? "Проверяем…" : "Зайти"}
                   </motion.button>
-                  <button
-                    onClick={() => {
-                      setStep("username");
-                      setCode(["", "", "", ""]);
-                      setError("");
-                    }}
-                    className="w-full py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
-                  >
-                    ← Ввести другой ник
-                  </button>
+                  <div className="flex items-center justify-between text-xs">
+                    <button
+                      onClick={() => {
+                        setStep("username");
+                        setCode(["", "", "", ""]);
+                        setError("");
+                        setNeedsBotStart(false);
+                      }}
+                      className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                    >
+                      ← Другой ник
+                    </button>
+                    <button
+                      onClick={() => void handleResend()}
+                      disabled={resendIn > 0 || loading}
+                      className="text-[var(--accent)] hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed"
+                    >
+                      {resendIn > 0
+                        ? `Перевыслать через ${resendIn}с`
+                        : "Перевыслать код"}
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -348,18 +458,18 @@ export default function LoginPage() {
               )}
             </div>
 
-            <div className="flex justify-center gap-4 mt-8">
-              {LANGS.map(({ code: lc, label }) => (
+            <div className="flex flex-wrap justify-center gap-3 mt-8">
+              {SUPPORTED_LANGS.map(({ code: lc, native }) => (
                 <button
                   key={lc}
-                  onClick={() => setLang(lc)}
+                  onClick={() => setLang(lc as Lang)}
                   className={`text-[11px] font-bold tracking-widest transition-colors ${
                     lang === lc
                       ? "text-[var(--accent)]"
                       : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
                   }`}
                 >
-                  {label}
+                  {native}
                 </button>
               ))}
             </div>

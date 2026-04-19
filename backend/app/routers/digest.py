@@ -1,9 +1,15 @@
 import logging
 from datetime import date, timedelta
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.dependencies import DbDep, CurrentUserDep, RedisDep
 from app.services import ai_service
+from app.services.ai_service import (
+    AIConfigError,
+    AIQuotaError,
+    AITimeoutError,
+    AIUpstreamError,
+)
 from app.services.cache_service import CacheService
 from app.config import get_settings
 from app.repositories.weight_repo import WeightRepository
@@ -89,13 +95,18 @@ async def _collect_week_stats(db, user_id: int) -> dict:
 
 
 @router.get("/weekly")
-async def weekly(user_id: CurrentUserDep, db: DbDep, redis: RedisDep):
+async def weekly(
+    user_id: CurrentUserDep, db: DbDep, redis: RedisDep,
+    refresh: bool = Query(default=False, description="Skip cache and re-generate"),
+):
     settings = get_settings()
     cache = CacheService(redis, settings.CACHE_ENABLED)
     cache_key = f"digest:weekly:{user_id}:{date.today().isoformat()}"
-    cached = await cache.get(cache_key)
-    if cached:
-        return cached
+
+    if not refresh:
+        cached = await cache.get(cache_key)
+        if cached:
+            return cached
 
     stats = await _collect_week_stats(db, user_id)
 
@@ -103,17 +114,49 @@ async def weekly(user_id: CurrentUserDep, db: DbDep, redis: RedisDep):
         return {
             "stats": stats,
             "digest": None,
+            "source": None,
             "message": "Ещё мало данных — добавь еду, воду или тренировку, чтобы я собрал дайджест",
         }
 
+    digest: dict
+    source: str
+    ai_error: str | None = None
     try:
         digest = await ai_service.weekly_digest(stats)
-    except Exception as e:
-        logger.warning("weekly_digest ai failure: %s", e)
+        source = "ai"
+    except AIConfigError as e:
+        logger.warning("weekly_digest: AI misconfigured (%s)", e)
         digest = _fallback_digest(stats)
+        source = "fallback"
+        ai_error = "ai_misconfigured"
+    except AIQuotaError as e:
+        logger.warning("weekly_digest: AI quota (%s)", e)
+        digest = _fallback_digest(stats)
+        source = "fallback"
+        ai_error = "ai_quota_exceeded"
+    except AITimeoutError as e:
+        logger.warning("weekly_digest: AI timeout (%s)", e)
+        digest = _fallback_digest(stats)
+        source = "fallback"
+        ai_error = "ai_timeout"
+    except AIUpstreamError as e:
+        logger.warning("weekly_digest: AI upstream error (%s)", e)
+        digest = _fallback_digest(stats)
+        source = "fallback"
+        ai_error = "ai_unavailable"
+    except Exception as e:
+        logger.warning("weekly_digest: AI error (%s)", e)
+        digest = _fallback_digest(stats)
+        source = "fallback"
+        ai_error = "ai_unavailable"
 
-    payload = {"stats": stats, "digest": digest}
-    await cache.set(cache_key, payload, 3600)
+    payload = {"stats": stats, "digest": digest, "source": source}
+    if ai_error:
+        payload["ai_error"] = ai_error
+
+    # Cache AI digests for an hour. Cache fallbacks for only 5 minutes so AI
+    # can be retried as soon as the upstream issue resolves.
+    await cache.set(cache_key, payload, 3600 if source == "ai" else 300)
     return payload
 
 

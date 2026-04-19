@@ -11,6 +11,11 @@ interface WaterWaveProps {
 /**
  * Animated liquid-filled glass SVG.
  * Level rises with springy ease when glasses change; wave continuously animates.
+ *
+ * Note: the ambient wave loop (left↔right pan) is intentionally kept on even
+ * when the OS-level "reduce motion" preference is on — it's a soft, slow,
+ * continuous loop that conveys "this is a liquid", not a flashy distractor.
+ * Only the level-rise spring is snapped to an instant transition.
  */
 export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
   const reduced = useReducedMotion();
@@ -19,7 +24,7 @@ export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
 
   return (
     <div
-      className="relative select-none"
+      className="relative select-none motion-keep"
       style={{ width: size, height: size }}
     >
       <svg
@@ -61,15 +66,11 @@ export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
                 : { type: "spring", stiffness: 80, damping: 14, mass: 1 }
             }
           >
-            {/* Animated wave path */}
+            {/* Animated wave path — runs always (ambient liquid feel) */}
             <motion.path
               d="M -20 10 Q 5 4, 30 10 T 80 10 T 130 10 L 130 110 L -20 110 Z"
               fill="url(#water-gradient)"
-              animate={
-                reduced
-                  ? {}
-                  : { x: [0, -50] }
-              }
+              animate={{ x: [0, -50] }}
               transition={{
                 duration: 4,
                 ease: "linear",
@@ -80,11 +81,7 @@ export function WaterWave({ glasses, goal, size = 220 }: WaterWaveProps) {
             <motion.path
               d="M -20 14 Q 5 8, 30 14 T 80 14 T 130 14 L 130 110 L -20 110 Z"
               fill="oklch(62% 0.14 235 / 0.4)"
-              animate={
-                reduced
-                  ? {}
-                  : { x: [0, -50] }
-              }
+              animate={{ x: [0, -50] }}
               transition={{
                 duration: 6,
                 ease: "linear",

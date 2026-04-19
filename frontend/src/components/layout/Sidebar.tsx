@@ -5,30 +5,33 @@ import { usePathname } from "next/navigation";
 import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
 import { StreakFlame } from "@/components/streak/StreakFlame";
+import { useI18n } from "@/lib/i18n";
 
 interface NavItem {
   href: string;
   icon: string;
-  label: string;
+  /** i18n key resolved at render time */
+  labelKey: string;
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", icon: "solar:home-2-bold-duotone", label: "Главная" },
-  { href: "/food", icon: "solar:plate-bold-duotone", label: "Питание" },
-  { href: "/workouts", icon: "solar:dumbbell-large-bold-duotone", label: "Тренировки" },
-  { href: "/summary", icon: "solar:graph-new-up-bold-duotone", label: "Прогресс" },
-  { href: "/weight", icon: "solar:scale-bold-duotone", label: "Вес" },
-  { href: "/digest", icon: "solar:letter-opened-bold-duotone", label: "Дайджест" },
-  { href: "/achievements", icon: "solar:medal-ribbon-star-bold-duotone", label: "Достижения" },
-  { href: "/ai-chat", icon: "solar:magic-stick-3-bold-duotone", label: "AI-Ассистент" },
-  { href: "/plans", icon: "solar:clipboard-check-bold-duotone", label: "Планы" },
-  { href: "/recipes", icon: "solar:chef-hat-bold-duotone", label: "Рецепты" },
-  { href: "/settings", icon: "solar:settings-bold-duotone", label: "Настройки" },
-  { href: "/admin", icon: "solar:shield-user-bold-duotone", label: "Админ" },
+  { href: "/dashboard", icon: "solar:home-2-bold-duotone", labelKey: "nav_dashboard" },
+  { href: "/food", icon: "solar:plate-bold-duotone", labelKey: "nav_food" },
+  { href: "/workouts", icon: "solar:dumbbell-large-bold-duotone", labelKey: "nav_workouts" },
+  { href: "/summary", icon: "solar:graph-new-up-bold-duotone", labelKey: "nav_summary" },
+  { href: "/weight", icon: "solar:scale-bold-duotone", labelKey: "nav_weight" },
+  { href: "/digest", icon: "solar:letter-opened-bold-duotone", labelKey: "nav_digest" },
+  { href: "/achievements", icon: "solar:medal-ribbon-star-bold-duotone", labelKey: "nav_achievements" },
+  { href: "/ai-chat", icon: "solar:magic-stick-3-bold-duotone", labelKey: "nav_ai" },
+  { href: "/plans", icon: "solar:clipboard-check-bold-duotone", labelKey: "nav_plans" },
+  { href: "/social", icon: "solar:users-group-rounded-bold-duotone", labelKey: "nav_social" },
+  { href: "/settings", icon: "solar:settings-bold-duotone", labelKey: "nav_settings" },
+  { href: "/admin", icon: "solar:shield-user-bold-duotone", labelKey: "nav_admin" },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { t } = useI18n();
 
   return (
     <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-screen sticky top-0 bg-transparent border-r border-[var(--border)] px-4 py-6 backdrop-blur-[2px]">
@@ -84,7 +87,7 @@ export default function Sidebar() {
                   height={20}
                   className={isActive ? "text-[var(--accent)]" : ""}
                 />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </motion.div>
             </Link>
           );
@@ -97,9 +100,7 @@ export default function Sidebar() {
           className="mt-3 px-3 text-xs text-[var(--muted-foreground)] leading-snug"
           style={{ fontFamily: "var(--font-arkhip-stack)", fontSize: "13px" }}
         >
-          «Лучшая диета та,
-          <br />
-          которую ты не забросил»
+          {t("menu_quote")}
         </p>
       </div>
     </aside>

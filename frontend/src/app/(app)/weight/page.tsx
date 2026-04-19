@@ -187,21 +187,51 @@ function WeightChart({
   );
 }
 
+interface JournalEntry {
+  date: string;
+  weight: number;
+  imt: number | null;
+}
+
+const todayIso = () => {
+  const t = new Date();
+  const y = t.getFullYear();
+  const m = String(t.getMonth() + 1).padStart(2, "0");
+  const d = String(t.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const formatRu = (iso: string) => {
+  try {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString("ru-RU", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return iso;
+  }
+};
+
 export default function WeightPage() {
   const [data, setData] = useState<ForecastResponse | null>(null);
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   const [weightInput, setWeightInput] = useState("");
+  const [dateInput, setDateInput] = useState(todayIso());
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await api<ForecastResponse>("/api/weight/forecast?horizon_days=30");
-      setData(res);
+      const [forecast, journal] = await Promise.all([
+        api<ForecastResponse>("/api/weight/forecast?horizon_days=30"),
+        api<{ items: JournalEntry[] }>("/api/weight/list?limit=180"),
+      ]);
+      setData(forecast);
+      setEntries(journal.items || []);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Не удалось загрузить");
     } finally {
@@ -219,14 +249,19 @@ export default function WeightPage() {
       setSaveError("Вес 20–400 кг");
       return;
     }
+    if (!dateInput || dateInput > todayIso()) {
+      setSaveError("Дата некорректна");
+      return;
+    }
     setSaveError("");
     setSaving(true);
     try {
       await api("/api/weight", {
         method: "POST",
-        body: JSON.stringify({ weight: w }),
+        body: JSON.stringify({ weight: w, date: dateInput }),
       });
       setWeightInput("");
+      setDateInput(todayIso());
       await load();
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Не сохранилось");
@@ -234,6 +269,33 @@ export default function WeightPage() {
       setSaving(false);
     }
   }
+
+  async function deleteEntry(iso: string) {
+    if (pendingDelete !== iso) {
+      setPendingDelete(iso);
+      window.setTimeout(() => {
+        setPendingDelete((curr) => (curr === iso ? null : curr));
+      }, 4000);
+      return;
+    }
+    setPendingDelete(null);
+    try {
+      await api(`/api/weight/${iso}`, { method: "DELETE" });
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Не удалось удалить");
+    }
+  }
+
+  const deltas = useMemo(() => {
+    const map = new Map<string, number | null>();
+    for (let i = 0; i < entries.length; i++) {
+      const curr = entries[i]!;
+      const prev = entries[i + 1];
+      map.set(curr.date, prev ? curr.weight - prev.weight : null);
+    }
+    return map;
+  }, [entries]);
 
   const trendDirection = useMemo(() => {
     if (!data?.trend_kg_per_week) return "stable";
@@ -291,37 +353,60 @@ export default function WeightPage() {
         </div>
       </ScrollReveal>
 
-      {/* Add weight form */}
       <ScrollReveal delay={0.05}>
-        <div className="card-base p-5 flex flex-wrap items-center gap-3">
-          <Icon icon="solar:scale-bold-duotone" width={28} className="text-[var(--accent)]" />
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
-              Записать сегодня
-            </label>
-            <div className="flex gap-2">
+        <div className="card-base p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <Icon icon="solar:scale-bold-duotone" width={26} className="text-[var(--accent)]" />
+            <p
+              className="text-lg"
+              style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
+            >
+              Добавить запись
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 items-end">
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
+                Вес, кг
+              </label>
               <input
                 type="number"
                 step="0.1"
+                inputMode="decimal"
                 value={weightInput}
                 onChange={(e) => setWeightInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addWeight()}
                 placeholder="72.4"
-                className="flex-1 min-w-0 px-3 py-2 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono tabular-nums focus:border-[var(--accent)] focus:outline-none"
+                className="w-full px-3 py-2.5 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono tabular-nums focus:border-[var(--accent)] focus:outline-none"
               />
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => void addWeight()}
-                disabled={saving || !weightInput}
-                className="px-5 py-2 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50"
-              >
-                {saving ? "..." : "Сохранить"}
-              </motion.button>
             </div>
-            {saveError && (
-              <p className="text-xs text-[var(--destructive)] mt-1">{saveError}</p>
-            )}
+            <div>
+              <label className="block text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
+                Дата
+              </label>
+              <input
+                type="date"
+                value={dateInput}
+                max={todayIso()}
+                onChange={(e) => setDateInput(e.target.value)}
+                className="w-full px-3 py-2.5 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] focus:border-[var(--accent)] focus:outline-none"
+              />
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => void addWeight()}
+              disabled={saving || !weightInput}
+              className="px-5 py-2.5 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 whitespace-nowrap"
+            >
+              {saving ? "Сохраняю..." : "Записать"}
+            </motion.button>
           </div>
+          {saveError && (
+            <p className="text-xs text-[var(--destructive)] mt-2">{saveError}</p>
+          )}
+          <p className="text-xs text-[var(--muted-foreground)] mt-3">
+            Записал не сегодня? Поменяй дату — задним числом тоже можно.
+          </p>
         </div>
       </ScrollReveal>
 
@@ -464,6 +549,99 @@ export default function WeightPage() {
             </>
           )}
         </>
+      )}
+
+      {entries.length > 0 && (
+        <ScrollReveal delay={0.3}>
+          <div className="card-base overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
+              <div className="flex items-center gap-2">
+                <Icon
+                  icon="solar:notebook-bold-duotone"
+                  width={22}
+                  className="text-[var(--accent)]"
+                />
+                <p
+                  className="text-lg"
+                  style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
+                >
+                  Журнал записей
+                </p>
+              </div>
+              <span className="text-xs text-[var(--muted-foreground)] tabular-nums">
+                {entries.length} зап.
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                    <th className="px-5 py-3 font-medium">Дата</th>
+                    <th className="px-3 py-3 font-medium text-right">Вес, кг</th>
+                    <th className="px-3 py-3 font-medium text-right">Δ</th>
+                    <th className="px-3 py-3 font-medium text-right hidden sm:table-cell">ИМТ</th>
+                    <th className="px-5 py-3 w-[1%]" aria-label="Действия" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((row) => {
+                    const delta = deltas.get(row.date);
+                    const armed = pendingDelete === row.date;
+                    return (
+                      <tr
+                        key={row.date}
+                        className="border-t border-[var(--border)]/60 hover:bg-[var(--color-sand)]/40 transition-colors"
+                      >
+                        <td className="px-5 py-3 whitespace-nowrap">{formatRu(row.date)}</td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums font-semibold">
+                          {row.weight.toFixed(1)}
+                        </td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums">
+                          {delta == null ? (
+                            <span className="text-[var(--muted)]">—</span>
+                          ) : delta === 0 ? (
+                            <span className="text-[var(--muted)]">0.0</span>
+                          ) : (
+                            <span
+                              className={
+                                delta < 0 ? "text-[var(--color-sage)]" : "text-[var(--warning)]"
+                              }
+                            >
+                              {delta > 0 ? "+" : ""}
+                              {delta.toFixed(1)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-3 text-right font-mono tabular-nums hidden sm:table-cell text-[var(--muted-foreground)]">
+                          {row.imt != null ? row.imt.toFixed(1) : "—"}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <motion.button
+                            whileTap={{ scale: 0.92 }}
+                            onClick={() => void deleteEntry(row.date)}
+                            className={`text-xs px-2.5 py-1.5 rounded-md transition ${
+                              armed
+                                ? "bg-[var(--destructive)] text-white"
+                                : "text-[var(--muted)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
+                            }`}
+                            title={armed ? "Подтвердить удаление" : "Удалить запись"}
+                          >
+                            {armed ? (
+                              "Подтвердить?"
+                            ) : (
+                              <Icon icon="solar:trash-bin-trash-linear" width={16} />
+                            )}
+                          </motion.button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </ScrollReveal>
       )}
     </div>
   );

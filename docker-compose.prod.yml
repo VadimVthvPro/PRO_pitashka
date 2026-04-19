@@ -1,0 +1,111 @@
+# Production compose — изолированный стек "propitashka".
+# Не конфликтует с lexiro / другими проектами на сервере.
+#
+# Публичные порты:
+#   FRONTEND_PUBLIC_PORT (default 3200) -> наружу (0.0.0.0)
+#   BACKEND_LOCAL_PORT   (default 8101) -> только 127.0.0.1 (для отладки/healthcheck)
+#
+# Внутренние сервисы (postgres/redis) недоступны снаружи.
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: propitashka-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-propitashka}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/init_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./backend/init_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    networks:
+      - propitashka-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-propitashka}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: propitashka-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    networks:
+      - propitashka-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: propitashka-backend
+    restart: unless-stopped
+    env_file:
+      - .env.prod
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - propitashka-net
+    ports:
+      - "127.0.0.1:${BACKEND_LOCAL_PORT:-8101}:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ""
+        BACKEND_URL: http://backend:8000
+    container_name: propitashka-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ""
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - propitashka-net
+    ports:
+      - "0.0.0.0:${FRONTEND_PUBLIC_PORT:-3200}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  propitashka-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -34,6 +34,7 @@ class ProfileResponse(BaseModel):
 class UpdateProfileRequest(BaseModel):
     weight: Optional[float] = Field(default=None, gt=20, lt=500)
     height: Optional[float] = Field(default=None, gt=50, lt=300)
+    aim: Optional[str] = Field(default=None, pattern="^(weight_loss|maintain|weight_gain)$")
 
 
 class SettingsRequest(BaseModel):

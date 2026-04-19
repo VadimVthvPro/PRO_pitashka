@@ -1,9 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, JetBrains_Mono } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+import { ThemeProvider, themeBootstrapScript } from "@/lib/theme";
+import { I18nProvider } from "@/lib/i18n";
+import { TelegramMiniAppBridge, telegramBootstrapScript } from "@/lib/telegram";
 
-// --- Custom display fonts ---
 const pobeda = localFont({
   src: "../../public/fonts/pobeda-bold.ttf",
   variable: "--font-pobeda",
@@ -28,7 +30,6 @@ const appetite = localFont({
   display: "swap",
 });
 
-// --- Body & Mono ---
 const dmSans = DM_Sans({
   variable: "--font-body",
   subsets: ["latin", "latin-ext"],
@@ -48,6 +49,17 @@ export const metadata: Metadata = {
   description: "Трекер питания, тренировок и воды с AI-ассистентом",
 };
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfaf6" },
+    { media: "(prefers-color-scheme: dark)", color: "#11110f" },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -57,8 +69,21 @@ export default function RootLayout({
     <html
       lang="ru"
       className={`${pobeda.variable} ${arkhip.variable} ${appetite.variable} ${dmSans.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col font-body">{children}</body>
+      <head>
+        <script src="https://telegram.org/js/telegram-web-app.js" async />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        <script dangerouslySetInnerHTML={{ __html: telegramBootstrapScript }} />
+      </head>
+      <body className="min-h-full flex flex-col font-body">
+        <ThemeProvider>
+          <I18nProvider>
+            <TelegramMiniAppBridge />
+            {children}
+          </I18nProvider>
+        </ThemeProvider>
+      </body>
     </html>
   );
 }
