@@ -244,7 +244,7 @@ export default function WorkoutsPage() {
               >
                 <div className="flex items-start gap-4">
                   <div className="shrink-0 w-14 h-14 rounded-[var(--radius)] bg-gradient-to-br from-[var(--color-sand)] to-[var(--color-cream)] flex items-center justify-center text-[var(--accent)]">
-                    <WorkoutIcon id={wt.id} size={32} />
+                    <WorkoutIcon id={wt.id} emoji={wt.emoji} size={32} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <h3
@@ -313,7 +313,7 @@ export default function WorkoutsPage() {
             >
               <div className="flex items-center gap-3 mb-4">
                 <div className="shrink-0 w-12 h-12 rounded-[var(--radius)] bg-gradient-to-br from-[var(--color-sand)] to-[var(--color-cream)] flex items-center justify-center text-[var(--accent)]">
-                  <WorkoutIcon id={modalType.id} size={28} />
+                  <WorkoutIcon id={modalType.id} emoji={modalType.emoji} size={28} />
                 </div>
                 <div>
                   <h2
