@@ -63,7 +63,7 @@ export default function WorkoutsPage() {
     setTypesError("");
     setTypesLoading(true);
     try {
-      const list = await api<WorkoutType[]>("/api/workouts/types?lang=ru");
+      const list = await api<WorkoutType[]>(`/api/workouts/types?lang=${lang}`);
       setTypes(list);
     } catch (e) {
       setTypes([]);

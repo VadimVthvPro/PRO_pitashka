@@ -38,6 +38,18 @@ function noStore(response: NextResponse): NextResponse {
   return response;
 }
 
+/** Detect React Server Component prefetch / payload requests.
+ * These are issued via `fetch()` and CANNOT follow HTML redirects safely
+ * (Safari & Telegram WebView reject the cross-document load with
+ * "access control checks"). For these we must return a plain 401
+ * so Next.js can fall back to a hard navigation cleanly. */
+function isRscRequest(request: NextRequest): boolean {
+  if (request.headers.get("RSC") === "1") return true;
+  if (request.headers.get("Next-Router-Prefetch") === "1") return true;
+  if (request.nextUrl.searchParams.has("_rsc")) return true;
+  return false;
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -80,6 +92,15 @@ export async function middleware(request: NextRequest) {
     if (refreshToken) {
       const refreshed = await tryRefresh(request);
       if (refreshed) return noStore(refreshed);
+    }
+    // RSC prefetch can't follow an HTML redirect — return 401 so the client
+    // router silently aborts the prefetch. The next real navigation will
+    // hit the redirect path below and land on /login cleanly.
+    if (isRscRequest(request)) {
+      return new NextResponse(null, {
+        status: 401,
+        headers: { "Cache-Control": "no-store" },
+      });
     }
     const loginUrl = new URL("/login", request.url);
     if (pathname !== "/") loginUrl.searchParams.set("next", pathname);

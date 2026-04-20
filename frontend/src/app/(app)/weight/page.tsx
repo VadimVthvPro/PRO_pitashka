@@ -39,15 +39,6 @@ const RANGE_DAYS: Record<RangeKey, number | null> = {
   all: null,
 };
 
-function filterByRange<T extends { date: string }>(items: T[], range: RangeKey): T[] {
-  const days = RANGE_DAYS[range];
-  if (days == null) return items;
-  const cutoff = new Date();
-  cutoff.setHours(0, 0, 0, 0);
-  cutoff.setDate(cutoff.getDate() - (days - 1));
-  return items.filter((i) => new Date(i.date + "T00:00:00") >= cutoff);
-}
-
 function formatTick(iso: string, rangeKey: RangeKey, lang: Lang): string {
   const d = new Date(iso + "T00:00:00");
   if (rangeKey === "7d" || rangeKey === "30d") {
@@ -349,8 +340,10 @@ export default function WeightPage() {
     setError("");
     try {
       const [forecast, journal] = await Promise.all([
-        api<ForecastResponse>("/api/weight/forecast?horizon_days=30"),
-        api<{ items: JournalEntry[] }>("/api/weight/list?limit=180"),
+        api<ForecastResponse>(
+          `/api/weight/forecast?horizon_days=30&range=${chartRange}`,
+        ),
+        api<{ items: JournalEntry[] }>("/api/weight/list?limit=365"),
       ]);
       setData(forecast);
       setEntries(journal.items || []);
@@ -359,7 +352,7 @@ export default function WeightPage() {
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, chartRange]);
 
   useEffect(() => {
     void load();
@@ -582,8 +575,8 @@ export default function WeightPage() {
                     <PeriodSelector value={chartRange} onChange={setChartRange} />
                   </div>
                   <WeightChart
-                    history={filterByRange(data.points, chartRange)}
-                    forecast={chartRange === "all" || chartRange === "1y" ? data.forecast : []}
+                    history={data.points}
+                    forecast={data.forecast || []}
                     target={data.target_weight}
                     range={chartRange}
                   />

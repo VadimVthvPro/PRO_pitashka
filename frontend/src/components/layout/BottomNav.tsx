@@ -23,7 +23,7 @@ export default function BottomNav() {
   return (
     <>
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-[var(--card)]/95 backdrop-blur-xl border-t border-[var(--border)] shadow-[var(--shadow-3)] pb-[env(safe-area-inset-bottom)]">
-        <div className="flex justify-around items-center h-16 px-2">
+        <div className="flex justify-around items-stretch gap-1 h-[60px] px-2 pt-1.5 pb-1">
           {items.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(item.href + "/");
@@ -31,17 +31,17 @@ export default function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="relative flex flex-col items-center gap-0.5 min-w-[56px] min-h-[48px] justify-center rounded-[var(--radius)]"
+                className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-[2px] rounded-2xl"
               >
                 {isActive && (
                   <motion.span
                     layoutId="bottomnav-active-pill"
-                    className="absolute inset-x-2 inset-y-1 bg-[var(--color-sand)] rounded-[var(--radius)] -z-10"
+                    className="absolute inset-0 bg-[var(--color-sand)] rounded-2xl border border-[var(--accent)]/25 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.4)] -z-10"
                     transition={{ type: "spring", stiffness: 350, damping: 28 }}
                   />
                 )}
                 <motion.div
-                  animate={{ scale: isActive ? 1.1 : 1 }}
+                  animate={{ scale: isActive ? 1.08 : 1, y: isActive ? -1 : 0 }}
                   transition={{ type: "spring", stiffness: 400, damping: 22 }}
                 >
                   <Icon
@@ -56,7 +56,7 @@ export default function BottomNav() {
                   />
                 </motion.div>
                 <span
-                  className={`text-[10px] font-medium ${
+                  className={`text-[10px] leading-tight font-medium truncate max-w-full px-1 ${
                     isActive
                       ? "text-[var(--accent)]"
                       : "text-[var(--muted-foreground)]"
@@ -70,7 +70,7 @@ export default function BottomNav() {
 
           <button
             onClick={() => setMenuOpen(true)}
-            className="relative flex flex-col items-center gap-0.5 min-w-[56px] min-h-[48px] justify-center rounded-[var(--radius)]"
+            className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-[2px] rounded-2xl"
             aria-label={t("layout_aria_open_menu")}
           >
             <motion.div whileTap={{ scale: 0.92 }}>
@@ -81,7 +81,7 @@ export default function BottomNav() {
                 className="text-[var(--muted-foreground)]"
               />
             </motion.div>
-            <span className="text-[10px] font-medium text-[var(--muted-foreground)]">
+            <span className="text-[10px] leading-tight font-medium text-[var(--muted-foreground)] truncate max-w-full px-1">
               {t("nav_more")}
             </span>
           </button>

@@ -353,3 +353,12 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* Horizontal scroll strips (mobile chat context, quick prompts, etc.) */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

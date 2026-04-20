@@ -15,7 +15,7 @@ import { Highlight } from "@/components/hand/Highlight";
 import { HandArrow } from "@/components/hand/HandArrow";
 import { Scribble } from "@/components/hand/Scribble";
 import { Sticker } from "@/components/hand/Sticker";
-import { greeting, heroSubtitle, EMPTY_COPY, CTA } from "@/lib/copy";
+import { greeting, heroSubtitle, emptyCopy, cta } from "@/lib/copy";
 import { useI18n } from "@/lib/i18n";
 
 const WATER_TARGET = 8;
@@ -43,6 +43,7 @@ function WaterWidget({
   onAdd: () => void;
 }) {
   const { t } = useI18n();
+  const C = cta(t);
   const done = count >= WATER_TARGET;
   return (
     <div className="flex flex-col items-center">
@@ -77,7 +78,7 @@ function WaterWidget({
         ) : (
           <Icon icon="solar:cup-bold-duotone" width={20} />
         )}
-        {adding ? CTA.add_water_loading : done ? CTA.add_water_done : CTA.add_water}
+        {adding ? C.add_water_loading : done ? C.add_water_done : C.add_water}
       </motion.button>
     </div>
   );
@@ -166,7 +167,7 @@ export default function DashboardPage() {
           onClick={() => window.location.reload()}
           className="mt-4 text-sm text-[var(--accent)] hover:underline"
         >
-          {CTA.try_again}
+          {cta(t).try_again}
         </button>
       </div>
     );
@@ -183,13 +184,15 @@ export default function DashboardPage() {
   const left = Math.max(dailyCal - net, 0);
 
   const now = new Date();
-  const hello = greeting();
-  const subtitle = heroSubtitle({
+  const hello = greeting(t);
+  const subtitle = heroSubtitle(t, {
     caloriesEaten: foodCal,
     caloriesTarget: dailyCal,
     waterGlasses: data?.water || 0,
     workouts: data?.training_items.length || 0,
   });
+  const emptyWorkouts = emptyCopy(t, "workouts_today");
+  const emptyFood = emptyCopy(t, "food_today");
 
   return (
     <div className="space-y-12">
@@ -434,10 +437,10 @@ export default function DashboardPage() {
                       letterSpacing: "-0.01em",
                     }}
                   >
-                    {EMPTY_COPY.workouts_today.title}
+                    {emptyWorkouts.title}
                   </p>
                   <p className="text-sm text-[var(--muted-foreground)] mt-1 max-w-[36ch]">
-                    {EMPTY_COPY.workouts_today.subtitle}
+                    {emptyWorkouts.subtitle}
                   </p>
                 </div>
               </div>
@@ -563,11 +566,11 @@ export default function DashboardPage() {
                     }}
                   >
                     <Highlight color="oklch(72% 0.15 80 / 0.35)">
-                      {EMPTY_COPY.food_today.title}
+                      {emptyFood.title}
                     </Highlight>
                   </p>
                   <p className="text-sm text-[var(--muted-foreground)] mt-2 max-w-[48ch]">
-                    {EMPTY_COPY.food_today.subtitle}
+                    {emptyFood.subtitle}
                   </p>
                   <div className="flex flex-wrap gap-3 mt-3">
                     <a
@@ -575,7 +578,7 @@ export default function DashboardPage() {
                       className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--accent)] hover:text-[var(--accent-hover)]"
                     >
                       <Icon icon="solar:arrow-right-bold-duotone" width={16} />
-                      {EMPTY_COPY.food_today.cta}
+                      {emptyFood.cta}
                     </a>
                     <span className="text-[var(--muted-foreground)]">·</span>
                     <a

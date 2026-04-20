@@ -50,7 +50,7 @@ async def _post_row(db, user_id: int, row) -> dict[str, Any]:
     )
     author = await db.fetchrow(
         """
-        SELECT user_id, COALESCE(display_name, name, telegram_username, 'user') AS name,
+        SELECT user_id, COALESCE(display_name, user_name, telegram_username, 'user') AS name,
                telegram_username, gender, social_score
         FROM user_main WHERE user_id = $1
         """,
@@ -306,7 +306,7 @@ async def leaderboard(
         rows = await db.fetch(
             """
             SELECT user_id,
-                   COALESCE(display_name, name, telegram_username, 'user') AS name,
+                   COALESCE(display_name, user_name, telegram_username, 'user') AS name,
                    social_score AS score
             FROM user_main
             WHERE public_profile = TRUE OR user_id = $1
@@ -321,7 +321,7 @@ async def leaderboard(
         rows = await db.fetch(
             """
             SELECT u.user_id,
-                   COALESCE(u.display_name, u.name, u.telegram_username, 'user') AS name,
+                   COALESCE(u.display_name, u.user_name, u.telegram_username, 'user') AS name,
                    COALESCE(s.current_streak, 0) AS score
             FROM user_main u
             LEFT JOIN user_streaks s ON s.user_id = u.user_id
@@ -340,7 +340,7 @@ async def leaderboard(
 async def my_social_profile(user_id: CurrentUserDep, db: DbDep):
     row = await db.fetchrow(
         """
-        SELECT user_id, COALESCE(display_name, name, telegram_username, 'user') AS name,
+        SELECT user_id, COALESCE(display_name, user_name, telegram_username, 'user') AS name,
                display_name, bio, gender, public_profile, social_score
         FROM user_main WHERE user_id = $1
         """,

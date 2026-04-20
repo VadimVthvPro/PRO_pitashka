@@ -5,8 +5,9 @@ import { Icon } from "@iconify/react";
 import { motion, AnimatePresence } from "motion/react";
 import { api } from "@/lib/api";
 import { useI18n, type Lang } from "@/lib/i18n";
+import { AiLogPanel } from "@/components/admin/AiLogPanel";
 
-type Tab = "overview" | "audit" | "users" | "tables";
+type Tab = "overview" | "audit" | "users" | "ai" | "tables";
 
 interface SessionInfo {
   authorized: boolean;
@@ -161,6 +162,9 @@ export default function AdminPage() {
         <TabBtn icon="solar:users-group-rounded-bold-duotone" active={tab === "users"} onClick={() => setTab("users")}>
           {t("admin_tab_users")}
         </TabBtn>
+        <TabBtn icon="solar:magic-stick-3-bold-duotone" active={tab === "ai"} onClick={() => setTab("ai")}>
+          {t("admin_tab_ai")}
+        </TabBtn>
         <TabBtn icon="solar:database-bold-duotone" active={tab === "tables"} onClick={() => setTab("tables")}>
           {t("admin_tab_tables")}
         </TabBtn>
@@ -178,6 +182,7 @@ export default function AdminPage() {
             {tab === "overview" && <OverviewPanel />}
             {tab === "audit" && <AuditPanel />}
             {tab === "users" && <UsersPanel />}
+            {tab === "ai" && <AiLogPanel />}
             {tab === "tables" && <TablesPanel />}
           </motion.div>
         </AnimatePresence>

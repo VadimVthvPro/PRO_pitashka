@@ -1,7 +1,8 @@
 import hashlib
 import hmac
+import json
 import secrets
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Cookie, HTTPException, Query, Request, Response
 from app.config import get_settings
@@ -20,6 +21,31 @@ ALLOWED_TABLES = {
 
 ADMIN_COOKIE_NAME = "admin_panel_token"
 ADMIN_COOKIE_TTL = 8 * 3600  # seconds
+
+
+def _safe_detail(value: Any) -> dict:
+    """Audit `detail` is JSONB; asyncpg returns it as raw text.
+
+    Older callers wrote dicts directly, newer ones serialise to a string,
+    and migrations leave NULLs. Coerce all of these into a plain dict so
+    the response stays predictable for the frontend.
+    """
+    if value is None or value == "":
+        return {}
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            value = value.decode("utf-8")
+        except Exception:
+            return {}
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, dict) else {"value": parsed}
+        except Exception:
+            return {"raw": value}
+    return {"value": value}
 
 
 def _admin_token_value() -> str:
@@ -244,14 +270,14 @@ async def admin_overview(request: Request, db: DbDep):
     top_users = await db.fetch(
         """
         SELECT al.user_id,
-               um.name,
+               um.user_name AS name,
                um.telegram_username,
                COUNT(*) AS actions
         FROM audit_log al
         JOIN user_main um ON um.user_id = al.user_id
         WHERE al.created_at >= NOW() - INTERVAL '7 days'
           AND al.user_id IS NOT NULL
-        GROUP BY al.user_id, um.name, um.telegram_username
+        GROUP BY al.user_id, um.user_name, um.telegram_username
         ORDER BY actions DESC
         LIMIT 10
         """
@@ -312,7 +338,7 @@ async def admin_overview(request: Request, db: DbDep):
                 "method": r["method"],
                 "path": r["path"],
                 "status_code": r["status_code"],
-                "detail": dict(r["detail"] or {}),
+                "detail": _safe_detail(r["detail"]),
                 "created_at": r["created_at"].isoformat(),
             }
             for r in recent_errors
@@ -391,7 +417,7 @@ async def audit_list(
                 "duration_ms": r["duration_ms"],
                 "ip": str(r["ip"]) if r["ip"] else None,
                 "user_agent": r["user_agent"],
-                "detail": dict(r["detail"] or {}),
+                "detail": _safe_detail(r["detail"]),
                 "created_at": r["created_at"].isoformat(),
             }
             for r in rows
@@ -476,7 +502,7 @@ async def admin_users_list(
     if search:
         args.append(f"%{search.lower()}%")
         where = (
-            "WHERE LOWER(COALESCE(name,'')) LIKE $1 "
+            "WHERE LOWER(COALESCE(user_name,'')) LIKE $1 "
             "OR LOWER(COALESCE(telegram_username,'')) LIKE $1 "
             "OR LOWER(COALESCE(google_email,'')) LIKE $1"
         )
@@ -484,7 +510,7 @@ async def admin_users_list(
     args.extend([limit, offset])
     rows = await db.fetch(
         f"""
-        SELECT user_id, name, telegram_username, google_email,
+        SELECT user_id, user_name AS name, telegram_username, google_email,
                created_at, social_score
         FROM user_main
         {where}
@@ -502,6 +528,247 @@ async def admin_users_list(
         "items": [dict(r) for r in rows],
         "total": int(total or 0),
     }
+
+
+# ---------------------------------------------------------------------------
+# AI chat log: paired user→assistant turns across the whole user base.
+# ---------------------------------------------------------------------------
+
+
+@router.get("/ai/log")
+async def admin_ai_log(
+    request: Request,
+    db: DbDep,
+    search: Optional[str] = Query(None, description="Substring of either side of the dialog"),
+    target_user: Optional[int] = Query(None, alias="user_id"),
+    days: int = Query(7, ge=1, le=365),
+    only_negative: bool = Query(False, description="Only assistant replies thumbed-down"),
+    has_attach: Optional[str] = Query(None, pattern=r"^(meal_plan|workout_plan|any)$"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    """Return paired (user → assistant) turns, newest first.
+
+    Pairing strategy: walk chat_history ordered by ``(user_id, created_at)``
+    with ``LAG()`` so each assistant row sees the user message that came right
+    before it from the same user. Then we filter to assistant rows only and
+    keep the lagged ``user_message`` alongside.
+
+    This is robust against gaps (system messages, deleted rows) because we
+    only require that the previous message of the same user was a user turn —
+    if it wasn't, the pair is dropped.
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    where = ["h.message_type = 'assistant'", "h.created_at >= NOW() - (INTERVAL '1 day') * $1"]
+    args: list[Any] = [days]
+    if target_user is not None:
+        args.append(target_user)
+        where.append(f"h.user_id = ${len(args)}")
+    if only_negative:
+        where.append("h.feedback = -1")
+    if has_attach == "any":
+        where.append("h.attach_kind IS NOT NULL")
+    elif has_attach in ("meal_plan", "workout_plan"):
+        args.append(has_attach)
+        where.append(f"h.attach_kind = ${len(args)}")
+    if search:
+        args.append(f"%{search.lower()}%")
+        where.append(
+            f"(LOWER(h.message_text) LIKE ${len(args)} OR LOWER(h.prev_user) LIKE ${len(args)})"
+        )
+
+    base_cte = """
+        WITH paired AS (
+            SELECT
+                ch.id,
+                ch.user_id,
+                ch.message_type,
+                ch.message_text,
+                ch.created_at,
+                ch.feedback,
+                ch.attach_kind,
+                ch.latency_ms,
+                ch.model,
+                LAG(ch.message_text) OVER w  AS prev_user,
+                LAG(ch.id) OVER w            AS prev_user_id,
+                LAG(ch.message_type) OVER w  AS prev_type
+            FROM chat_history ch
+            WINDOW w AS (PARTITION BY ch.user_id ORDER BY ch.created_at)
+        )
+    """
+    common_where = " AND ".join(where) + " AND h.prev_type = 'user'"
+
+    args_with_paging = [*args, limit, offset]
+    rows = await db.fetch(
+        f"""
+        {base_cte}
+        SELECT h.*, um.user_name, um.telegram_username
+        FROM paired h
+        LEFT JOIN user_main um ON um.user_id = h.user_id
+        WHERE {common_where}
+        ORDER BY h.created_at DESC
+        LIMIT ${len(args_with_paging) - 1} OFFSET ${len(args_with_paging)}
+        """,
+        *args_with_paging,
+    )
+    total = await db.fetchval(
+        f"""
+        {base_cte}
+        SELECT COUNT(*) FROM paired h WHERE {common_where}
+        """,
+        *args,
+    )
+
+    items = []
+    for r in rows:
+        items.append({
+            "id": r["id"],
+            "user_id": r["user_id"],
+            "user_name": r["user_name"],
+            "telegram_username": r["telegram_username"],
+            "user_message": r["prev_user"] or "",
+            "user_message_id": r["prev_user_id"],
+            "assistant_message": r["message_text"] or "",
+            "feedback": r["feedback"],
+            "attach_kind": r["attach_kind"],
+            "latency_ms": r["latency_ms"],
+            "model": r["model"],
+            "created_at": r["created_at"].isoformat(),
+        })
+    return {"items": items, "total": int(total or 0)}
+
+
+@router.get("/ai/stats")
+async def admin_ai_stats(request: Request, db: DbDep, days: int = Query(30, ge=1, le=365)):
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    totals = await db.fetchrow(
+        """
+        SELECT
+            COUNT(*) FILTER (WHERE message_type = 'assistant')                            AS replies,
+            COUNT(*) FILTER (WHERE message_type = 'user')                                 AS questions,
+            COUNT(DISTINCT user_id) FILTER (WHERE message_type = 'assistant')             AS uniq_users,
+            COALESCE(AVG(LENGTH(message_text))
+                     FILTER (WHERE message_type = 'assistant'), 0)::int                   AS avg_reply_chars,
+            COALESCE(AVG(latency_ms)
+                     FILTER (WHERE message_type = 'assistant' AND latency_ms IS NOT NULL), 0)::int
+                                                                                          AS avg_latency_ms,
+            COUNT(*) FILTER (WHERE feedback = 1)                                          AS thumbs_up,
+            COUNT(*) FILTER (WHERE feedback = -1)                                         AS thumbs_down,
+            COUNT(*) FILTER (WHERE message_type = 'assistant'
+                              AND created_at >= NOW() - INTERVAL '1 day')                 AS replies_24h
+        FROM chat_history
+        WHERE created_at >= NOW() - (INTERVAL '1 day') * $1
+        """,
+        days,
+    )
+    by_day = await db.fetch(
+        """
+        SELECT date_trunc('day', created_at)::date AS day,
+               COUNT(*) FILTER (WHERE message_type = 'assistant') AS replies,
+               COUNT(*) FILTER (WHERE message_type = 'user')      AS questions
+        FROM chat_history
+        WHERE created_at >= NOW() - (INTERVAL '1 day') * $1
+        GROUP BY day
+        ORDER BY day
+        """,
+        days,
+    )
+    top_users = await db.fetch(
+        """
+        SELECT ch.user_id,
+               COALESCE(um.user_name, um.telegram_username, 'user') AS name,
+               um.telegram_username,
+               COUNT(*) FILTER (WHERE ch.message_type = 'assistant') AS replies
+        FROM chat_history ch
+        LEFT JOIN user_main um ON um.user_id = ch.user_id
+        WHERE ch.created_at >= NOW() - (INTERVAL '1 day') * $1
+        GROUP BY ch.user_id, um.user_name, um.telegram_username
+        HAVING COUNT(*) FILTER (WHERE ch.message_type = 'assistant') > 0
+        ORDER BY replies DESC
+        LIMIT 10
+        """,
+        days,
+    )
+    by_attach = await db.fetch(
+        """
+        SELECT COALESCE(attach_kind, 'none') AS kind,
+               COUNT(*) AS cnt,
+               COUNT(*) FILTER (WHERE feedback = 1)  AS up,
+               COUNT(*) FILTER (WHERE feedback = -1) AS down
+        FROM chat_history
+        WHERE message_type = 'assistant'
+          AND created_at >= NOW() - (INTERVAL '1 day') * $1
+        GROUP BY kind
+        ORDER BY cnt DESC
+        """,
+        days,
+    )
+    return {
+        "totals": {
+            "replies": int(totals["replies"] or 0),
+            "questions": int(totals["questions"] or 0),
+            "uniq_users": int(totals["uniq_users"] or 0),
+            "avg_reply_chars": int(totals["avg_reply_chars"] or 0),
+            "avg_latency_ms": int(totals["avg_latency_ms"] or 0),
+            "thumbs_up": int(totals["thumbs_up"] or 0),
+            "thumbs_down": int(totals["thumbs_down"] or 0),
+            "replies_24h": int(totals["replies_24h"] or 0),
+        },
+        "by_day": [
+            {"day": r["day"].isoformat(),
+             "replies": int(r["replies"] or 0),
+             "questions": int(r["questions"] or 0)}
+            for r in by_day
+        ],
+        "top_users": [
+            {"user_id": r["user_id"],
+             "name": r["name"],
+             "telegram_username": r["telegram_username"],
+             "replies": int(r["replies"])}
+            for r in top_users
+        ],
+        "by_attach": [
+            {"kind": r["kind"],
+             "count": int(r["cnt"]),
+             "up": int(r["up"] or 0),
+             "down": int(r["down"] or 0)}
+            for r in by_attach
+        ],
+    }
+
+
+@router.delete("/ai/message/{message_id}")
+async def admin_delete_ai_message(message_id: int, request: Request, db: DbDep):
+    """Hard-delete a chat message (admin moderation tool).
+
+    Logs to audit_log so the action is traceable. Used when an assistant
+    reply is unsafe/PII-leaking and needs to disappear from a user's history.
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    row = await db.fetchrow(
+        "SELECT id, user_id, message_type FROM chat_history WHERE id = $1",
+        message_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="message not found")
+    await db.execute("DELETE FROM chat_history WHERE id = $1", message_id)
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'DELETE', $2, 'admin', 200, $3)
+        """,
+        me_id,
+        f"/api/admin/ai/message/{message_id}",
+        json.dumps({"deleted_message_id": message_id,
+                    "owner_user_id": row["user_id"],
+                    "type": row["message_type"]}),
+    )
+    return {"ok": True, "deleted": message_id}
 
 
 @router.get("/users/{target_id}")

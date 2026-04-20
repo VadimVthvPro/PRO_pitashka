@@ -19,7 +19,12 @@ pyvenv.cfg
 
 # Environment variables
 .env
+.env.*
+!.env.example
+!.env.production.example
 .env.local
+.env.prod
+.env.prod.bak
 
 # IDE
 .vscode/

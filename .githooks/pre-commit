@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# Block commits that contain real secrets or gitignored env files.
+# Enable with: git config core.hooksPath .githooks
+#
+# We scan only the *staged* diff (not working tree), so unrelated noise in
+# uncommitted files never trips the guard. Patterns are intentionally
+# specific — chosen to avoid false positives on hex strings in tests.
+
+set -euo pipefail
+
+red()  { printf '\033[31m%s\033[0m\n' "$*"; }
+yel()  { printf '\033[33m%s\033[0m\n' "$*"; }
+
+fail=0
+
+# 1. Block staging of env files that must never be committed.
+forbidden_files=$(git diff --cached --name-only --diff-filter=ACM \
+    | grep -E '(^|/)\.env(\..+)?$' \
+    | grep -vE '\.example$' || true)
+if [ -n "$forbidden_files" ]; then
+    red "✖ Refusing to commit gitignored env files:"
+    printf '   %s\n' $forbidden_files
+    yel "  If one of them was added by mistake, run:  git rm --cached <file>"
+    fail=1
+fi
+
+# 2. Scan staged diff for concrete secret shapes.
+#    (we look at added lines only: + not ++)
+diff_added=$(git diff --cached --unified=0 --no-color -- \
+              ':!*.example' ':!*.md' ':!*.lock' ':!package-lock.json' \
+            | grep -E '^\+[^+]' || true)
+
+declare -a PATTERNS=(
+    # Google / Gemini API keys
+    'AIza[0-9A-Za-z_-]{35}'
+    # OpenAI keys
+    'sk-[A-Za-z0-9]{20,}'
+    # Telegram bot tokens
+    '[0-9]{8,12}:AA[A-Za-z0-9_-]{30,}'
+    # Stripe live secret keys
+    'sk_live_[0-9A-Za-z]{20,}'
+    # Private key headers (leading dashes would confuse grep's argv parser)
+    'BEGIN [A-Z ]*PRIVATE KEY'
+    # AWS access keys
+    'AKIA[0-9A-Z]{16}'
+)
+declare -a LABELS=(
+    "Google/Gemini API key"
+    "OpenAI API key"
+    "Telegram bot token"
+    "Stripe live secret"
+    "Private key material"
+    "AWS access key"
+)
+
+for i in "${!PATTERNS[@]}"; do
+    hits=$(printf '%s\n' "$diff_added" | grep -Eo "${PATTERNS[$i]}" || true)
+    if [ -n "$hits" ]; then
+        red "✖ Detected ${LABELS[$i]} in staged diff — refusing to commit."
+        fail=1
+    fi
+done
+
+if [ "$fail" -ne 0 ]; then
+    echo
+    yel "Fix the leak (unstage, rotate, move to .env) and retry."
+    yel "If you truly need to bypass, use --no-verify AND rotate the secret — but don't."
+    exit 1
+fi
+
+exit 0
