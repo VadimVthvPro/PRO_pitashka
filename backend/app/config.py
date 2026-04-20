@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour (active session)
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 90  # 90 days (remember me)
 
+    # Cookie-scope prefix. HTTP cookies (RFC 6265) не учитывают порт, поэтому
+    # прод и freemium на одном хосте делят cookie-пул и ломают авторизацию
+    # друг друга. Для freemium ставим AUTH_COOKIE_PREFIX=fm_ — куки
+    # становятся `fm_access_token`/`fm_refresh_token` и не пересекаются.
+    AUTH_COOKIE_PREFIX: str = ""
+
     # Admin
     ADMIN_SECRET_KEY: str = "change-me-in-production"
     ADMIN_PASSWORD: str = ""

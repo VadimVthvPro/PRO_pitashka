@@ -66,7 +66,8 @@ def _classify(path: str) -> str:
 
 
 def _user_id_from_request(request: Request) -> Optional[int]:
-    token = request.cookies.get("access_token")
+    settings = get_settings()
+    token = request.cookies.get(settings.AUTH_COOKIE_PREFIX + "access_token")
     if not token:
         auth = request.headers.get("authorization") or ""
         if auth.lower().startswith("bearer "):
@@ -74,7 +75,6 @@ def _user_id_from_request(request: Request) -> Optional[int]:
     if not token:
         return None
     try:
-        settings = get_settings()
         payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
         return int(payload.get("sub")) if payload.get("sub") else None
     except Exception:

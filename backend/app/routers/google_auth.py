@@ -96,8 +96,9 @@ async def _set_session_cookies(
         ip_address=request.client.host if request.client else None,
     )
     secure = settings.ENVIRONMENT == "production"
+    prefix = settings.AUTH_COOKIE_PREFIX
     response.set_cookie(
-        key="access_token",
+        key=prefix + "access_token",
         value=access,
         httponly=True,
         secure=secure,
@@ -106,7 +107,7 @@ async def _set_session_cookies(
         max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     response.set_cookie(
-        key="refresh_token",
+        key=prefix + "refresh_token",
         value=refresh,
         httponly=True,
         secure=secure,

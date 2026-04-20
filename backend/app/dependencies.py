@@ -25,7 +25,7 @@ RedisDep = Annotated[aioredis.Redis | None, Depends(get_redis_client)]
 
 
 async def get_current_user_id(request: Request, settings: SettingsDep) -> int:
-    token = request.cookies.get("access_token")
+    token = request.cookies.get(settings.AUTH_COOKIE_PREFIX + "access_token")
     if not token:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):

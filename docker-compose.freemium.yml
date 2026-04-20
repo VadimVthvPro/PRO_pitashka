@@ -66,6 +66,7 @@ services:
       DB_HOST: postgres
       REDIS_HOST: redis
       APP_VARIANT: freemium
+      AUTH_COOKIE_PREFIX: ${AUTH_COOKIE_PREFIX:-fm_}
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,6 +97,7 @@ services:
         BACKEND_URL: http://backend:8000
         NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-PROpitashka_test_bot}
         NEXT_PUBLIC_APP_VARIANT: freemium
+        NEXT_PUBLIC_AUTH_COOKIE_PREFIX: ${NEXT_PUBLIC_AUTH_COOKIE_PREFIX:-fm_}
     container_name: propitashka-frontend-freemium
     restart: unless-stopped
     environment:
@@ -104,6 +106,7 @@ services:
       BACKEND_URL: http://backend:8000
       NEXT_PUBLIC_APP_VARIANT: freemium
       NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-PROpitashka_test_bot}
+      NEXT_PUBLIC_AUTH_COOKIE_PREFIX: ${NEXT_PUBLIC_AUTH_COOKIE_PREFIX:-fm_}
     depends_on:
       - backend
     networks:

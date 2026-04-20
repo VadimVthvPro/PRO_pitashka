@@ -49,7 +49,7 @@ async def verify_otp(body: OTPVerify, db: DbDep, settings: SettingsDep, request:
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(request: Request, db: DbDep, settings: SettingsDep, response: Response):
-    refresh = request.cookies.get("refresh_token")
+    refresh = request.cookies.get(settings.AUTH_COOKIE_PREFIX + "refresh_token")
     if not refresh:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
 
@@ -67,15 +67,16 @@ async def refresh_token(request: Request, db: DbDep, settings: SettingsDep, resp
 
 
 @router.post("/logout")
-async def logout(request: Request, db: DbDep, response: Response):
-    token = request.cookies.get("access_token")
+async def logout(request: Request, db: DbDep, settings: SettingsDep, response: Response):
+    prefix = settings.AUTH_COOKIE_PREFIX
+    token = request.cookies.get(prefix + "access_token")
     if token:
         await auth_service.invalidate_session(db, token)
-    response.delete_cookie("access_token", path="/")
+    response.delete_cookie(prefix + "access_token", path="/")
     # Delete refresh on both the new path (/) and the legacy path
     # (/api/auth/refresh) to clean up cookies issued before the path migration.
-    response.delete_cookie("refresh_token", path="/")
-    response.delete_cookie("refresh_token", path="/api/auth/refresh")
+    response.delete_cookie(prefix + "refresh_token", path="/")
+    response.delete_cookie(prefix + "refresh_token", path="/api/auth/refresh")
     return {"message": "Logged out"}
 
 
@@ -84,13 +85,14 @@ def _set_auth_cookies(response: Response, settings, access: str, refresh: str) -
     silent refresh from any protected route (was a major source of bogus
     "redirected to /login on every navigation" bugs)."""
     secure = settings.ENVIRONMENT == "production"
+    prefix = settings.AUTH_COOKIE_PREFIX
     response.set_cookie(
-        key="access_token", value=access,
+        key=prefix + "access_token", value=access,
         httponly=True, secure=secure, samesite="lax", path="/",
         max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
     response.set_cookie(
-        key="refresh_token", value=refresh,
+        key=prefix + "refresh_token", value=refresh,
         httponly=True, secure=secure, samesite="lax", path="/",
         max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
     )
