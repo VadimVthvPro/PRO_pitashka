@@ -93,13 +93,21 @@ export async function middleware(request: NextRequest) {
       const refreshed = await tryRefresh(request);
       if (refreshed) return noStore(refreshed);
     }
-    // RSC prefetch can't follow an HTML redirect — return 401 so the client
-    // router silently aborts the prefetch. The next real navigation will
-    // hit the redirect path below and land on /login cleanly.
+    // RSC prefetch can't follow an HTML redirect — Telegram's WebKit WebView
+    // raises "Fetch API cannot load … due to access control checks" even on a
+    // same-origin 401 if CORS headers are absent. Return an empty 204 with
+    // explicit CORS allowances so the router silently drops the prefetch.
+    // Real navigation will take the HTML redirect branch below.
     if (isRscRequest(request)) {
+      const origin = request.headers.get("origin") ?? request.nextUrl.origin;
       return new NextResponse(null, {
-        status: 401,
-        headers: { "Cache-Control": "no-store" },
+        status: 204,
+        headers: {
+          "Cache-Control": "no-store",
+          "Access-Control-Allow-Origin": origin,
+          "Access-Control-Allow-Credentials": "true",
+          "Vary": "Origin, RSC, Next-Router-Prefetch",
+        },
       });
     }
     const loginUrl = new URL("/login", request.url);
