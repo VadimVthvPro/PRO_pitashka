@@ -95,6 +95,7 @@ export default function MobileMenu({ open, onClose }: Props) {
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="lg:hidden fixed top-0 right-0 bottom-0 z-[70] w-[88vw] max-w-[360px] bg-[var(--card)] shadow-[var(--shadow-3)] border-l border-[var(--border)] flex flex-col"
+            style={{ paddingTop: "var(--safe-top)" }}
             role="dialog"
             aria-modal="true"
             aria-label={t("layout_aria_main_menu")}
@@ -113,14 +114,17 @@ export default function MobileMenu({ open, onClose }: Props) {
               </div>
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)] transition"
+                className="w-11 h-11 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)] transition touch-manipulation"
                 aria-label={t("layout_aria_close_menu")}
               >
                 <Icon icon="solar:close-circle-bold-duotone" width={26} className="text-[var(--muted)]" />
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3 pb-6">
+            <div
+              className="flex-1 overflow-y-auto px-3"
+              style={{ paddingBottom: "max(1.5rem, var(--safe-bottom))" }}
+            >
               {groups.map((group) => (
                 <div key={group.titleKey} className="mb-5">
                   <p

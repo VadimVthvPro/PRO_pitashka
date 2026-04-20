@@ -60,7 +60,10 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--background)] px-4">
+    <div
+      className="min-h-[100dvh] flex flex-col items-center justify-center bg-[var(--background)] px-4"
+      style={{ paddingTop: "max(1rem, var(--safe-top))", paddingBottom: "max(1rem, var(--safe-bottom))" }}
+    >
       <div className="w-full max-w-md">
         {/* Progress bar */}
         <div className="mb-8">
@@ -88,7 +91,8 @@ export default function OnboardingPage() {
                   onChange={(e) => setForm({ ...form, height: e.target.value })}
                   placeholder="170"
                   min={50} max={300}
-                  className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] font-mono text-lg focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
+                  inputMode="numeric"
+                  className="w-full min-w-0 min-h-11 px-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] font-mono text-lg focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] text-sm">{t("common_cm")}</span>
               </div>
@@ -104,7 +108,7 @@ export default function OnboardingPage() {
                 value={form.date_of_birth}
                 onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
                 max={new Date().toISOString().split("T")[0]}
-                className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
+                className="w-full min-w-0 min-h-11 px-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
               />
             </div>
           )}
@@ -171,7 +175,8 @@ export default function OnboardingPage() {
                   onChange={(e) => setForm({ ...form, weight: e.target.value })}
                   placeholder="70"
                   min={20} max={500}
-                  className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] font-mono text-lg focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
+                  inputMode="decimal"
+                  className="w-full min-w-0 min-h-11 px-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] font-mono text-lg focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] text-sm">{t("common_kg")}</span>
               </div>
@@ -187,7 +192,7 @@ export default function OnboardingPage() {
             {currentStep > 0 && (
               <button
                 onClick={() => setCurrentStep(currentStep - 1)}
-                className="flex-1 py-3 border border-[var(--border)] text-[var(--muted)] rounded-[var(--radius)] font-medium hover:bg-[var(--color-sand)] transition-colors"
+                className="flex-1 min-h-11 py-3 border border-[var(--border)] text-[var(--muted)] rounded-[var(--radius)] font-medium hover:bg-[var(--color-sand)] transition-colors touch-manipulation"
               >
                 {t("onboarding_back")}
               </button>
@@ -195,7 +200,7 @@ export default function OnboardingPage() {
             <button
               onClick={handleNext}
               disabled={!canProceed() || loading}
-              className="flex-1 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97]"
+              className="flex-1 min-h-11 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-[0.97] touch-manipulation"
             >
               {loading ? t("onboarding_saving") : currentStep === STEPS.length - 1 ? t("onboarding_finish") : t("onboarding_next")}
             </button>

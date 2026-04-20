@@ -200,9 +200,9 @@ export default function WorkoutsPage() {
                 <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
                   {t("workouts_calories_label")}
                 </p>
-                <p className="display-number text-5xl text-[var(--foreground)]">
+                <p className="display-number text-4xl sm:text-5xl text-[var(--foreground)]">
                   <AnimatedNumber value={Math.round(totalsCal)} />
-                  <span className="text-xl font-medium text-[var(--muted)] ml-2" style={{ fontFamily: "var(--font-body)" }}>
+                  <span className="text-base sm:text-xl font-medium text-[var(--muted)] ml-2" style={{ fontFamily: "var(--font-body)" }}>
                     {t("kcal")}
                   </span>
                 </p>
@@ -211,9 +211,9 @@ export default function WorkoutsPage() {
                 <p className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)] mb-1">
                   {t("workouts_time_label")}
                 </p>
-                <p className="display-number text-5xl text-[var(--foreground)]">
+                <p className="display-number text-4xl sm:text-5xl text-[var(--foreground)]">
                   <AnimatedNumber value={totalsMin} />
-                  <span className="text-xl font-medium text-[var(--muted)] ml-2" style={{ fontFamily: "var(--font-body)" }}>
+                  <span className="text-base sm:text-xl font-medium text-[var(--muted)] ml-2" style={{ fontFamily: "var(--font-body)" }}>
                     {t("min")}
                   </span>
                 </p>
@@ -292,7 +292,7 @@ export default function WorkoutsPage() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[var(--foreground)]/30 backdrop-blur-sm"
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-[var(--foreground)]/30 backdrop-blur-sm"
             role="dialog"
             aria-modal="true"
             aria-labelledby="workout-modal-title"
@@ -303,14 +303,17 @@ export default function WorkoutsPage() {
               aria-label={t("common_close")}
               onClick={closeModal}
             />
+            {/* Bottom-sheet on mobile, centered card on sm+. */}
             <motion.div
               key="workout-sheet"
-              initial={{ opacity: 0, y: 32, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              initial={{ opacity: 0, y: 32 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
               transition={{ type: "spring", stiffness: 320, damping: 26 }}
-              className="relative w-full max-w-md bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-xl)] shadow-[var(--shadow-3)] p-6 z-10"
+              className="relative w-full sm:max-w-md bg-[var(--card)] border border-[var(--card-border)] rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] shadow-[var(--shadow-3)] p-6 z-10"
+              style={{ paddingBottom: "max(1.5rem, calc(var(--safe-bottom) + 1rem))" }}
             >
+              <span className="sm:hidden block w-10 h-1 rounded-full bg-[var(--border)] mx-auto mb-3" aria-hidden />
               <div className="flex items-center gap-3 mb-4">
                 <div className="shrink-0 w-12 h-12 rounded-[var(--radius)] bg-gradient-to-br from-[var(--color-sand)] to-[var(--color-cream)] flex items-center justify-center text-[var(--accent)]">
                   <WorkoutIcon id={modalType.id} emoji={modalType.emoji} size={28} />
@@ -337,7 +340,8 @@ export default function WorkoutsPage() {
               max={600}
               value={durationStr}
               onChange={(e) => setDurationStr(e.target.value)}
-              className="w-full px-4 py-3 mb-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
+              inputMode="numeric"
+              className="w-full min-w-0 px-4 min-h-11 mb-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
             />
             {submitError && (
               <p className="text-sm text-[var(--destructive)] mb-4">{submitError}</p>
@@ -347,7 +351,7 @@ export default function WorkoutsPage() {
                 type="button"
                 onClick={closeModal}
                 disabled={submitting}
-                className="flex-1 py-2.5 rounded-[var(--radius)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 disabled:opacity-50"
+                className="flex-1 min-h-11 rounded-[var(--radius)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 disabled:opacity-50 touch-manipulation"
               >
                 {t("workouts_modal_cancel")}
               </button>
@@ -355,7 +359,7 @@ export default function WorkoutsPage() {
                 type="button"
                 onClick={() => void submitWorkout()}
                 disabled={submitting}
-                className="flex-1 py-2.5 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] disabled:opacity-50 active:scale-[0.97] transition-transform"
+                className="flex-1 min-h-11 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] disabled:opacity-50 active:scale-[0.97] transition-transform touch-manipulation"
               >
                 {submitting ? t("workouts_modal_saving") : t("workouts_modal_save")}
               </button>

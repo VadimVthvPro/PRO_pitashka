@@ -31,7 +31,7 @@ export default function BottomNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-[2px] rounded-2xl"
+                className="relative flex-1 min-w-0 min-h-11 flex flex-col items-center justify-center gap-[2px] rounded-2xl touch-manipulation"
               >
                 {isActive && (
                   <motion.span
@@ -70,7 +70,7 @@ export default function BottomNav() {
 
           <button
             onClick={() => setMenuOpen(true)}
-            className="relative flex-1 min-w-0 flex flex-col items-center justify-center gap-[2px] rounded-2xl"
+            className="relative flex-1 min-w-0 min-h-11 flex flex-col items-center justify-center gap-[2px] rounded-2xl touch-manipulation"
             aria-label={t("layout_aria_open_menu")}
           >
             <motion.div whileTap={{ scale: 0.92 }}>

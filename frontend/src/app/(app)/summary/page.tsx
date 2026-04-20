@@ -14,7 +14,7 @@ import {
 } from "recharts";
 import { useI18n } from "@/lib/i18n";
 
-const CHART_COLOR = "var(--accent, #c06240)";
+const CHART_COLOR = "var(--accent)";
 
 type Tab = "day" | "month" | "year";
 
@@ -212,7 +212,7 @@ export default function SummaryPage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`px-4 py-2 rounded-[var(--radius)] text-sm font-medium transition-colors ${
+            className={`px-4 min-h-11 rounded-[var(--radius)] text-sm font-medium transition-colors touch-manipulation ${
               tab === id
                 ? "bg-[var(--card)] text-[var(--foreground)] shadow-[var(--shadow-1)]"
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -241,14 +241,14 @@ export default function SummaryPage() {
                 type="date"
                 value={dayDate}
                 onChange={(e) => setDayDate(e.target.value)}
-                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] px-3 py-2 text-sm text-[var(--foreground)] font-mono"
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] px-3 min-h-11 text-sm text-[var(--foreground)] font-mono"
               />
             </label>
             <button
               type="button"
               onClick={() => void loadDay()}
               disabled={loading}
-              className="px-4 py-2 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50"
+              className="px-4 min-h-11 rounded-[var(--radius)] bg-[var(--accent)] text-white text-sm font-medium hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 touch-manipulation"
             >
               {t("summary_btn_refresh")}
             </button>
@@ -343,14 +343,16 @@ export default function SummaryPage() {
                     {dayData.training_items.map((row, i) => (
                       <div
                         key={i}
-                        className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0"
+                        className="flex items-center justify-between gap-3 py-2 border-b border-[var(--border)] last:border-0"
                       >
-                        <span className="text-sm">{row.training_name}</span>
-                        <div className="flex gap-4 text-sm">
-                          <span className="text-[var(--muted)] font-mono">
+                        <span className="text-sm min-w-0 flex-1 truncate" title={row.training_name}>
+                          {row.training_name}
+                        </span>
+                        <div className="flex gap-3 text-sm shrink-0">
+                          <span className="text-[var(--muted)] font-mono whitespace-nowrap">
                             {row.tren_time} {t("min")}
                           </span>
-                          <span className="font-mono font-medium">
+                          <span className="font-mono font-medium whitespace-nowrap">
                             {Math.round(row.training_cal)} {t("kcal")}
                           </span>
                         </div>

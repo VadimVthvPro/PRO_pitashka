@@ -71,6 +71,19 @@ app.add_middleware(
 from app.middleware.audit import AuditLogMiddleware
 app.add_middleware(AuditLogMiddleware)
 
+# Resolve uploads directory BEFORE importing routers so sub-modules that read
+# UPLOADS_DIR at import time (e.g. social) pick up the fallback for dev boxes
+# without a mounted /data volume.
+_default_uploads = "/data/uploads"
+_local_fallback = str(Path(__file__).resolve().parent.parent / "data" / "uploads")
+UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", _default_uploads))
+try:
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+except (OSError, PermissionError):
+    UPLOADS_DIR = Path(_local_fallback)
+    UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+os.environ["UPLOADS_DIR"] = str(UPLOADS_DIR)
+
 # Routers
 from app.routers import (
     auth, users, food, workouts, water, summary, ai, settings, admin,
@@ -95,8 +108,6 @@ app.include_router(social.router, prefix="/api/social", tags=["social"])
 # User-uploaded media (currently social post photos). Mounted under
 # /uploads/ so it never collides with API routes; the directory is
 # persisted via a docker volume in production (see docker-compose.yml).
-UPLOADS_DIR = Path(os.getenv("UPLOADS_DIR", "/data/uploads"))
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 

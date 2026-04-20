@@ -281,7 +281,7 @@ function PeriodSelector({
     <div
       role="tablist"
       aria-label={t("weight_chart_period_aria")}
-      className="inline-flex items-center gap-1 p-1 rounded-full border border-[var(--border)] bg-[var(--input-bg)]"
+      className="inline-flex items-center gap-1 p-1 rounded-full border border-[var(--border)] bg-[var(--input-bg)] max-w-full overflow-x-auto no-scrollbar"
     >
       {options.map((o) => {
         const active = o.id === value;
@@ -293,7 +293,7 @@ function PeriodSelector({
             aria-selected={active}
             onClick={() => onChange(o.id)}
             className={[
-              "px-3 py-1.5 text-xs rounded-full transition-colors whitespace-nowrap",
+              "px-3 min-h-9 text-xs rounded-full transition-colors whitespace-nowrap touch-manipulation",
               active
                 ? "bg-[var(--accent)] text-white shadow-[var(--shadow-1)]"
                 : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]",
@@ -462,7 +462,7 @@ export default function WeightPage() {
                 className="flex items-baseline gap-2"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                <span className="display-number text-6xl text-[var(--foreground)]">
+                <span className="display-number text-4xl sm:text-5xl lg:text-6xl text-[var(--foreground)]">
                   <AnimatedNumber value={data.latest_weight} decimals={1} />
                 </span>
                 <span
@@ -501,7 +501,7 @@ export default function WeightPage() {
                 onChange={(e) => setWeightInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && addWeight()}
                 placeholder="72.4"
-                className="w-full px-3 py-2.5 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono tabular-nums focus:border-[var(--accent)] focus:outline-none"
+                className="w-full min-w-0 px-3 min-h-11 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono tabular-nums focus:border-[var(--accent)] focus:outline-none"
               />
             </div>
             <div>
@@ -513,14 +513,14 @@ export default function WeightPage() {
                 value={dateInput}
                 max={todayIso()}
                 onChange={(e) => setDateInput(e.target.value)}
-                className="w-full px-3 py-2.5 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] focus:border-[var(--accent)] focus:outline-none"
+                className="w-full min-w-0 px-3 min-h-11 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] focus:border-[var(--accent)] focus:outline-none"
               />
             </div>
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => void addWeight()}
               disabled={saving || !weightInput}
-              className="px-5 py-2.5 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 whitespace-nowrap"
+              className="px-5 min-h-11 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 whitespace-nowrap touch-manipulation"
             >
               {saving ? t("weight_saving_ascii") : t("weight_btn_log")}
             </motion.button>
@@ -729,6 +729,11 @@ export default function WeightPage() {
                         <td className="px-5 py-3 whitespace-nowrap">{formatRowDate(row.date)}</td>
                         <td className="px-3 py-3 text-right font-mono tabular-nums font-semibold">
                           {row.weight.toFixed(1)}
+                          {row.imt != null && (
+                            <span className="block sm:hidden text-[10px] font-normal text-[var(--muted-foreground)] mt-0.5">
+                              {t("field_bmi")} {row.imt.toFixed(1)}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-right font-mono tabular-nums">
                           {delta == null ? (
@@ -753,17 +758,18 @@ export default function WeightPage() {
                           <motion.button
                             whileTap={{ scale: 0.92 }}
                             onClick={() => void deleteEntry(row.date)}
-                            className={`text-xs px-2.5 py-1.5 rounded-md transition ${
+                            className={`inline-flex items-center justify-center min-w-11 min-h-11 px-3 text-xs rounded-md transition touch-manipulation ${
                               armed
                                 ? "bg-[var(--destructive)] text-white"
                                 : "text-[var(--muted)] hover:text-[var(--destructive)] hover:bg-[var(--destructive)]/10"
                             }`}
                             title={armed ? t("weight_delete_confirm_title") : t("weight_delete_row_title")}
+                            aria-label={t("weight_delete_row_title")}
                           >
                             {armed ? (
                               t("weight_delete_confirm_btn")
                             ) : (
-                              <Icon icon="solar:trash-bin-trash-linear" width={16} />
+                              <Icon icon="solar:trash-bin-trash-linear" width={18} />
                             )}
                           </motion.button>
                         </td>

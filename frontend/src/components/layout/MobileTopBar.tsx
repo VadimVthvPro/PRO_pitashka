@@ -34,7 +34,7 @@ export default function MobileTopBar() {
           <motion.button
             whileTap={{ scale: 0.92 }}
             onClick={() => setOpen(true)}
-            className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)] transition"
+            className="w-11 h-11 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)] transition touch-manipulation"
             aria-label={t("layout_aria_open_menu")}
           >
             <Icon

@@ -168,12 +168,12 @@ export default function AchievementsPage() {
                 {t("achievements_collected")}
               </p>
               <p
-                className="display-number text-6xl leading-none"
+                className="display-number text-4xl sm:text-5xl lg:text-6xl leading-none"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 <AnimatedNumber value={earnedCount} />
                 <span
-                  className="text-2xl text-[var(--muted)] font-normal ml-2"
+                  className="text-lg sm:text-2xl text-[var(--muted)] font-normal ml-2"
                   style={{ fontFamily: "var(--font-body)" }}
                 >
                   {t("achievements_of_total")} {total}

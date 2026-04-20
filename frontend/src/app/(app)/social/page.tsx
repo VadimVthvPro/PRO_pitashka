@@ -176,9 +176,10 @@ export default function SocialPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 lg:py-10">
-      <header className="mb-6 lg:mb-10 flex items-end justify-between gap-4 flex-wrap">
-        <div>
+    // Layout already provides max-width, padding and safe-area. Don't double up.
+    <div>
+      <header className="mb-6 lg:mb-10 flex items-end justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
           <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
             community
           </p>
@@ -186,7 +187,7 @@ export default function SocialPage() {
             className="text-[var(--foreground)] mt-1"
             style={{
               fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.2rem, 4vw, 3.5rem)",
+              fontSize: "clamp(2rem, 7vw, 3.5rem)",
               letterSpacing: "-0.03em",
               lineHeight: 0.95,
             }}
@@ -199,7 +200,7 @@ export default function SocialPage() {
         </div>
         <button
           onClick={() => setShowCompose(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] text-white rounded-[var(--radius)] font-semibold hover:bg-[var(--accent-hover)] transition shadow-[var(--shadow-accent)]"
+          className="inline-flex items-center gap-2 px-4 min-h-11 bg-[var(--accent)] text-white rounded-[var(--radius)] font-semibold hover:bg-[var(--accent-hover)] transition shadow-[var(--shadow-accent)] touch-manipulation"
         >
           <Icon icon="solar:add-circle-bold-duotone" width={20} />
           {t("social_btn_share")}
@@ -358,7 +359,7 @@ function FilterChip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition ${
+      className={`inline-flex items-center gap-1.5 px-3 min-h-10 rounded-full text-xs font-semibold transition touch-manipulation ${
         active
           ? "bg-[var(--accent)] text-white"
           : "bg-[var(--card)] text-[var(--muted)] border border-[var(--border)] hover:text-[var(--foreground)]"
@@ -415,10 +416,11 @@ function PostCard({
         {isMine && (
           <button
             onClick={onDelete}
-            className="text-[var(--muted)] hover:text-[var(--destructive)] transition"
+            className="w-11 h-11 -mr-2 flex items-center justify-center text-[var(--muted)] hover:text-[var(--destructive)] transition rounded-full touch-manipulation"
             title={t("social_post_delete")}
+            aria-label={t("social_post_delete")}
           >
-            <Icon icon="solar:trash-bin-2-bold-duotone" width={18} />
+            <Icon icon="solar:trash-bin-2-bold-duotone" width={20} />
           </button>
         )}
       </header>
@@ -465,13 +467,13 @@ function PostCard({
       <footer className="mt-4 pt-3 border-t border-dashed border-[var(--border)] flex items-center gap-4">
         <button
           onClick={onLike}
-          className={`flex items-center gap-1.5 text-sm transition ${
+          className={`inline-flex items-center gap-1.5 text-sm transition min-h-11 px-2 -ml-2 rounded-full touch-manipulation ${
             post.liked_by_me ? "text-[var(--accent)]" : "text-[var(--muted)] hover:text-[var(--foreground)]"
           }`}
         >
           <Icon
             icon={post.liked_by_me ? "solar:heart-bold" : "solar:heart-linear"}
-            width={20}
+            width={22}
           />
           <span className="tabular-nums">{post.likes_count}</span>
         </button>
@@ -522,9 +524,10 @@ function MyCard({ me, onChanged }: { me: MyProfile; onChanged: () => void }) {
         </div>
         <button
           onClick={() => setEditing((v) => !v)}
-          className="text-[var(--muted)] hover:text-[var(--accent)] transition"
+          className="w-11 h-11 -mr-2 flex items-center justify-center text-[var(--muted)] hover:text-[var(--accent)] transition rounded-full touch-manipulation"
+          aria-label={t("common_edit")}
         >
-          <Icon icon="solar:pen-2-bold-duotone" width={18} />
+          <Icon icon="solar:pen-2-bold-duotone" width={20} />
         </button>
       </div>
       <div className="grid grid-cols-3 gap-2 mt-3 text-center text-xs">
@@ -705,28 +708,36 @@ function ComposeModal({
         onClick={onClose}
         className="fixed inset-0 z-[80] bg-black/55 backdrop-blur-sm"
       />
+      {/* Bottom-sheet on mobile, centered dialog on sm+.
+          Using dvh + safe-bottom so the sheet never clips the keyboard or home indicator. */}
       <motion.div
-        initial={{ opacity: 0, y: 24, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 24, scale: 0.97 }}
-        transition={{ type: "spring", stiffness: 320, damping: 30 }}
-        className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-[90] w-[94vw] max-w-lg max-h-[90vh] overflow-y-auto bg-[var(--card)] rounded-[var(--radius-lg)] shadow-[var(--shadow-3)] border border-[var(--border)]"
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 40 }}
+        transition={{ type: "spring", stiffness: 320, damping: 32 }}
+        className="fixed inset-x-0 bottom-0 sm:left-1/2 sm:top-1/2 sm:inset-auto sm:-translate-x-1/2 sm:-translate-y-1/2 z-[90] w-full sm:w-[94vw] sm:max-w-lg max-h-[95dvh] sm:max-h-[90vh] overflow-y-auto bg-[var(--card)] rounded-t-[var(--radius-lg)] sm:rounded-[var(--radius-lg)] shadow-[var(--shadow-3)] border border-[var(--border)]"
+        style={{ paddingBottom: "var(--safe-bottom)" }}
       >
+        {/* Grab bar (mobile only) */}
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-[var(--border)]" aria-hidden />
+        </div>
+
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-[var(--card)] flex items-center justify-between px-5 py-4 border-b border-[var(--border)]">
-          <div className="flex items-center gap-2">
+        <div className="sticky top-0 z-10 bg-[var(--card)] flex items-center justify-between px-5 py-3 sm:py-4 border-b border-[var(--border)]">
+          <div className="flex items-center gap-2 min-w-0">
             <span
               aria-hidden
-              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gradient-to-br from-[var(--accent)] to-[var(--accent-hover)] text-white shadow-[var(--shadow-1)]"
+              className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-[var(--accent)] text-white shadow-[var(--shadow-1)] shrink-0"
             >
               <Icon icon="ph:share-network-fill" width={18} />
             </span>
-            <h3 className="font-display text-lg font-semibold">{t("social_compose_title")}</h3>
+            <h3 className="font-display text-lg font-semibold truncate">{t("social_compose_title")}</h3>
           </div>
           <button
             onClick={onClose}
             aria-label={t("common_close")}
-            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition p-1"
+            className="w-11 h-11 flex items-center justify-center rounded-full text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 transition touch-manipulation shrink-0"
           >
             <Icon icon="ph:x-bold" width={20} />
           </button>
@@ -773,10 +784,10 @@ function ComposeModal({
                 <button
                   type="button"
                   onClick={() => pickPhoto(null)}
-                  className="absolute top-2 right-2 inline-flex items-center justify-center w-8 h-8 rounded-full bg-black/60 text-white hover:bg-black/80 transition"
+                  className="absolute top-2 right-2 inline-flex items-center justify-center w-11 h-11 rounded-full bg-black/60 text-white hover:bg-black/80 transition touch-manipulation"
                   aria-label={t("social_photo_remove_aria")}
                 >
-                  <Icon icon="ph:x-bold" width={14} />
+                  <Icon icon="ph:x-bold" width={18} />
                 </button>
               </div>
             ) : (
@@ -888,14 +899,14 @@ function ComposeModal({
         <div className="sticky bottom-0 bg-[var(--card)] border-t border-[var(--border)] px-5 py-3 flex items-center justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm rounded-[var(--radius)] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+            className="px-4 min-h-11 text-sm rounded-[var(--radius)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] touch-manipulation"
           >
             {t("cancel")}
           </button>
           <button
             disabled={submitting || photoUploading || (!body.trim() && !photoFile)}
             onClick={submit}
-            className="px-5 py-2 bg-[var(--accent)] text-white rounded-[var(--radius)] text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 shadow-[var(--shadow-1)]"
+            className="px-5 min-h-11 bg-[var(--accent)] text-white rounded-[var(--radius)] text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 shadow-[var(--shadow-1)] touch-manipulation"
           >
             {submitting || photoUploading ? (
               <>

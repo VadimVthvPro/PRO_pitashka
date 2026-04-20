@@ -125,7 +125,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-[100dvh] relative overflow-hidden" style={{ paddingTop: "var(--safe-top)", paddingBottom: "var(--safe-bottom)" }}>
       {/* Atmospheric mesh background */}
       <div className="absolute inset-0 mesh-warm opacity-80" aria-hidden />
       <div
@@ -139,7 +139,7 @@ export default function LoginPage() {
         aria-hidden
       />
 
-      <div className="relative z-10 min-h-screen grid lg:grid-cols-[1.1fr_1fr]">
+      <div className="relative z-10 min-h-[100dvh] grid lg:grid-cols-[1.1fr_1fr]">
         {/* ============ LEFT: brand + pitch ============ */}
         <div className="flex flex-col justify-between px-6 py-10 lg:px-16 lg:py-14">
           <div>
@@ -293,7 +293,7 @@ export default function LoginPage() {
                     href={`https://t.me/${BOT_USERNAME}?start=login`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full py-2.5 rounded-[var(--radius)] border border-[var(--accent)]/40 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition"
+                    className="flex items-center justify-center gap-2 w-full min-h-11 rounded-[var(--radius)] border border-[var(--accent)]/40 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition touch-manipulation"
                   >
                     <Icon icon="logos:telegram" width={18} />
                     {t("login_open_bot", { bot: BOT_USERNAME })}
@@ -319,7 +319,7 @@ export default function LoginPage() {
                         autoCapitalize="off"
                         autoCorrect="off"
                         spellCheck={false}
-                        className="w-full pl-10 pr-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
+                        className="w-full min-w-0 min-h-11 pl-10 pr-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
                       />
                     </div>
                     <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
@@ -331,7 +331,7 @@ export default function LoginPage() {
                     whileTap={{ scale: 0.97 }}
                     onClick={handleRequestOTP}
                     disabled={loading || !username.trim()}
-                    className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)]"
+                    className="w-full min-h-11 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)] touch-manipulation"
                   >
                     {loading ? t("login_sending") : t("login_send_code")}
                   </motion.button>
@@ -375,7 +375,7 @@ export default function LoginPage() {
                           href={`https://t.me/${BOT_USERNAME}?start=login`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 w-full py-2 rounded-[var(--radius)] bg-[var(--warning)] text-white text-sm font-semibold"
+                          className="flex items-center justify-center gap-2 w-full min-h-11 rounded-[var(--radius)] bg-[var(--warning)] text-white text-sm font-semibold touch-manipulation"
                         >
                           <Icon icon="logos:telegram" width={16} />
                           {t("login_not_found_action")}
@@ -413,11 +413,11 @@ export default function LoginPage() {
                     whileTap={{ scale: 0.97 }}
                     onClick={handleVerifyOTP}
                     disabled={loading || code.join("").length < 4}
-                    className="w-full py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)]"
+                    className="w-full min-h-11 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)] touch-manipulation"
                   >
                     {loading ? t("login_verifying") : t("login_btn_enter")}
                   </motion.button>
-                  <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center justify-between text-xs gap-2">
                     <button
                       onClick={() => {
                         setStep("username");
@@ -425,14 +425,14 @@ export default function LoginPage() {
                         setError("");
                         setNeedsBotStart(false);
                       }}
-                      className="text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                      className="min-h-11 px-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors touch-manipulation"
                     >
                       {t("login_back_username")}
                     </button>
                     <button
                       onClick={() => void handleResend()}
                       disabled={resendIn > 0 || loading}
-                      className="text-[var(--accent)] hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed"
+                      className="min-h-11 px-2 text-[var(--accent)] hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed touch-manipulation"
                     >
                       {resendIn > 0 ? t("login_resend_in", { seconds: resendIn }) : t("login_resend_now")}
                     </button>
@@ -456,7 +456,7 @@ export default function LoginPage() {
                 <button
                   key={lc}
                   onClick={() => setLang(lc as Lang)}
-                  className={`text-[11px] font-bold tracking-widest transition-colors ${
+                  className={`min-h-11 px-3 text-[11px] font-bold tracking-widest transition-colors touch-manipulation ${
                     lang === lc
                       ? "text-[var(--accent)]"
                       : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"

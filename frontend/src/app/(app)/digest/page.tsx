@@ -108,7 +108,7 @@ export default function DigestPage() {
             whileTap={{ scale: 0.95 }}
             onClick={() => void load(true)}
             disabled={loading || refreshing}
-            className="px-4 py-2.5 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] hover:border-[var(--accent)] flex items-center gap-2 text-sm disabled:opacity-50"
+            className="px-4 min-h-11 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--card)] hover:border-[var(--accent)] inline-flex items-center gap-2 text-sm disabled:opacity-50 touch-manipulation"
           >
             <Icon
               icon="solar:refresh-bold-duotone"

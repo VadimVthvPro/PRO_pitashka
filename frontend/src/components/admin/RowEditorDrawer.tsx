@@ -182,7 +182,7 @@ export function RowEditorDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-[var(--color-sand)]/50 active:scale-95"
+            className="w-11 h-11 rounded-full flex items-center justify-center hover:bg-[var(--color-sand)]/50 active:scale-95 touch-manipulation shrink-0"
             aria-label="close"
           >
             <Icon icon="solar:close-circle-bold-duotone" width={22} />
@@ -198,7 +198,7 @@ export function RowEditorDrawer({
           )}
 
           {!loading && error && !data && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-xs text-red-700">
+            <div className="rounded-lg border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-3 text-xs text-[var(--destructive)]">
               {error}
             </div>
           )}
@@ -215,7 +215,7 @@ export function RowEditorDrawer({
           )}
 
           {data && data.policy.hint_key && (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-[11px] text-amber-900">
+            <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning)]/10 p-3 text-[11px] text-[var(--foreground)]">
               <Icon
                 icon="solar:info-circle-bold-duotone"
                 width={14}
@@ -245,7 +245,7 @@ export function RowEditorDrawer({
           )}
 
           {error && data && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-2 text-xs text-red-700">
+            <div className="rounded-lg border border-[var(--destructive)]/40 bg-[var(--destructive)]/10 p-2 text-xs text-[var(--destructive)]">
               {error}
             </div>
           )}
@@ -253,11 +253,14 @@ export function RowEditorDrawer({
 
         {/* Footer */}
         {data && !data.policy.read_only && (
-          <div className="border-t border-[var(--border)] p-3 flex items-center justify-between gap-2 shrink-0">
+          <div
+            className="border-t border-[var(--border)] px-3 pt-3 flex items-center justify-between gap-2 shrink-0"
+            style={{ paddingBottom: "max(0.75rem, var(--safe-bottom))" }}
+          >
             <button
               onClick={onDelete}
               disabled={deleting || saving}
-              className="text-[11px] px-3 py-2 rounded-full border border-red-500/40 text-red-700 hover:bg-red-500/10 active:scale-95 disabled:opacity-40 flex items-center gap-1"
+              className="text-xs px-3 min-h-11 rounded-full border border-[var(--destructive)]/40 text-[var(--destructive)] hover:bg-[var(--destructive)]/10 active:scale-95 disabled:opacity-40 flex items-center gap-1.5 touch-manipulation"
             >
               {deleting ? (
                 <Icon icon="svg-spinners:180-ring" width={14} />
@@ -268,14 +271,14 @@ export function RowEditorDrawer({
             </button>
             <div className="flex items-center gap-2">
               {!hasDiff && (
-                <span className="text-[10px] text-[var(--muted)]">
+                <span className="text-[10px] text-[var(--muted)] hidden sm:inline">
                   {t("admin_table_no_changes")}
                 </span>
               )}
               <button
                 onClick={onSave}
                 disabled={!hasDiff || saving}
-                className="text-[12px] px-4 py-2 rounded-full bg-[var(--accent)] text-white active:scale-95 disabled:opacity-40 flex items-center gap-1"
+                className="text-xs px-4 min-h-11 rounded-full bg-[var(--accent)] text-white active:scale-95 disabled:opacity-40 flex items-center gap-1.5 touch-manipulation"
               >
                 {saving ? (
                   <Icon icon="svg-spinners:180-ring" width={14} />

@@ -311,7 +311,7 @@ export default function FoodPage() {
             key={id}
             type="button"
             onClick={() => setTab(id)}
-            className={`relative flex items-center gap-2 px-4 py-2 rounded-[var(--radius)] text-sm font-medium transition-colors ${
+            className={`relative flex items-center gap-2 px-4 min-h-11 rounded-[var(--radius)] text-sm font-medium transition-colors touch-manipulation ${
               tab === id
                 ? "text-[var(--foreground)]"
                 : "text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -358,7 +358,7 @@ export default function FoodPage() {
             />
             <label
               htmlFor="food-photo-input"
-              className="inline-block px-4 py-2 text-sm font-medium rounded-[var(--radius)] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] cursor-pointer transition-colors"
+              className="inline-flex items-center justify-center px-5 min-h-11 text-sm font-medium rounded-[var(--radius)] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] cursor-pointer transition-colors touch-manipulation"
             >
               {t("food_pick_file")}
             </label>

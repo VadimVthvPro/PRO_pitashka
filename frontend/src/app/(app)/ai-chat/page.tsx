@@ -320,8 +320,13 @@ export default function AiChatPage() {
     }
   }
 
+  // Mobile height formula:
+  //   - 56px (MobileTopBar h-14) + safe-top (notch)
+  //   - 40px (main py-5 top + bottom)
+  //   - 72px (BottomNav) + safe-bottom
+  // Keeps composer above home-indicator even with iOS URL bar collapse.
   return (
-    <div className="flex flex-col gap-3 lg:gap-6 lg:flex-row h-[calc(100dvh-10.5rem)] lg:h-[min(880px,calc(100vh-7rem))] min-h-[420px] lg:min-h-[560px]">
+    <div className="flex flex-col gap-3 lg:gap-6 lg:flex-row h-[calc(100dvh-168px-var(--safe-top)-var(--safe-bottom))] lg:h-[min(880px,calc(100vh-7rem))] min-h-[420px] lg:min-h-[560px]">
       {/* Rail — full on desktop, hidden on mobile (compact strip lives inside the lane) */}
       <div className="hidden lg:block lg:w-[280px] xl:w-[320px] shrink-0 lg:overflow-y-auto lg:pr-1">
         <ContextRail
@@ -348,7 +353,7 @@ export default function AiChatPage() {
                 </Highlight>
               </span>
             </h1>
-            <p className="hidden sm:block page-subtitle mt-1.5">{t("ai_subtitle")}</p>
+            <p className="page-subtitle mt-1 text-xs sm:text-sm truncate">{t("ai_subtitle")}</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="hidden sm:block">
@@ -360,7 +365,7 @@ export default function AiChatPage() {
               <button
                 type="button"
                 onClick={clearHistory}
-                className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors w-9 h-9 sm:w-auto sm:h-auto sm:px-2 sm:py-1.5 rounded-md hover:bg-[var(--card)]"
+                className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors w-11 h-11 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-md hover:bg-[var(--card)] touch-manipulation"
                 title={t("ai_clear")}
                 aria-label={t("ai_clear")}
               >
@@ -463,10 +468,10 @@ export default function AiChatPage() {
                     <button
                       type="button"
                       onClick={() => setAttach(null)}
-                      className="hover:text-[var(--foreground)]"
+                      className="hover:text-[var(--foreground)] inline-flex items-center justify-center w-5 h-5 -m-1 p-1 rounded-full touch-manipulation"
                       aria-label={t("ai_attach_remove")}
                     >
-                      <Icon icon="solar:close-circle-bold" width={12} />
+                      <Icon icon="solar:close-circle-bold" width={14} />
                     </button>
                   </span>
                 )}
@@ -543,7 +548,7 @@ function MobileContextStrip({
         <button
           type="button"
           onClick={onCreate}
-          className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-dashed border-[var(--border)] text-[11px] text-[var(--muted-foreground)]"
+          className="shrink-0 inline-flex items-center gap-1 px-3 min-h-9 rounded-full border border-dashed border-[var(--border)] text-xs text-[var(--muted-foreground)] touch-manipulation"
         >
           <Icon icon={icon} width={14} />
           <span>+</span>
@@ -557,7 +562,7 @@ function MobileContextStrip({
         onClick={onAttach}
         aria-pressed={attached}
         className={[
-          "shrink-0 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border text-[11px] transition-colors",
+          "shrink-0 inline-flex items-center gap-1.5 px-3 min-h-9 rounded-full border text-xs transition-colors touch-manipulation",
           attached
             ? "bg-[var(--accent)]/15 border-[var(--accent)] text-[var(--accent)]"
             : "bg-[var(--card)] border-[var(--border)] text-[var(--muted-foreground)]",
@@ -647,7 +652,7 @@ function EmptyState({
               type="button"
               onClick={() => onPick(p.prompt)}
               className={[
-                "inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors",
+                "inline-flex items-center gap-1.5 text-xs px-3.5 min-h-11 rounded-full border transition-colors touch-manipulation",
                 p.accent
                   ? "bg-[var(--accent)] text-white border-[var(--accent)] hover:bg-[var(--accent-hover)]"
                   : "bg-[var(--card)] text-[var(--foreground)] border-[var(--border)] hover:border-[var(--accent)]/50",

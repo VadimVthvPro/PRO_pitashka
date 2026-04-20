@@ -288,7 +288,7 @@ export default function SettingsPage() {
                 key={code}
                 whileTap={{ scale: 0.96 }}
                 onClick={() => chooseLang(code)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition ${
+                className={`px-4 min-h-11 rounded-full text-sm font-medium transition touch-manipulation ${
                   lang === code
                     ? "bg-[var(--accent)] text-white shadow-[var(--shadow-1)]"
                     : "bg-[var(--color-sand)] text-[var(--muted)] hover:text-[var(--foreground)]"
@@ -320,13 +320,14 @@ export default function SettingsPage() {
             whileTap={{ scale: 0.94 }}
             onClick={toggleNotifications}
             aria-pressed={notifications}
-            className={`relative w-14 h-8 rounded-full transition ${
+            aria-label={t("settings_notifications")}
+            className={`relative w-16 h-11 shrink-0 rounded-full transition touch-manipulation ${
               notifications ? "bg-[var(--accent)]" : "bg-[var(--color-sand)]"
             }`}
           >
             <motion.span
-              className="absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow"
-              animate={{ x: notifications ? 24 : 0 }}
+              className="absolute top-1.5 left-1.5 w-8 h-8 rounded-full bg-white shadow"
+              animate={{ x: notifications ? 20 : 0 }}
               transition={{ type: "spring", stiffness: 400, damping: 28 }}
             />
           </motion.button>

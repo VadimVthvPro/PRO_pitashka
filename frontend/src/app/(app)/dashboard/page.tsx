@@ -261,7 +261,7 @@ export default function DashboardPage() {
                   className="flex items-baseline gap-2"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
-                  <span className="display-number text-6xl text-[var(--foreground)]">
+                  <span className="display-number text-4xl sm:text-5xl lg:text-6xl text-[var(--foreground)]">
                     <AnimatedNumber value={left} />
                   </span>
                   <span className="text-sm text-[var(--muted)]" style={{ fontFamily: "var(--font-body)" }}>
@@ -282,7 +282,7 @@ export default function DashboardPage() {
               {streak && streak.current >= 2 && (
                 <a
                   href="/achievements"
-                  className="relative inline-flex items-center gap-3 pl-3 pr-4 py-2 rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--warning)]/15 to-[var(--accent)]/10 border border-[var(--warning)]/30 hover:border-[var(--warning)]/60 transition-colors"
+                  className="relative inline-flex items-center gap-3 pl-3 pr-4 min-h-11 rounded-[var(--radius-lg)] bg-gradient-to-br from-[var(--warning)]/15 to-[var(--accent)]/10 border border-[var(--warning)]/30 hover:border-[var(--warning)]/60 transition-colors touch-manipulation"
                   style={{ transform: "rotate(1deg)" }}
                 >
                   <Icon
@@ -394,14 +394,19 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: i * 0.05, duration: 0.4 }}
-                    className="flex items-center justify-between py-2.5 border-b border-dashed border-[var(--border)] last:border-0"
+                    className="flex items-center justify-between gap-3 py-2.5 border-b border-dashed border-[var(--border)] last:border-0"
                   >
-                    <span className="text-sm">{row.training_name}</span>
-                    <div className="flex gap-4 text-sm">
-                      <span className="text-[var(--muted)]">
+                    <span
+                      className="text-sm min-w-0 flex-1 truncate"
+                      title={row.training_name}
+                    >
+                      {row.training_name}
+                    </span>
+                    <div className="flex gap-3 sm:gap-4 text-sm shrink-0">
+                      <span className="text-[var(--muted)] whitespace-nowrap">
                         {row.tren_time} {t("min")}
                       </span>
-                      <span className="font-mono font-medium tabular-nums">
+                      <span className="font-mono font-medium tabular-nums whitespace-nowrap">
                         {Math.round(row.training_cal)} {t("kcal")}
                       </span>
                     </div>

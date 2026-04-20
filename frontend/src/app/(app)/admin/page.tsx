@@ -156,7 +156,10 @@ export default function AdminPage() {
         </button>
       </header>
 
-      <nav className="flex gap-1.5 mb-4 overflow-x-auto -mx-1 px-2 sm:px-0 sticky top-0 z-10 bg-[var(--background)] py-2 backdrop-blur-md">
+      {/* Tabs stick below the mobile TopBar (h-14 + safe-top) so they don't
+          hide under it while scrolling. On lg+ the top bar is gone, so we
+          fall back to top:0. z-30 stays under TopBar's z-40. */}
+      <nav className="flex gap-1.5 mb-4 overflow-x-auto -mx-1 px-2 sm:px-0 sticky top-[calc(3.5rem+var(--safe-top))] lg:top-0 z-30 bg-[var(--background)]/95 py-2 backdrop-blur-md">
         <TabBtn icon="solar:chart-square-bold-duotone" active={tab === "overview"} onClick={() => setTab("overview")}>
           {t("admin_tab_summary")}
         </TabBtn>
@@ -786,14 +789,16 @@ function Pager({
         <button
           disabled={page <= 1}
           onClick={() => onChange(page - 1)}
-          className="px-3 py-1.5 rounded-full border border-[var(--border)] disabled:opacity-30 active:scale-95 transition"
+          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-full border border-[var(--border)] disabled:opacity-30 active:scale-95 transition touch-manipulation"
+          aria-label="previous page"
         >
           ←
         </button>
         <button
           disabled={page >= totalPages}
           onClick={() => onChange(page + 1)}
-          className="px-3 py-1.5 rounded-full border border-[var(--border)] disabled:opacity-30 active:scale-95 transition"
+          className="min-w-11 min-h-11 inline-flex items-center justify-center rounded-full border border-[var(--border)] disabled:opacity-30 active:scale-95 transition touch-manipulation"
+          aria-label="next page"
         >
           →
         </button>
@@ -855,7 +860,7 @@ function UsersPanel() {
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && (setPage(1), load())}
             placeholder={t("admin_users_search_placeholder")}
-            className="flex-1 px-3 py-2 text-sm bg-[var(--card)] border border-[var(--border)] rounded-full focus:border-[var(--accent)] focus:outline-none"
+            className="flex-1 min-w-0 px-4 min-h-11 text-sm bg-[var(--card)] border border-[var(--border)] rounded-full focus:border-[var(--accent)] focus:outline-none"
           />
           <span className="text-xs text-[var(--muted)] self-center px-2">
             <b>{total}</b>
@@ -1012,7 +1017,7 @@ function UserDetail({
 
   if (!userId) {
     return (
-      <div className="hidden lg:flex card-base p-5 text-sm text-[var(--muted)] text-center items-center justify-center min-h-[300px]">
+      <div className="card-base p-5 text-sm text-[var(--muted)] text-center flex items-center justify-center min-h-[160px] lg:min-h-[300px]">
         {t("admin_pick_user_left")}
       </div>
     );
@@ -1033,7 +1038,7 @@ function UserDetail({
         <h3 className="font-bold text-base">User #{userId}</h3>
         <button
           onClick={onClose}
-          className="lg:hidden text-[var(--muted)] hover:text-[var(--foreground)]"
+          className="lg:hidden w-11 h-11 flex items-center justify-center rounded-full text-[var(--muted)] hover:text-[var(--foreground)] touch-manipulation"
           aria-label={t("admin_aria_close")}
         >
           <Icon icon="solar:close-circle-bold-duotone" width={22} />
