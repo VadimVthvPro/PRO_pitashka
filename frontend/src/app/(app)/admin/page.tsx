@@ -9,6 +9,7 @@ import { AiLogPanel } from "@/components/admin/AiLogPanel";
 import { SettingsPanel } from "@/components/admin/SettingsPanel";
 import { SocialModerationPanel } from "@/components/admin/SocialModerationPanel";
 import { UserEditor, type EditableUser } from "@/components/admin/UserEditor";
+import { RowEditorDrawer } from "@/components/admin/RowEditorDrawer";
 
 type Tab = "overview" | "audit" | "users" | "ai" | "social" | "settings" | "tables";
 
@@ -1168,6 +1169,12 @@ interface TableData {
   per_page: number;
 }
 
+interface TablePolicy {
+  pk: string | null;
+  editable: string[];
+  read_only: boolean;
+}
+
 function TablesPanel() {
   const { t, lang } = useI18n();
   const [tables, setTables] = useState<string[]>([]);
@@ -1175,6 +1182,10 @@ function TablesPanel() {
   const [data, setData] = useState<TableData | null>(null);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<{ pkCol: string; pkVal: string } | null>(
+    null,
+  );
+  const [policy, setPolicy] = useState<TablePolicy | null>(null);
 
   useEffect(() => {
     api<{ tables: string[] }>("/api/admin/tables").then((r) =>
@@ -1191,6 +1202,28 @@ function TablesPanel() {
       setData(r);
       setActive(tableName);
       setPage(p);
+      // Pull the policy so the row click can decide whether to open the
+      // editor (editable table) or just show a read-only drawer banner.
+      const firstRow = r.rows[0];
+      if (firstRow) {
+        const pkGuess = guessPk(r.columns, firstRow);
+        if (pkGuess) {
+          try {
+            const single = await api<{ policy: TablePolicy }>(
+              `/api/admin/tables/${tableName}/${pkGuess.col}/${encodeURIComponent(
+                String(pkGuess.val),
+              )}`,
+            );
+            setPolicy(single.policy);
+          } catch {
+            setPolicy(null);
+          }
+        } else {
+          setPolicy(null);
+        }
+      } else {
+        setPolicy(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -1239,35 +1272,60 @@ function TablesPanel() {
                     {c}
                   </th>
                 ))}
+                <th className="px-2 py-1.5" aria-hidden />
               </tr>
             </thead>
             <tbody>
               {data.rows.length === 0 && (
                 <tr>
                   <td
-                    colSpan={cols.length}
+                    colSpan={cols.length + 1}
                     className="text-center px-3 py-8 text-[var(--muted)]"
                   >
                     {t("admin_table_empty")}
                   </td>
                 </tr>
               )}
-              {data.rows.map((r, i) => (
-                <tr
-                  key={i}
-                  className="border-t border-[var(--border)] hover:bg-[var(--color-sand)]/20"
-                >
-                  {cols.map((c) => (
-                    <td
-                      key={c}
-                      className="px-2 py-1 font-mono whitespace-nowrap max-w-[260px] truncate"
-                      title={String(r[c] ?? "")}
-                    >
-                      {formatVal(r[c], t, lang)}
+              {data.rows.map((r, i) => {
+                const pk = policy?.pk && cols.includes(policy.pk)
+                  ? { col: policy.pk, val: String(r[policy.pk] ?? "") }
+                  : guessPk(data.columns, r);
+                const clickable = !!pk;
+                return (
+                  <tr
+                    key={i}
+                    onClick={() => {
+                      if (pk) setEditing({ pkCol: pk.col, pkVal: String(pk.val) });
+                    }}
+                    className={`border-t border-[var(--border)] hover:bg-[var(--color-sand)]/20 ${
+                      clickable ? "cursor-pointer" : ""
+                    }`}
+                  >
+                    {cols.map((c) => (
+                      <td
+                        key={c}
+                        className="px-2 py-1 font-mono whitespace-nowrap max-w-[260px] truncate"
+                        title={String(r[c] ?? "")}
+                      >
+                        {formatVal(r[c], t, lang)}
+                      </td>
+                    ))}
+                    <td className="px-2 py-1 text-right">
+                      {clickable && (
+                        <Icon
+                          icon={
+                            policy?.read_only
+                              ? "solar:eye-bold-duotone"
+                              : "solar:pen-bold-duotone"
+                          }
+                          width={14}
+                          className="text-[var(--muted)]"
+                        />
+                      )}
                     </td>
-                  ))}
-                </tr>
-              ))}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
           {data.total > data.per_page && (
@@ -1300,6 +1358,38 @@ function TablesPanel() {
           {t("admin_table_pick_above")}
         </div>
       )}
+      <AnimatePresence>
+        {editing && active && (
+          <RowEditorDrawer
+            key={`${active}-${editing.pkCol}-${editing.pkVal}`}
+            table={active}
+            pkColumn={editing.pkCol}
+            pkValue={editing.pkVal}
+            onClose={() => setEditing(null)}
+            onSaved={() => load(active, page)}
+            onDeleted={() => load(active, page)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
+}
+
+function guessPk(
+  columns: TableData["columns"],
+  row: Record<string, unknown>,
+): { col: string; val: string | number } | null {
+  const colNames = columns.map((c) => (typeof c === "string" ? c : c.column_name));
+  // Priority: id > user_id > first non-null column.
+  const priority = ["id", "user_id", "key"];
+  for (const p of priority) {
+    if (colNames.includes(p) && row[p] !== null && row[p] !== undefined) {
+      return { col: p, val: row[p] as string | number };
+    }
+  }
+  const first = colNames.find(
+    (c) => row[c] !== null && row[c] !== undefined && typeof row[c] !== "object",
+  );
+  if (first) return { col: first, val: row[first] as string | number };
+  return null;
 }

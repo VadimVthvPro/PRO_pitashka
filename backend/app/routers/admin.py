@@ -201,7 +201,266 @@ async def delete_row(
     deleted = await repo.delete_row(table_name, pk_column, typed_value)
     if not deleted:
         raise HTTPException(status_code=404, detail="Row not found")
+
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'DELETE', $2, 'admin', 200, $3)
+        """,
+        user_id,
+        f"/api/admin/tables/{table_name}/{pk_column}/{pk_value}",
+        json.dumps({"table": table_name, "pk_column": pk_column, "pk_value": str(pk_value)}),
+    )
     return {"message": "Deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Row-level editor for the "Tables" panel.
+#
+# Every real write goes through a hard-coded whitelist (see
+# ``app.services.table_policy``) so that the generic /tables endpoint can
+# never be used to self-promote an admin, rewrite chat_history, or bypass
+# moderation endpoints like /users/{id}/ban.
+# ---------------------------------------------------------------------------
+
+
+def _cast_cell_value(raw: Any, col_meta: dict) -> Any:
+    """Coerce incoming JSON value to the column's Postgres type.
+
+    We trust ``col_meta`` from ``information_schema`` to decide the target
+    type; the whitelist in ``table_policy`` is what protects *which*
+    columns can be written at all.
+    """
+    dtype = (col_meta.get("data_type") or "").lower()
+    nullable = (col_meta.get("is_nullable") or "NO").upper() == "YES"
+
+    # Explicit NULL
+    if raw is None or raw == "":
+        if nullable:
+            return None
+        if dtype in ("text", "character varying", "varchar", "character", "char"):
+            return ""
+        raise HTTPException(
+            status_code=400,
+            detail=f"column {col_meta['column_name']} is NOT NULL",
+        )
+
+    if dtype == "boolean":
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, str):
+            if raw.lower() in ("true", "t", "1", "yes", "y"):
+                return True
+            if raw.lower() in ("false", "f", "0", "no", "n"):
+                return False
+        if isinstance(raw, (int, float)):
+            return bool(raw)
+        raise HTTPException(status_code=400, detail="invalid boolean value")
+
+    if dtype in ("integer", "bigint", "smallint"):
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="invalid integer value")
+
+    if dtype in ("numeric", "real", "double precision"):
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="invalid numeric value")
+
+    if dtype in ("json", "jsonb"):
+        if isinstance(raw, (dict, list)):
+            return json.dumps(raw)
+        if isinstance(raw, str):
+            try:
+                json.loads(raw)
+            except Exception:
+                raise HTTPException(status_code=400, detail="invalid JSON value")
+            return raw
+        raise HTTPException(status_code=400, detail="invalid JSON value")
+
+    if dtype in ("timestamp without time zone", "timestamp with time zone",
+                 "timestamptz", "date", "time"):
+        # We let Postgres parse ISO strings; anything else is rejected.
+        if isinstance(raw, str):
+            return raw
+        raise HTTPException(
+            status_code=400,
+            detail=f"expected ISO string for {col_meta['column_name']}",
+        )
+
+    # Fallback: treat as text
+    return str(raw)
+
+
+def _parse_pk(pk_value: str) -> int | str:
+    try:
+        return int(pk_value)
+    except (TypeError, ValueError):
+        return pk_value
+
+
+def _json_safe(value: Any) -> Any:
+    """Render datetimes / Decimal / bytes for JSON output."""
+    import datetime as _dt
+    import decimal as _dec
+
+    if isinstance(value, (_dt.datetime, _dt.date, _dt.time)):
+        return value.isoformat()
+    if isinstance(value, _dec.Decimal):
+        return float(value)
+    if isinstance(value, (bytes, bytearray)):
+        try:
+            return value.decode("utf-8", errors="replace")
+        except Exception:
+            return repr(value)
+    return value
+
+
+@router.get("/tables/{table_name}/{pk_column}/{pk_value}")
+async def get_single_row(
+    table_name: str, pk_column: str, pk_value: str,
+    request: Request, db: DbDep,
+):
+    """One row + the policy describing which of its columns are editable."""
+    from app.services import table_policy as _tp
+
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    if table_name not in ALLOWED_TABLES:
+        raise HTTPException(status_code=404, detail="Table not found")
+
+    repo = AdminRepository(db)
+    columns = await repo.get_table_columns(table_name)
+    valid_columns = {c["column_name"] for c in columns}
+    if pk_column not in valid_columns:
+        raise HTTPException(status_code=400, detail=f"Invalid column: {pk_column}")
+
+    policy = _tp.policy_for(table_name) or {}
+    row = await repo.get_row(table_name, pk_column, _parse_pk(pk_value))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Row not found")
+
+    row_safe = {k: _json_safe(v) for k, v in row.items()}
+    return {
+        "columns": columns,
+        "row": row_safe,
+        "policy": {
+            "pk": policy.get("pk"),
+            "editable": sorted(_tp.editable_columns(table_name)),
+            "read_only": _tp.is_read_only(table_name),
+            "hint_key": policy.get("hint_key"),
+        },
+    }
+
+
+@router.patch("/tables/{table_name}/{pk_column}/{pk_value}")
+async def update_table_row(
+    table_name: str, pk_column: str, pk_value: str,
+    request: Request, db: DbDep,
+    body: dict = Body(...),
+):
+    """Update a whitelisted subset of columns in a single row.
+
+    ``body`` is a flat ``{column: new_value}``. Any column absent from the
+    table's policy (or in ``GLOBAL_FORBIDDEN_COLS``) is rejected with 400
+    — this is what makes the editor safe to expose. The whole update runs
+    in a single UPDATE and writes a diff to ``audit_log``.
+    """
+    from app.services import table_policy as _tp
+
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    if table_name not in ALLOWED_TABLES:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if _tp.is_read_only(table_name):
+        raise HTTPException(status_code=403, detail="table is read-only")
+
+    allowed = _tp.editable_columns(table_name)
+    if not allowed:
+        raise HTTPException(status_code=403, detail="table has no editable columns")
+
+    if not isinstance(body, dict) or not body:
+        raise HTTPException(status_code=400, detail="empty body")
+
+    repo = AdminRepository(db)
+    columns = await repo.get_table_columns(table_name)
+    col_by_name = {c["column_name"]: c for c in columns}
+
+    if pk_column not in col_by_name:
+        raise HTTPException(status_code=400, detail=f"Invalid column: {pk_column}")
+
+    # --- validate & cast --------------------------------------------------
+    set_map: dict[str, Any] = {}
+    for col, raw in body.items():
+        if col not in allowed:
+            raise HTTPException(
+                status_code=400,
+                detail=f"column '{col}' is not editable",
+            )
+        meta = col_by_name.get(col)
+        if not meta:
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown column: {col}",
+            )
+        set_map[col] = _cast_cell_value(raw, meta)
+
+    pk_typed = _parse_pk(pk_value)
+
+    # --- read current row for audit diff ---------------------------------
+    before = await repo.get_row(table_name, pk_column, pk_typed)
+    if before is None:
+        raise HTTPException(status_code=404, detail="Row not found")
+
+    # Drop no-op changes (saves audit spam).
+    changes: dict[str, Any] = {}
+    for col, new in set_map.items():
+        old = before.get(col)
+        if old != new:
+            changes[col] = new
+    if not changes:
+        return {"ok": True, "changed": [], "row": {k: _json_safe(v) for k, v in before.items()}}
+
+    updated = await repo.update_row(table_name, pk_column, pk_typed, changes)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Row not found")
+
+    # --- audit -----------------------------------------------------------
+    diff = {}
+    for col in changes.keys():
+        b = before.get(col)
+        a = updated.get(col)
+        # Truncate long strings so the audit_log doesn't bloat
+        if isinstance(b, str) and len(b) > 200:
+            b = b[:200] + "…"
+        if isinstance(a, str) and len(a) > 200:
+            a = a[:200] + "…"
+        diff[col] = {"before": _json_safe(b), "after": _json_safe(a)}
+
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'PATCH', $2, 'admin', 200, $3)
+        """,
+        me_id,
+        f"/api/admin/tables/{table_name}/{pk_column}/{pk_value}",
+        json.dumps({
+            "table": table_name,
+            "pk_column": pk_column,
+            "pk_value": str(pk_value),
+            "diff": diff,
+        }),
+    )
+
+    return {
+        "ok": True,
+        "changed": list(changes.keys()),
+        "row": {k: _json_safe(v) for k, v in updated.items()},
+    }
 
 
 # ---------------------------------------------------------------------------
