@@ -1,0 +1,124 @@
+# Freemium stack — deploy-alternative.
+#
+# Запускается ПАРАЛЛЕЛЬНО с прод-стеком (`docker-compose.prod.yml`) на тех же
+# хостах. Собственные volumes, отдельные имена контейнеров и отдельные порты,
+# поэтому не конфликтует с прод.
+#
+# Публичные порты:
+#   FRONTEND_PUBLIC_PORT (default 3201) -> наружу (0.0.0.0)
+#   BACKEND_LOCAL_PORT   (default 8102) -> только 127.0.0.1
+#
+# Запуск:
+#   cp .env.freemium.example .env.freemium
+#   # заполни TELEGRAM_TOKEN (отдельный бот!) и DB_PASSWORD
+#   docker compose -p propitashka-freemium \
+#       --env-file .env.freemium \
+#       -f docker-compose.freemium.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: propitashka-postgres-freemium
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-propitashka}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres_data_freemium:/var/lib/postgresql/data
+      - ./backend/init_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./backend/init_seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    networks:
+      - propitashka-freemium-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-propitashka}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: propitashka-redis-freemium
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 128mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data_freemium:/data
+    networks:
+      - propitashka-freemium-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: propitashka-backend-freemium
+    restart: unless-stopped
+    env_file:
+      - .env.freemium
+    environment:
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      APP_VARIANT: freemium
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - propitashka-freemium-net
+    volumes:
+      - uploads_data_freemium:/data/uploads
+    ports:
+      - "127.0.0.1:${BACKEND_LOCAL_PORT:-8102}:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ""
+        BACKEND_URL: http://backend:8000
+    container_name: propitashka-frontend-freemium
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: ""
+      BACKEND_URL: http://backend:8000
+      NEXT_PUBLIC_APP_VARIANT: freemium
+    depends_on:
+      - backend
+    networks:
+      - propitashka-freemium-net
+    ports:
+      - "0.0.0.0:${FRONTEND_PUBLIC_PORT:-3201}:3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  propitashka-freemium-net:
+    driver: bridge
+
+volumes:
+  postgres_data_freemium:
+  redis_data_freemium:
+  uploads_data_freemium:

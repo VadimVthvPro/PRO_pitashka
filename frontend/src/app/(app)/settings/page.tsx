@@ -9,6 +9,8 @@ import { useTheme, type ThemeMode } from "@/lib/theme";
 import { useI18n, SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { ScrollReveal } from "@/components/motion/ScrollReveal";
 import { Sticker } from "@/components/hand/Sticker";
+import Link from "next/link";
+import { useBilling } from "@/lib/billing";
 
 interface SettingsResponse {
   theme: ThemeMode;
@@ -48,6 +50,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const { me: billing } = useBilling(60_000);
 
   useEffect(() => {
     Promise.all([
@@ -165,6 +168,38 @@ export default function SettingsPage() {
             {t("settings_title")}
           </h1>
         </div>
+      </ScrollReveal>
+
+      {/* Billing / Подписка */}
+      <ScrollReveal delay={0.04}>
+        <Link
+          href="/billing"
+          className="block card-base p-5 sm:p-6 hover:border-[var(--accent)] transition-colors touch-manipulation"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-full bg-[var(--accent)]/15 flex items-center justify-center flex-shrink-0">
+              <Icon icon="solar:star-bold-duotone" width={22} className="text-[var(--accent)]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-base font-semibold text-[var(--foreground)]">
+                  {billing?.plan_name ?? "Подписка"}
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--accent)]">
+                  {(billing?.tier ?? "free").toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                {billing?.tier === "free"
+                  ? "Расширь лимиты за звёздочки Telegram"
+                  : billing?.end_at
+                    ? `Активен до ${new Date(billing.end_at).toLocaleDateString("ru-RU")}`
+                    : "Управление подпиской"}
+              </div>
+            </div>
+            <Icon icon="solar:arrow-right-linear" width={18} className="text-[var(--muted)] flex-shrink-0" />
+          </div>
+        </Link>
       </ScrollReveal>
 
       {/* Profile */}

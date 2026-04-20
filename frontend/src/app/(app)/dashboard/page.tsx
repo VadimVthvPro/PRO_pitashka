@@ -17,6 +17,7 @@ import { Scribble } from "@/components/hand/Scribble";
 import { Sticker } from "@/components/hand/Sticker";
 import { greeting, heroSubtitle, emptyCopy, cta } from "@/lib/copy";
 import { useI18n } from "@/lib/i18n";
+import { PaywallBanner } from "@/components/billing/PaywallBanner";
 
 const WATER_TARGET = 8;
 
@@ -196,6 +197,9 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-12">
+      <ScrollReveal>
+        <PaywallBanner />
+      </ScrollReveal>
       {/* ============= HERO — asymmetric, hand-drawn accents ============= */}
       <ScrollReveal>
         <div className="relative pt-2">

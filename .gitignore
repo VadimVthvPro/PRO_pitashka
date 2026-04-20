@@ -22,6 +22,7 @@ pyvenv.cfg
 .env.*
 !.env.example
 !.env.production.example
+!.env.freemium.example
 .env.local
 .env.prod
 .env.prod.bak

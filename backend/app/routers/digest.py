@@ -3,7 +3,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query
 
 from app.dependencies import DbDep, CurrentUserDep, RedisDep
-from app.services import ai_service
+from app.services import ai_service, quota_service
+from app.services.quota_service import QuotaExceeded
 from app.services.ai_service import (
     AIConfigError,
     AIQuotaError,
@@ -111,6 +112,25 @@ async def weekly(
             return cached
 
     stats = await _collect_week_stats(db, user_id)
+
+    # Дайджест — платная фича по квоте. Бесплатным даём 1/мес, но, если
+    # кэш уже прогрет (выше), юзер бесплатно получает тот же результат до
+    # конца дня. Квоту списываем ТОЛЬКО при новом запросе к AI.
+    try:
+        await quota_service.consume(db, redis, user_id, "ai_digest")
+    except QuotaExceeded as exc:
+        st = exc.status
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "code": "quota_exceeded", "message": exc.message,
+                "plan_key": st.plan_key, "tier": st.tier, "quota_key": st.key,
+                "limit": st.limit, "used": st.used,
+                "reset_at": st.reset_at.isoformat() if st.reset_at else None,
+                "upgrade": {"suggested_plan_key": "premium_month" if st.tier == "free" else "pro_month",
+                            "billing_url": "/billing"},
+            },
+        )
 
     if stats["food"]["entries"] == 0 and stats["workouts"]["sessions"] == 0 and stats["water"]["glasses_total"] == 0:
         return {

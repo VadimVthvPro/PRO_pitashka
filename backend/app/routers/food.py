@@ -4,7 +4,8 @@ from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from app.dependencies import DbDep, CurrentUserDep, RedisDep
 from app.models.food import FoodManualRequest
 from app.repositories.food_repo import FoodRepository
-from app.services import ai_service, streak_service
+from app.services import ai_service, streak_service, quota_service
+from app.services.quota_service import QuotaExceeded
 from app.services.cache_service import CacheService
 from app.repositories.user_repo import UserRepository
 from app.config import get_settings
@@ -14,10 +15,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _photo_quota_error(exc: QuotaExceeded) -> HTTPException:
+    st = exc.status
+    return HTTPException(
+        status_code=402,
+        detail={
+            "code": "quota_exceeded", "message": exc.message,
+            "plan_key": st.plan_key, "tier": st.tier, "quota_key": st.key,
+            "limit": st.limit, "used": st.used,
+            "reset_at": st.reset_at.isoformat() if st.reset_at else None,
+            "upgrade": {"suggested_plan_key": "premium_month" if st.tier == "free" else "pro_month",
+                        "billing_url": "/billing"},
+        },
+    )
+
+
 @router.post("")
 async def add_food_manual(body: FoodManualRequest, user_id: CurrentUserDep, db: DbDep, redis: RedisDep):
     if len(body.foods) != len(body.grams):
         raise HTTPException(status_code=422, detail="Foods and grams must have same length")
+
+    try:
+        await quota_service.consume(db, redis, user_id, "food_manual", n=max(1, len(body.foods)))
+    except QuotaExceeded as exc:
+        raise _photo_quota_error(exc)
 
     settings = get_settings()
     cache = CacheService(redis, settings.CACHE_ENABLED)
@@ -85,10 +106,14 @@ async def add_food_manual(body: FoodManualRequest, user_id: CurrentUserDep, db: 
 
 @router.post("/photo")
 async def add_food_photo(
-    user_id: CurrentUserDep, db: DbDep,
+    user_id: CurrentUserDep, db: DbDep, redis: RedisDep,
     file: UploadFile = File(...),
     food_date: date = Query(default_factory=date.today),
 ):
+    try:
+        await quota_service.consume(db, redis, user_id, "ai_photo")
+    except QuotaExceeded as exc:
+        raise _photo_quota_error(exc)
     image_bytes = await file.read()
     lang = await UserRepository(db).get_lang(user_id) or "ru"
     try:

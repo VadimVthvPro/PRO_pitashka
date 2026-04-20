@@ -19,7 +19,7 @@ from app.models.ai import (
 )
 from app.repositories.chat_repo import ChatRepository
 from app.repositories.user_repo import UserRepository
-from app.services import ai_service
+from app.services import ai_service, quota_service
 from app.services.ai_service import (
     AIConfigError,
     AIQuotaError,
@@ -27,10 +27,33 @@ from app.services.ai_service import (
     AIUpstreamError,
 )
 from app.services.cache_service import CacheService
+from app.services.quota_service import QuotaExceeded
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _quota_http_error(exc: QuotaExceeded) -> HTTPException:
+    """Переводит `QuotaExceeded` в единообразный 402 для фронта."""
+    st = exc.status
+    return HTTPException(
+        status_code=402,
+        detail={
+            "code": "quota_exceeded",
+            "message": exc.message,
+            "plan_key": st.plan_key,
+            "tier": st.tier,
+            "quota_key": st.key,
+            "limit": st.limit,
+            "used": st.used,
+            "reset_at": st.reset_at.isoformat() if st.reset_at else None,
+            "upgrade": {
+                "suggested_plan_key": "premium_month" if st.tier == "free" else "pro_month",
+                "billing_url": "/billing",
+            },
+        },
+    )
 
 
 def _ai_http_error(exc: Exception) -> HTTPException:
@@ -266,6 +289,10 @@ async def _run_chat_and_persist(
     user message and only swaps in a fresh assistant reply.
     """
     await _enforce_ai_access(db, user_id)
+    try:
+        await quota_service.consume(db, redis, user_id, "ai_chat_msg")
+    except QuotaExceeded as exc:
+        raise _quota_http_error(exc)
     history, user_info, lang, today, week, meal_plan, workout_plan = (
         await _resolve_chat_context(db, redis, user_id, attach)
     )
@@ -591,6 +618,10 @@ async def generate_meal_plan(
         if cached:
             return cached
 
+    try:
+        await quota_service.consume(db, redis, user_id, "ai_meal_plan")
+    except QuotaExceeded as exc:
+        raise _quota_http_error(exc)
     chat_repo = ChatRepository(db)
     user_info = await chat_repo.get_user_info_for_ai(user_id)
     try:
@@ -617,6 +648,10 @@ async def generate_workout_plan(
         if cached:
             return cached
 
+    try:
+        await quota_service.consume(db, redis, user_id, "ai_workout_plan")
+    except QuotaExceeded as exc:
+        raise _quota_http_error(exc)
     chat_repo = ChatRepository(db)
     user_info = await chat_repo.get_user_info_for_ai(user_id)
     try:
@@ -642,6 +677,10 @@ async def generate_recipe(
     if cached:
         return cached
 
+    try:
+        await quota_service.consume(db, redis, user_id, "ai_recipe")
+    except QuotaExceeded as exc:
+        raise _quota_http_error(exc)
     chat_repo = ChatRepository(db)
     user_info = await chat_repo.get_user_info_for_ai(user_id)
     try:

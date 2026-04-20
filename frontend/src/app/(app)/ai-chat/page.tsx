@@ -33,6 +33,8 @@ import { Sticker } from "@/components/hand/Sticker";
 import { Scribble } from "@/components/hand/Scribble";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { useBilling } from "@/lib/billing";
+import { QuotaBar, getUsageItem } from "@/components/billing/QuotaBar";
 
 type Attach = "meal_plan" | "workout_plan" | null;
 
@@ -89,6 +91,9 @@ export default function AiChatPage() {
   const [snapshot, setSnapshot] = useState<ContextSnapshot | null>(null);
   const [snapshotLoading, setSnapshotLoading] = useState(true);
   const [quickPrompts, setQuickPrompts] = useState<QuickPrompt[]>([]);
+
+  const { me: billing, refetch: refetchBilling } = useBilling(60_000);
+  const chatQuota = getUsageItem(billing?.usage, "ai_chat_msg");
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -236,6 +241,7 @@ export default function AiChatPage() {
         if (newId != null) {
           setCreatedAt((m) => new Map(m).set(newId, new Date()));
         }
+        refetchBilling();
       } catch (e) {
         const msg = e instanceof Error ? e.message : t("ai_error_request");
         setError(msg);
@@ -354,6 +360,11 @@ export default function AiChatPage() {
               </span>
             </h1>
             <p className="page-subtitle mt-1 text-xs sm:text-sm truncate">{t("ai_subtitle")}</p>
+            {chatQuota && chatQuota.limit !== -1 && (
+              <div className="mt-2">
+                <QuotaBar item={chatQuota} compact hideIfUnlimited />
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <div className="hidden sm:block">

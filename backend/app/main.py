@@ -87,7 +87,7 @@ os.environ["UPLOADS_DIR"] = str(UPLOADS_DIR)
 # Routers
 from app.routers import (
     auth, users, food, workouts, water, summary, ai, settings, admin,
-    streaks, weight, digest, google_auth, social,
+    streaks, weight, digest, google_auth, social, billing,
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -104,6 +104,7 @@ app.include_router(streaks.router, prefix="/api/streaks", tags=["streaks"])
 app.include_router(weight.router, prefix="/api/weight", tags=["weight"])
 app.include_router(digest.router, prefix="/api/digest", tags=["digest"])
 app.include_router(social.router, prefix="/api/social", tags=["social"])
+app.include_router(billing.router, prefix="/api/billing", tags=["billing"])
 
 # User-uploaded media (currently social post photos). Mounted under
 # /uploads/ so it never collides with API routes; the directory is

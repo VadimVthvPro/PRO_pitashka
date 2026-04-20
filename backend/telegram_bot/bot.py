@@ -48,8 +48,10 @@ async def start_bot() -> None:
 
     from telegram_bot.handlers.otp import otp_router
     from telegram_bot.handlers.notifications import notifications_router
+    from telegram_bot.handlers.payments import payments_router
     dp.include_router(otp_router)
     dp.include_router(notifications_router)
+    dp.include_router(payments_router)
 
     _task = asyncio.create_task(_run_polling())
     logger.info("Telegram bot started (OTP + notifications mode)")

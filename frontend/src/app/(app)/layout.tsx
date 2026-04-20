@@ -5,6 +5,7 @@ import { GrainOverlay } from "@/components/motion/GrainOverlay";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { BadgeToast } from "@/components/streak/BadgeToast";
 import { SettingsHydrator } from "@/components/settings/SettingsHydrator";
+import { UpgradeModalProvider } from "@/components/billing/UpgradeModal";
 
 // Authenticated layout MUST be rendered fresh on every request so the
 // middleware-applied `Cache-Control: no-store` header takes effect and we
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <GrainOverlay />
       <BadgeToast />
       <SettingsHydrator />
+      <UpgradeModalProvider />
       <Sidebar />
       {/* pb calibrated to BottomNav: 60px bar + safe-area bottom + 12px
           breathing gap. Reset on lg+ where the bar is gone. */}

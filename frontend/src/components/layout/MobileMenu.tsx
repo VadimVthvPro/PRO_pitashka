@@ -43,6 +43,7 @@ const groups: { titleKey: string; items: NavItem[] }[] = [
   {
     titleKey: "menu_section_account",
     items: [
+      { href: "/billing", icon: "solar:star-bold-duotone", labelKey: "nav_billing" },
       { href: "/settings", icon: "solar:settings-bold-duotone", labelKey: "nav_settings" },
       { href: "/admin", icon: "solar:shield-user-bold-duotone", labelKey: "nav_admin" },
     ],
