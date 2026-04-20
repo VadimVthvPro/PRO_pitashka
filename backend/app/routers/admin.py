@@ -6,8 +6,10 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Body, Cookie, HTTPException, Query, Request, Response
 from app.config import get_settings
-from app.dependencies import DbDep, CurrentUserDep
+from app.dependencies import DbDep, CurrentUserDep, RedisDep
 from app.repositories.admin_repo import AdminRepository
+from app.repositories.billing_repo import BillingRepository
+from app.services import subscription_service
 
 router = APIRouter()
 
@@ -1305,6 +1307,213 @@ async def admin_user_unban(target_id: int, request: Request, db: DbDep):
         json.dumps({"target": target_id}),
     )
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Subscription management — выдача / отзыв тира из админки.
+# Не использует Stars-инвойсы — даёт подписку напрямую через
+# subscription_service.grant() с source='admin'.
+# ---------------------------------------------------------------------------
+
+
+@router.post("/users/{target_id}/grant-tier")
+async def admin_grant_tier(
+    target_id: int,
+    request: Request,
+    db: DbDep,
+    redis: RedisDep,
+    body: dict = Body(...),
+):
+    """Выдаёт юзеру платный тир в обход оплаты.
+
+    Body:
+        ``{"plan_key": "premium_month", "days": 30}``  — оба опциональны.
+        - ``plan_key`` дефолт ``premium_month`` (берётся из tier_plans).
+        - ``days``     если задан — переопределяет ``duration_days`` плана
+                       (можно выдать пробный 7-дневный premium).
+
+    Идемпотентен: повторный вызов продлевает существующую активную
+    подписку того же tier (см. subscription_service.grant). Списание
+    происходит через `source='admin'`, без записи в `star_payments`.
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    if not await db.fetchrow("SELECT user_id FROM user_main WHERE user_id = $1", target_id):
+        raise HTTPException(status_code=404, detail="user not found")
+
+    plan_key = (body or {}).get("plan_key") or "premium_month"
+    raw_days = (body or {}).get("days")
+
+    repo = BillingRepository(db)
+    plan = await repo.get_plan(plan_key)
+    if not plan or plan.get("tier") == "free":
+        raise HTTPException(
+            status_code=400,
+            detail=f"plan_key {plan_key!r} not found or is free",
+        )
+
+    # Опциональное переопределение длительности — для пробных периодов.
+    if raw_days is not None:
+        try:
+            days_int = int(raw_days)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="days must be integer")
+        if days_int <= 0 or days_int > 3650:
+            raise HTTPException(status_code=400, detail="days must be in 1..3650")
+        # Подмена duration_days на лету — БЕЗ записи в tier_plans.
+        # subscription_service.grant читает duration_days из get_plan() →
+        # делаем тонкую обёртку, временно подсовывая нужное число.
+        async def _shim_get_plan(_pk: str):  # noqa: ANN001
+            row = await repo.get_plan(_pk)
+            if row and _pk == plan_key:
+                row = dict(row)
+                row["duration_days"] = days_int
+            return row
+
+        # monkey-patch на уровне репозитория НЕ делаем — duplicateriy.
+        # Вместо этого вычислим end_at сами и пойдём чуть-чуть в обход
+        # subscription_service.grant: используем admin_grant_custom_days.
+        result = await _grant_custom_days(
+            db, redis,
+            user_id=target_id, plan_key=plan_key, days=days_int,
+            source="admin",
+        )
+    else:
+        try:
+            result = await subscription_service.grant(
+                db, redis,
+                user_id=target_id,
+                plan_key=plan_key,
+                source="admin",
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        """,
+        me_id, f"/api/admin/users/{target_id}/grant-tier",
+        json.dumps({
+            "target": target_id, "plan_key": plan_key,
+            "days_override": raw_days,
+        }),
+    )
+
+    return {
+        "ok": True,
+        "tier": result.get("tier"),
+        "plan_key": result.get("plan_key"),
+        "end_at": result["end_at"].isoformat() if result.get("end_at") else None,
+        "source": result.get("source"),
+    }
+
+
+async def _grant_custom_days(
+    db, redis, *,
+    user_id: int, plan_key: str, days: int, source: str,
+):
+    """Вариант subscription_service.grant с явным числом дней.
+
+    Нужен для админ-выдачи на нестандартный срок (триал на 7 дней
+    при базовом duration_days=30, или подарок на год). Логика 1-в-1 как
+    в основном grant(), но `duration_days` берётся из аргумента.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    repo = BillingRepository(db)
+    plan = await repo.get_plan(plan_key)
+    if not plan or plan.get("tier") == "free":
+        raise HTTPException(status_code=400, detail=f"plan {plan_key!r} not grantable")
+
+    now = datetime.now(timezone.utc)
+    existing = await repo.get_active_subscription(user_id)
+    start_at = (
+        existing["end_at"]
+        if existing and existing["tier"] == plan["tier"] and existing["end_at"] > now
+        else now
+    )
+    end_at = start_at + timedelta(days=days)
+
+    async with db.acquire() as conn:
+        async with conn.transaction():
+            await repo.expire_active_subscriptions(conn, user_id)
+            await repo.insert_subscription(
+                conn,
+                user_id=user_id, plan_key=plan_key,
+                tier=plan["tier"], status="active",
+                source=source, start_at=start_at, end_at=end_at,
+                payment_id=None,
+            )
+            await conn.execute(
+                """
+                UPDATE user_main
+                   SET is_premium = TRUE, premium_until = $2
+                 WHERE user_id = $1
+                """,
+                user_id, end_at.replace(tzinfo=None),
+            )
+
+    # Сбрасываем кеш subscription_service, иначе resolve() ещё минуту
+    # будет отдавать старый тир.
+    if redis is not None:
+        try:
+            await redis.delete(f"sub:{user_id}")
+        except Exception:
+            pass
+
+    return await subscription_service.resolve(db, redis, user_id)
+
+
+@router.post("/users/{target_id}/revoke-tier")
+async def admin_revoke_tier(
+    target_id: int, request: Request, db: DbDep, redis: RedisDep,
+):
+    """Жёстко закрывает все активные подписки юзера (downgrade на free)."""
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    if not await db.fetchrow("SELECT user_id FROM user_main WHERE user_id = $1", target_id):
+        raise HTTPException(status_code=404, detail="user not found")
+    await subscription_service.admin_expire_all(db, redis, target_id)
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        """,
+        me_id, f"/api/admin/users/{target_id}/revoke-tier",
+        json.dumps({"target": target_id}),
+    )
+    return {"ok": True, "tier": "free"}
+
+
+@router.get("/users/{target_id}/subscriptions")
+async def admin_user_subscriptions(target_id: int, request: Request, db: DbDep, redis: RedisDep):
+    """Текущая активная подписка + история (последние 20)."""
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    repo = BillingRepository(db)
+    current = await subscription_service.resolve(db, redis, target_id)
+    history = await repo.list_subscriptions(target_id, limit=20)
+    return {
+        "current": {
+            "tier": current.get("tier"),
+            "plan_key": current.get("plan_key"),
+            "end_at": current["end_at"].isoformat() if current.get("end_at") else None,
+            "source": current.get("source"),
+            "name": current.get("name") or current.get("plan_key"),
+        },
+        "history": [
+            {
+                **{k: v for k, v in row.items() if not isinstance(v, (bytes, bytearray))},
+                "start_at": row["start_at"].isoformat() if row.get("start_at") else None,
+                "end_at": row["end_at"].isoformat() if row.get("end_at") else None,
+                "created_at": row["created_at"].isoformat() if row.get("created_at") else None,
+            }
+            for row in history
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

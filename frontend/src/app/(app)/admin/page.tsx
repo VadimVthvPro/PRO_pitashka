@@ -1051,6 +1051,12 @@ function UserDetail({
         onSaved={() => setReloadTick((n) => n + 1)}
       />
 
+      {/* Subscription / tier control — выдача и отзыв Premium из админки. */}
+      <UserTierPanel
+        userId={userId}
+        onChanged={() => setReloadTick((n) => n + 1)}
+      />
+
       {/* Selected profile fields */}
       <div className="grid grid-cols-2 gap-2">
         {PROFILE_FIELDS.map(({ key, labelKey }) => {
@@ -1133,6 +1139,270 @@ function UserDetail({
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+interface BillingPlanLite {
+  plan_key: string;
+  name: string;
+  tier: string;
+  duration_days: number | null;
+  price_stars: number | null;
+}
+
+interface UserSubsResponse {
+  current: {
+    tier: string;
+    plan_key: string | null;
+    end_at: string | null;
+    source: string | null;
+    name: string | null;
+  };
+  history: Array<{
+    id: number;
+    plan_key: string;
+    tier: string;
+    status: string;
+    source: string | null;
+    start_at: string | null;
+    end_at: string | null;
+    created_at: string | null;
+  }>;
+}
+
+function UserTierPanel({
+  userId,
+  onChanged,
+}: {
+  userId: number;
+  onChanged: () => void;
+}) {
+  const { t, lang } = useI18n();
+  const [plans, setPlans] = useState<BillingPlanLite[]>([]);
+  const [subs, setSubs] = useState<UserSubsResponse | null>(null);
+  const [planKey, setPlanKey] = useState<string>("premium_month");
+  const [days, setDays] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  useEffect(() => {
+    api<BillingPlanLite[]>("/api/billing/plans")
+      .then((data) => {
+        const grantable = data.filter(
+          (p) => p.tier !== "free" && (p.duration_days ?? 0) > 0,
+        );
+        setPlans(grantable);
+        if (grantable.length > 0) setPlanKey(grantable[0].plan_key);
+      })
+      .catch(() => {});
+  }, []);
+
+  const reloadSubs = useCallback(async () => {
+    try {
+      const data = await api<UserSubsResponse>(
+        `/api/admin/users/${userId}/subscriptions`,
+      );
+      setSubs(data);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "load failed");
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    void reloadSubs();
+  }, [reloadSubs]);
+
+  async function grant() {
+    setBusy(true);
+    setErr(null);
+    try {
+      const body: Record<string, unknown> = { plan_key: planKey };
+      const trimmed = days.trim();
+      if (trimmed) {
+        const n = Number(trimmed);
+        if (!Number.isFinite(n) || n <= 0) {
+          throw new Error(t("admin_tier_days_invalid"));
+        }
+        body.days = n;
+      }
+      await api(`/api/admin/users/${userId}/grant-tier`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+      await reloadSubs();
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "grant failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function revoke() {
+    if (!window.confirm(t("admin_tier_revoke_confirm"))) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/api/admin/users/${userId}/revoke-tier`, { method: "POST" });
+      await reloadSubs();
+      onChanged();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "revoke failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const current = subs?.current;
+  const tier = current?.tier ?? "free";
+  const isPaid = tier !== "free";
+
+  return (
+    <div className="bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] p-3 space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <h4 className="font-semibold flex items-center gap-1 text-[12px] uppercase tracking-wide">
+          <Icon icon="solar:crown-bold-duotone" width={14} />
+          {t("admin_tier_section")}
+        </h4>
+        <span
+          className={`text-[10px] px-2 py-0.5 rounded font-mono uppercase ${
+            isPaid
+              ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+              : "bg-[var(--card)] text-[var(--muted-foreground)]"
+          }`}
+        >
+          {tier}
+        </span>
+      </div>
+
+      {current && (
+        <div className="text-[11px] text-[var(--muted-foreground)] space-y-0.5">
+          <div>
+            {t("admin_tier_plan")}: <span className="font-mono text-[var(--foreground)]">{current.plan_key ?? "free"}</span>
+          </div>
+          {current.end_at && (
+            <div>
+              {t("admin_tier_until")}:{" "}
+              <span className="font-mono text-[var(--foreground)]">
+                {new Date(current.end_at).toLocaleString(lang, {
+                  year: "numeric",
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </span>
+            </div>
+          )}
+          {current.source && (
+            <div>
+              {t("admin_tier_source")}: <span className="font-mono">{current.source}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <label className="block text-[11px] space-y-1">
+          <span className="text-[var(--muted-foreground)]">
+            {t("admin_tier_plan_select")}
+          </span>
+          <select
+            value={planKey}
+            onChange={(e) => setPlanKey(e.target.value)}
+            disabled={busy || plans.length === 0}
+            className="w-full px-2 py-1.5 rounded border border-[var(--border)] bg-[var(--card)] text-[12px]"
+          >
+            {plans.map((p) => (
+              <option key={p.plan_key} value={p.plan_key}>
+                {p.name} · {p.duration_days ?? "?"}d
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block text-[11px] space-y-1">
+          <span className="text-[var(--muted-foreground)]">
+            {t("admin_tier_days_override")}
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={3650}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            placeholder={t("admin_tier_days_placeholder")}
+            disabled={busy}
+            className="w-full px-2 py-1.5 rounded border border-[var(--border)] bg-[var(--card)] text-[12px] font-mono"
+          />
+        </label>
+      </div>
+
+      {err && <div className="text-[11px] text-[var(--warning)]">{err}</div>}
+
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => void grant()}
+          disabled={busy || plans.length === 0}
+          className="px-3 py-1.5 rounded text-[12px] font-medium bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 inline-flex items-center gap-1"
+        >
+          <Icon icon="solar:medal-star-bold-duotone" width={14} />
+          {t("admin_tier_grant")}
+        </button>
+        {isPaid && (
+          <button
+            type="button"
+            onClick={() => void revoke()}
+            disabled={busy}
+            className="px-3 py-1.5 rounded text-[12px] font-medium border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)]/10 disabled:opacity-50 inline-flex items-center gap-1"
+          >
+            <Icon icon="solar:shield-cross-bold-duotone" width={14} />
+            {t("admin_tier_revoke")}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setHistoryOpen((v) => !v)}
+          className="ml-auto px-2 py-1 rounded text-[10px] uppercase tracking-wide text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+        >
+          {historyOpen ? t("plans_history_close") : t("admin_tier_history")}
+        </button>
+      </div>
+
+      {historyOpen && subs && (
+        <div className="border-t border-[var(--border)] pt-2">
+          {subs.history.length === 0 ? (
+            <p className="text-[11px] text-[var(--muted-foreground)]">{t("admin_none")}</p>
+          ) : (
+            <table className="w-full text-[10px] font-mono">
+              <thead className="text-[var(--muted-foreground)] uppercase">
+                <tr>
+                  <th className="text-left pb-1">plan</th>
+                  <th className="text-left pb-1">tier</th>
+                  <th className="text-left pb-1">status</th>
+                  <th className="text-left pb-1">end</th>
+                </tr>
+              </thead>
+              <tbody>
+                {subs.history.slice(0, 10).map((row) => (
+                  <tr key={row.id} className="border-t border-dashed border-[var(--border)]">
+                    <td className="py-1 truncate">{row.plan_key}</td>
+                    <td className="py-1">{row.tier}</td>
+                    <td className="py-1">{row.status}</td>
+                    <td className="py-1">
+                      {row.end_at
+                        ? new Date(row.end_at).toLocaleDateString(lang)
+                        : "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -18,6 +18,7 @@ from app.models.ai import (
     RegenerateResponse,
 )
 from app.repositories.chat_repo import ChatRepository
+from app.repositories.plans_repo import PlansRepository
 from app.repositories.user_repo import UserRepository
 from app.services import ai_service, quota_service
 from app.services.ai_service import (
@@ -217,14 +218,20 @@ async def _resolve_chat_context(
     today = await _today_snapshot(db, user_id)
     week = await _week_snapshot(db, user_id)
 
-    meal_plan = None
-    workout_plan = None
     cached_meal = await cache.get(f"meal_plan:{lang}:{user_id}") if cache else None
     cached_workout = await cache.get(f"workout_plan:{lang}:{user_id}") if cache else None
-    if isinstance(cached_meal, dict):
-        meal_plan = cached_meal.get("plan")
-    if isinstance(cached_workout, dict):
-        workout_plan = cached_workout.get("plan")
+    meal_plan = cached_meal.get("plan") if isinstance(cached_meal, dict) else None
+    workout_plan = cached_workout.get("plan") if isinstance(cached_workout, dict) else None
+    # Fallback на БД — Redis может ещё не быть прогрет (рестарт стека) или
+    # запись могла истечь по TTL после долгой паузы между чатами.
+    if not meal_plan:
+        row = await PlansRepository(db).get_active(user_id, "meal")
+        if row:
+            meal_plan = row["content"]
+    if not workout_plan:
+        row = await PlansRepository(db).get_active(user_id, "workout")
+        if row:
+            workout_plan = row["content"]
 
     if attach == "meal_plan" and not meal_plan:
         raise HTTPException(
@@ -589,79 +596,237 @@ def _plan_cache_key(kind: str, lang: str, user_id: int) -> str:
     return f"{kind}:{lang}:{user_id}"
 
 
+async def _resolve_active_plan(
+    db, cache, user_id: int, kind: str, lang: str
+) -> tuple[str | None, dict | None]:
+    """Возвращает (plan_text, plan_meta) — активный план юзера.
+
+    Источник истины — БД (`user_plans.is_active = TRUE`). Кеш используется
+    как ускоритель — если в нём есть, отдаём его; иначе берём из БД и
+    прогреваем кеш. Это решает баг "план пропал после 402-й ошибки": кеш
+    мог истечь, но запись в БД остаётся.
+    """
+    cache_key = _plan_cache_key(f"{kind}_plan", lang, user_id)
+    cached = await cache.get(cache_key) if cache else None
+    if isinstance(cached, dict) and cached.get("plan"):
+        return cached["plan"], None
+
+    db_kind = "meal" if kind == "meal" else "workout"
+    row = await PlansRepository(db).get_active(user_id, db_kind)  # type: ignore[arg-type]
+    if not row:
+        return None, None
+    if cache:
+        await cache.set(
+            cache_key,
+            {"plan": row["content"], "lang": row["lang"]},
+            get_settings().CACHE_TTL_RECIPES,
+        )
+    return row["content"], row
+
+
 @router.get("/plans")
 async def get_active_plans(user_id: CurrentUserDep, db: DbDep, redis: RedisDep):
-    """Return whatever plans are currently cached for this user."""
+    """Возвращает текущие активные планы юзера.
+
+    Источник: persistent `user_plans` (с прогревом Redis-кеша). Раньше
+    использовался только Redis — план "пропадал" при истечении TTL или
+    после 402-й ошибки регенерации.
+    """
     settings = get_settings()
     cache = CacheService(redis, settings.CACHE_ENABLED)
     lang = await UserRepository(db).get_lang(user_id) or "ru"
-    meal = await cache.get(_plan_cache_key("meal_plan", lang, user_id))
-    workout = await cache.get(_plan_cache_key("workout_plan", lang, user_id))
+    meal_text, _ = await _resolve_active_plan(db, cache, user_id, "meal", lang)
+    workout_text, _ = await _resolve_active_plan(db, cache, user_id, "workout", lang)
     return {
         "lang": lang,
-        "meal_plan": meal.get("plan") if isinstance(meal, dict) else None,
-        "workout_plan": workout.get("plan") if isinstance(workout, dict) else None,
+        "meal_plan": meal_text,
+        "workout_plan": workout_text,
     }
+
+
+async def _generate_and_persist_plan(
+    *,
+    db,
+    redis,
+    user_id: int,
+    kind: str,
+    quota_key: str,
+    refresh: bool,
+) -> dict:
+    """Общая обвязка генерации плана: квота + AI + persist + cache."""
+    settings = get_settings()
+    cache = CacheService(redis, settings.CACHE_ENABLED)
+    lang = await UserRepository(db).get_lang(user_id) or "ru"
+    cache_key = _plan_cache_key(f"{kind}_plan", lang, user_id)
+
+    plans_repo = PlansRepository(db)
+
+    if not refresh:
+        cached = await cache.get(cache_key) if cache else None
+        if isinstance(cached, dict) and cached.get("plan"):
+            return cached
+        # Кеш пуст, но в БД может быть активный план — отдадим его без
+        # списания квоты.
+        active = await plans_repo.get_active(user_id, kind)  # type: ignore[arg-type]
+        if active:
+            payload = {"plan": active["content"], "lang": active["lang"], "id": active["id"]}
+            if cache:
+                await cache.set(cache_key, payload, settings.CACHE_TTL_RECIPES)
+            return payload
+
+    try:
+        await quota_service.consume(db, redis, user_id, quota_key)
+    except QuotaExceeded as exc:
+        raise _quota_http_error(exc)
+
+    chat_repo = ChatRepository(db)
+    user_info = await chat_repo.get_user_info_for_ai(user_id)
+    try:
+        if kind == "meal":
+            plan_text = await ai_service.generate_meal_plan(user_info, lang)
+        else:
+            plan_text = await ai_service.generate_workout_plan(user_info, lang)
+    except Exception as e:
+        logger.warning("AI %s plan failed: %s", kind, e)
+        raise _ai_http_error(e)
+
+    model_name = ai_service._current_model_name()  # noqa: SLF001
+    saved_id: int | None = None
+    try:
+        saved = await plans_repo.insert_active(
+            user_id=user_id,
+            kind=kind,  # type: ignore[arg-type]
+            content=plan_text,
+            lang=lang,
+            model=model_name,
+        )
+        saved_id = saved["id"]
+    except Exception as e:
+        # Не валим запрос — план генерация дороже его сохранения.
+        logger.error("plans.insert failed user=%s kind=%s: %s", user_id, kind, e)
+
+    result = {"plan": plan_text, "lang": lang, "id": saved_id}
+    if cache:
+        await cache.set(cache_key, result, settings.CACHE_TTL_RECIPES)
+    return result
 
 
 @router.post("/meal-plan")
 async def generate_meal_plan(
     user_id: CurrentUserDep, db: DbDep, redis: RedisDep, refresh: bool = False,
 ):
-    settings = get_settings()
-    cache = CacheService(redis, settings.CACHE_ENABLED)
-    lang = await UserRepository(db).get_lang(user_id) or "ru"
-
-    cache_key = _plan_cache_key("meal_plan", lang, user_id)
-    if not refresh:
-        cached = await cache.get(cache_key)
-        if cached:
-            return cached
-
-    try:
-        await quota_service.consume(db, redis, user_id, "ai_meal_plan")
-    except QuotaExceeded as exc:
-        raise _quota_http_error(exc)
-    chat_repo = ChatRepository(db)
-    user_info = await chat_repo.get_user_info_for_ai(user_id)
-    try:
-        plan = await ai_service.generate_meal_plan(user_info, lang)
-    except Exception as e:
-        logger.warning("AI meal plan failed: %s", e)
-        raise _ai_http_error(e)
-    result = {"plan": plan, "lang": lang}
-    await cache.set(cache_key, result, settings.CACHE_TTL_RECIPES)
-    return result
+    return await _generate_and_persist_plan(
+        db=db, redis=redis, user_id=user_id,
+        kind="meal", quota_key="ai_meal_plan", refresh=refresh,
+    )
 
 
 @router.post("/workout-plan")
 async def generate_workout_plan(
     user_id: CurrentUserDep, db: DbDep, redis: RedisDep, refresh: bool = False,
 ):
+    return await _generate_and_persist_plan(
+        db=db, redis=redis, user_id=user_id,
+        kind="workout", quota_key="ai_workout_plan", refresh=refresh,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Plans history — persisted list of past generations + activate/delete.
+# ---------------------------------------------------------------------------
+
+
+_VALID_KINDS = {"meal", "workout"}
+
+
+@router.get("/plans/history")
+async def list_plans_history(
+    user_id: CurrentUserDep, db: DbDep, kind: str, limit: int = 20,
+):
+    """Список последних N планов выбранного типа (для UI «История планов»)."""
+    if kind not in _VALID_KINDS:
+        raise HTTPException(status_code=400, detail=f"kind must be one of {sorted(_VALID_KINDS)}")
+    items = await PlansRepository(db).list_history(
+        user_id, kind, limit=min(max(limit, 1), 100),  # type: ignore[arg-type]
+    )
+    return {
+        "kind": kind,
+        "items": [
+            {
+                "id": r["id"],
+                "kind": r["kind"],
+                "lang": r["lang"],
+                "model": r["model"],
+                "is_active": r["is_active"],
+                "created_at": r["created_at"].isoformat(),
+                "preview": r["preview"],
+                "size_bytes": r["size_bytes"],
+            }
+            for r in items
+        ],
+    }
+
+
+@router.get("/plans/{plan_id}")
+async def get_plan_by_id(plan_id: int, user_id: CurrentUserDep, db: DbDep):
+    plan = await PlansRepository(db).get_by_id(user_id, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+    return {
+        "id": plan["id"],
+        "kind": plan["kind"],
+        "lang": plan["lang"],
+        "model": plan["model"],
+        "is_active": plan["is_active"],
+        "created_at": plan["created_at"].isoformat(),
+        "plan": plan["content"],
+    }
+
+
+@router.post("/plans/{plan_id}/activate")
+async def activate_plan(
+    plan_id: int, user_id: CurrentUserDep, db: DbDep, redis: RedisDep,
+):
+    """Делает выбранный план активным — отображается в /plans, попадает в AI-контекст."""
     settings = get_settings()
     cache = CacheService(redis, settings.CACHE_ENABLED)
-    lang = await UserRepository(db).get_lang(user_id) or "ru"
+    plan = await PlansRepository(db).set_active(user_id, plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="plan not found")
+    if cache:
+        cache_key = _plan_cache_key(f"{plan['kind']}_plan", plan["lang"], user_id)
+        await cache.set(
+            cache_key,
+            {"plan": plan["content"], "lang": plan["lang"], "id": plan["id"]},
+            settings.CACHE_TTL_RECIPES,
+        )
+    return {
+        "id": plan["id"],
+        "kind": plan["kind"],
+        "is_active": True,
+        "plan": plan["content"],
+    }
 
-    cache_key = _plan_cache_key("workout_plan", lang, user_id)
-    if not refresh:
-        cached = await cache.get(cache_key)
-        if cached:
-            return cached
 
-    try:
-        await quota_service.consume(db, redis, user_id, "ai_workout_plan")
-    except QuotaExceeded as exc:
-        raise _quota_http_error(exc)
-    chat_repo = ChatRepository(db)
-    user_info = await chat_repo.get_user_info_for_ai(user_id)
-    try:
-        plan = await ai_service.generate_workout_plan(user_info, lang)
-    except Exception as e:
-        logger.warning("AI workout plan failed: %s", e)
-        raise _ai_http_error(e)
-    result = {"plan": plan, "lang": lang}
-    await cache.set(cache_key, result, settings.CACHE_TTL_RECIPES)
-    return result
+@router.delete("/plans/{plan_id}")
+async def delete_plan(
+    plan_id: int, user_id: CurrentUserDep, db: DbDep, redis: RedisDep,
+):
+    repo = PlansRepository(db)
+    existing = await repo.get_by_id(user_id, plan_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="plan not found")
+    was_active = bool(existing["is_active"])
+    ok = await repo.delete(user_id, plan_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="plan not found")
+    if was_active:
+        # Удалили активный — чистим кеш, чтобы /plans не отдавал устаревшее.
+        settings = get_settings()
+        cache = CacheService(redis, settings.CACHE_ENABLED)
+        if cache:
+            await cache.delete(_plan_cache_key(f"{existing['kind']}_plan", existing["lang"], user_id))
+    return {"ok": True, "id": plan_id}
 
 
 @router.post("/recipe")
