@@ -38,16 +38,43 @@ function noStore(response: NextResponse): NextResponse {
   return response;
 }
 
-/** Detect React Server Component prefetch / payload requests.
- * These are issued via `fetch()` and CANNOT follow HTML redirects safely
- * (Safari & Telegram WebView reject the cross-document load with
- * "access control checks"). For these we must return a plain 401
- * so Next.js can fall back to a hard navigation cleanly. */
-function isRscRequest(request: NextRequest): boolean {
-  if (request.headers.get("RSC") === "1") return true;
-  if (request.headers.get("Next-Router-Prefetch") === "1") return true;
-  if (request.nextUrl.searchParams.has("_rsc")) return true;
-  return false;
+/** Detect any non-HTML-navigation request — RSC prefetch, fetch() from client
+ * components, XHR. Next.js 16 edge-runtime strips internal RSC headers (`RSC`,
+ * `Next-Router-*`) and the `_rsc=` query before middleware sees them, so the
+ * only reliable signal left is the `Accept` header: real browser navigation
+ * always includes `text/html`, while every fetch()-style call does not. */
+function isNonNavFetch(request: NextRequest): boolean {
+  const accept = (request.headers.get("accept") || "").toLowerCase();
+  if (!accept) return false; // be conservative if header absent
+  return !accept.includes("text/html");
+}
+
+/** Return a valid, empty RSC payload with reflected CORS. This replaces the
+ * previous 307 → /login response for unauthed prefetches, which Telegram's
+ * WebKit WebView rejected with "Fetch API cannot load … due to access control
+ * checks" (Safari refuses to follow a cross-document HTML redirect issued from
+ * a `fetch()` inside a WebApp frame).
+ *
+ * Why `200` + empty `text/x-component` body: it looks like a successful RSC
+ * response with zero nodes, so the Next.js client router just no-ops the
+ * prefetch. The real HTML navigation (initiated by the user clicking the
+ * link) still takes the `307 → /login` branch below. */
+function emptyRscPayload(request: NextRequest): NextResponse {
+  const origin = request.headers.get("origin");
+  const headers: Record<string, string> = {
+    "content-type": "text/x-component; charset=utf-8",
+    "cache-control": "no-store",
+    "vary": "Origin, Accept",
+  };
+  if (origin) {
+    headers["access-control-allow-origin"] = origin;
+    headers["access-control-allow-credentials"] = "true";
+  } else {
+    // Same-origin request with no Origin header — wildcard is fine and
+    // avoids WebKit credential-with-wildcard rejections.
+    headers["access-control-allow-origin"] = "*";
+  }
+  return new NextResponse("", { status: 200, headers });
 }
 
 export async function middleware(request: NextRequest) {
@@ -66,12 +93,6 @@ export async function middleware(request: NextRequest) {
 
   const accessToken = request.cookies.get("access_token");
   const refreshToken = request.cookies.get("refresh_token");
-  const rscLikely =
-    request.headers.get("rsc") === "1" ||
-    request.headers.get("next-router-prefetch") === "1" ||
-    request.headers.get("next-router-state-tree") !== null ||
-    request.headers.get("accept")?.includes("text/x-component") === true ||
-    request.nextUrl.searchParams.has("_rsc");
 
   if (pathname === "/login" && accessToken) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
@@ -99,21 +120,8 @@ export async function middleware(request: NextRequest) {
       const refreshed = await tryRefresh(request);
       if (refreshed) return noStore(refreshed);
     }
-    // RSC prefetch / payload cannot follow an HTML 307 — Telegram's WebKit
-    // WebView raises "Fetch API cannot load … due to access control checks".
-    // Return an empty 204 with permissive CORS so the router silently aborts
-    // the prefetch; the next real navigation takes the HTML redirect branch.
-    if (rscLikely || isRscRequest(request)) {
-      const origin = request.headers.get("origin") ?? request.nextUrl.origin;
-      return new NextResponse(null, {
-        status: 204,
-        headers: {
-          "cache-control": "no-store",
-          "access-control-allow-origin": origin,
-          "access-control-allow-credentials": "true",
-          "vary": "Origin, RSC, Next-Router-Prefetch, Accept",
-        },
-      });
+    if (isNonNavFetch(request)) {
+      return emptyRscPayload(request);
     }
     const loginUrl = new URL("/login", request.url);
     if (pathname !== "/") loginUrl.searchParams.set("next", pathname);
