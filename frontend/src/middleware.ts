@@ -66,6 +66,12 @@ export async function middleware(request: NextRequest) {
 
   const accessToken = request.cookies.get("access_token");
   const refreshToken = request.cookies.get("refresh_token");
+  const rscLikely =
+    request.headers.get("rsc") === "1" ||
+    request.headers.get("next-router-prefetch") === "1" ||
+    request.headers.get("next-router-state-tree") !== null ||
+    request.headers.get("accept")?.includes("text/x-component") === true ||
+    request.nextUrl.searchParams.has("_rsc");
 
   if (pathname === "/login" && accessToken) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
@@ -93,20 +99,19 @@ export async function middleware(request: NextRequest) {
       const refreshed = await tryRefresh(request);
       if (refreshed) return noStore(refreshed);
     }
-    // RSC prefetch can't follow an HTML redirect — Telegram's WebKit WebView
-    // raises "Fetch API cannot load … due to access control checks" even on a
-    // same-origin 401 if CORS headers are absent. Return an empty 204 with
-    // explicit CORS allowances so the router silently drops the prefetch.
-    // Real navigation will take the HTML redirect branch below.
-    if (isRscRequest(request)) {
+    // RSC prefetch / payload cannot follow an HTML 307 — Telegram's WebKit
+    // WebView raises "Fetch API cannot load … due to access control checks".
+    // Return an empty 204 with permissive CORS so the router silently aborts
+    // the prefetch; the next real navigation takes the HTML redirect branch.
+    if (rscLikely || isRscRequest(request)) {
       const origin = request.headers.get("origin") ?? request.nextUrl.origin;
       return new NextResponse(null, {
         status: 204,
         headers: {
-          "Cache-Control": "no-store",
-          "Access-Control-Allow-Origin": origin,
-          "Access-Control-Allow-Credentials": "true",
-          "Vary": "Origin, RSC, Next-Router-Prefetch",
+          "cache-control": "no-store",
+          "access-control-allow-origin": origin,
+          "access-control-allow-credentials": "true",
+          "vary": "Origin, RSC, Next-Router-Prefetch, Accept",
         },
       });
     }
