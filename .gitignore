@@ -9,12 +9,12 @@ dist/
 build/
 *.egg
 
-# Virtual Environment
-bin/
-lib/
-lib64/
-share/
-include/
+# Virtual Environment (top-level only, чтобы не ловить frontend/src/lib и др.)
+/bin/
+/lib/
+/lib64/
+/share/
+/include/
 pyvenv.cfg
 
 # Environment variables
