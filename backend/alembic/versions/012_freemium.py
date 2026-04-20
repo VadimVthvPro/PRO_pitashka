@@ -1,7 +1,7 @@
 """Freemium billing tables: tier_plans, subscriptions, star_payments, usage_counters.
 
-Revision ID: 011_freemium
-Revises: 010_chat_feedback
+Revision ID: 012_freemium
+Revises: 011_admin_control_plane
 Create Date: 2026-04-15
 
 Adds the full freemium schema + Telegram-Stars billing so the app can gate
@@ -27,8 +27,8 @@ from typing import Sequence, Union
 from alembic import op
 
 
-revision: str = "011_freemium"
-down_revision: Union[str, None] = "010_chat_feedback"
+revision: str = "012_freemium"
+down_revision: Union[str, None] = "011_admin_control_plane"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
