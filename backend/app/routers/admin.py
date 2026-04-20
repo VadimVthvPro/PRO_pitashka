@@ -198,7 +198,11 @@ async def delete_row(
     except ValueError:
         typed_value = pk_value
 
-    deleted = await repo.delete_row(table_name, pk_column, typed_value)
+    try:
+        deleted = await repo.delete_row(table_name, pk_column, typed_value)
+    except Exception as exc:
+        msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
+        raise HTTPException(status_code=400, detail=f"DB rejected delete: {msg[:300]}")
     if not deleted:
         raise HTTPException(status_code=404, detail="Row not found")
 
@@ -230,9 +234,17 @@ def _cast_cell_value(raw: Any, col_meta: dict) -> Any:
     We trust ``col_meta`` from ``information_schema`` to decide the target
     type; the whitelist in ``table_policy`` is what protects *which*
     columns can be written at all.
+
+    IMPORTANT: asyncpg is strictly typed — it will NOT accept ISO strings
+    for ``date`` / ``time`` / ``timestamp`` columns. We parse strings into
+    native Python objects on this side; passing them through raw would
+    surface as a 500 (asyncpg DataError) instead of a clean 400.
     """
+    import datetime as _dt
+
     dtype = (col_meta.get("data_type") or "").lower()
     nullable = (col_meta.get("is_nullable") or "NO").upper() == "YES"
+    col_name = col_meta.get("column_name", "?")
 
     # Explicit NULL
     if raw is None or raw == "":
@@ -242,7 +254,7 @@ def _cast_cell_value(raw: Any, col_meta: dict) -> Any:
             return ""
         raise HTTPException(
             status_code=400,
-            detail=f"column {col_meta['column_name']} is NOT NULL",
+            detail=f"column {col_name} is NOT NULL",
         )
 
     if dtype == "boolean":
@@ -255,19 +267,19 @@ def _cast_cell_value(raw: Any, col_meta: dict) -> Any:
                 return False
         if isinstance(raw, (int, float)):
             return bool(raw)
-        raise HTTPException(status_code=400, detail="invalid boolean value")
+        raise HTTPException(status_code=400, detail=f"invalid boolean value for {col_name}")
 
     if dtype in ("integer", "bigint", "smallint"):
         try:
             return int(raw)
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="invalid integer value")
+            raise HTTPException(status_code=400, detail=f"invalid integer value for {col_name}")
 
     if dtype in ("numeric", "real", "double precision"):
         try:
             return float(raw)
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="invalid numeric value")
+            raise HTTPException(status_code=400, detail=f"invalid numeric value for {col_name}")
 
     if dtype in ("json", "jsonb"):
         if isinstance(raw, (dict, list)):
@@ -276,19 +288,67 @@ def _cast_cell_value(raw: Any, col_meta: dict) -> Any:
             try:
                 json.loads(raw)
             except Exception:
-                raise HTTPException(status_code=400, detail="invalid JSON value")
+                raise HTTPException(status_code=400, detail=f"invalid JSON value for {col_name}")
             return raw
-        raise HTTPException(status_code=400, detail="invalid JSON value")
+        raise HTTPException(status_code=400, detail=f"invalid JSON value for {col_name}")
 
-    if dtype in ("timestamp without time zone", "timestamp with time zone",
-                 "timestamptz", "date", "time"):
-        # We let Postgres parse ISO strings; anything else is rejected.
-        if isinstance(raw, str):
+    # --- date / time / timestamp ------------------------------------------
+    # asyncpg wants native datetime objects here, not ISO strings.
+    if dtype == "date":
+        if isinstance(raw, _dt.date) and not isinstance(raw, _dt.datetime):
             return raw
-        raise HTTPException(
-            status_code=400,
-            detail=f"expected ISO string for {col_meta['column_name']}",
-        )
+        if isinstance(raw, str):
+            try:
+                return _dt.date.fromisoformat(raw[:10])
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"invalid date for {col_name} — expected YYYY-MM-DD",
+                )
+        raise HTTPException(status_code=400, detail=f"invalid date for {col_name}")
+
+    if dtype in ("time", "time without time zone", "time with time zone"):
+        if isinstance(raw, _dt.time):
+            return raw
+        if isinstance(raw, str):
+            try:
+                # Accept HH:MM or HH:MM:SS or HH:MM:SS.ffffff
+                return _dt.time.fromisoformat(raw)
+            except ValueError:
+                try:
+                    # One more retry: "HH:MM" only
+                    parts = [int(p) for p in raw.split(":")]
+                    return _dt.time(*(parts + [0] * (3 - len(parts)))[:3])
+                except Exception:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"invalid time for {col_name} — expected HH:MM[:SS]",
+                    )
+        raise HTTPException(status_code=400, detail=f"invalid time for {col_name}")
+
+    if dtype in ("timestamp", "timestamp without time zone",
+                 "timestamp with time zone", "timestamptz"):
+        if isinstance(raw, _dt.datetime):
+            return raw
+        if isinstance(raw, str):
+            # Accept "YYYY-MM-DD", "YYYY-MM-DDTHH:MM[:SS][Z|+HH:MM]"
+            s = raw.strip()
+            if s.endswith("Z"):
+                s = s[:-1] + "+00:00"
+            try:
+                return _dt.datetime.fromisoformat(s)
+            except ValueError:
+                try:
+                    # Date-only → midnight
+                    return _dt.datetime.combine(
+                        _dt.date.fromisoformat(s[:10]), _dt.time(0, 0)
+                    )
+                except Exception:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"invalid timestamp for {col_name} — expected ISO-8601",
+                    )
+        raise HTTPException(status_code=400, detail=f"invalid timestamp for {col_name}")
 
     # Fallback: treat as text
     return str(raw)
@@ -339,7 +399,11 @@ async def get_single_row(
         raise HTTPException(status_code=400, detail=f"Invalid column: {pk_column}")
 
     policy = _tp.policy_for(table_name) or {}
-    row = await repo.get_row(table_name, pk_column, _parse_pk(pk_value))
+    try:
+        row = await repo.get_row(table_name, pk_column, _parse_pk(pk_value))
+    except Exception as exc:
+        msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
+        raise HTTPException(status_code=400, detail=f"DB rejected lookup: {msg[:300]}")
     if row is None:
         raise HTTPException(status_code=404, detail="Row not found")
 
@@ -412,7 +476,11 @@ async def update_table_row(
     pk_typed = _parse_pk(pk_value)
 
     # --- read current row for audit diff ---------------------------------
-    before = await repo.get_row(table_name, pk_column, pk_typed)
+    try:
+        before = await repo.get_row(table_name, pk_column, pk_typed)
+    except Exception as exc:
+        msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
+        raise HTTPException(status_code=400, detail=f"DB rejected lookup: {msg[:300]}")
     if before is None:
         raise HTTPException(status_code=404, detail="Row not found")
 
@@ -425,7 +493,13 @@ async def update_table_row(
     if not changes:
         return {"ok": True, "changed": [], "row": {k: _json_safe(v) for k, v in before.items()}}
 
-    updated = await repo.update_row(table_name, pk_column, pk_typed, changes)
+    try:
+        updated = await repo.update_row(table_name, pk_column, pk_typed, changes)
+    except Exception as exc:  # asyncpg.PostgresError + DataError land here
+        # Surface constraint violations / data errors as 400 instead of 500;
+        # message is short & admin-only, so exposing Postgres detail is fine.
+        msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
+        raise HTTPException(status_code=400, detail=f"DB rejected update: {msg[:300]}")
     if updated is None:
         raise HTTPException(status_code=404, detail="Row not found")
 
