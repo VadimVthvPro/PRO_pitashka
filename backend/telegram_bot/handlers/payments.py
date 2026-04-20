@@ -57,9 +57,11 @@ async def cmd_premium(message: Message) -> None:
                 callback_data=f"buy:{p['plan_key']}",
             )
         ])
-    kb_rows.append([
-        InlineKeyboardButton(text="Открыть сайт", url="https://t.me/PROpitashka_bot"),
-    ])
+    from app.config import settings as _settings
+    if _settings.FRONTEND_URL:
+        kb_rows.append([
+            InlineKeyboardButton(text="Открыть сайт", url=_settings.FRONTEND_URL),
+        ])
 
     text = (
         "✨ <b>Premium в PROpitashka</b>\n\n"

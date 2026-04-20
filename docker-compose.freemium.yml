@@ -94,6 +94,8 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ""
         BACKEND_URL: http://backend:8000
+        NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-PROpitashka_test_bot}
+        NEXT_PUBLIC_APP_VARIANT: freemium
     container_name: propitashka-frontend-freemium
     restart: unless-stopped
     environment:
@@ -101,6 +103,7 @@ services:
       NEXT_PUBLIC_API_URL: ""
       BACKEND_URL: http://backend:8000
       NEXT_PUBLIC_APP_VARIANT: freemium
+      NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-PROpitashka_test_bot}
     depends_on:
       - backend
     networks:
