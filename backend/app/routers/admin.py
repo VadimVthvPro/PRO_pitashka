@@ -799,3 +799,420 @@ async def admin_user_detail(target_id: int, request: Request, db: DbDep):
             {**dict(r), "created_at": r["created_at"].isoformat()} for r in recent
         ],
     }
+
+
+# ---------------------------------------------------------------------------
+# User editing — name, goal, daily_cal, tier, ban, feature toggles.
+# Only a safe subset of columns is editable; everything else is read-only.
+# ---------------------------------------------------------------------------
+
+EDITABLE_USER_FIELDS = {
+    # user_main
+    "user_name":        {"type": "string", "max_len": 255},
+    "display_name":     {"type": "string", "max_len": 64},
+    "bio":              {"type": "string", "max_len": 280, "nullable": True},
+    "user_sex":         {"type": "enum",   "values": ("m", "f", "M", "F", "")},
+    "gender":           {"type": "string", "max_len": 16, "nullable": True},
+    "public_profile":   {"type": "bool"},
+    "tier":             {"type": "enum",   "values": ("free", "pro", "elite", "admin")},
+    "ai_disabled":      {"type": "bool"},
+    "social_disabled":  {"type": "bool"},
+    "is_premium":       {"type": "bool"},
+    "social_score":     {"type": "int"},
+}
+
+
+def _coerce_user_value(field: str, raw: Any) -> Any:
+    spec = EDITABLE_USER_FIELDS[field]
+    if raw is None:
+        if spec.get("nullable") or spec["type"] == "string":
+            return None
+        raise HTTPException(status_code=400, detail=f"{field} must not be null")
+    t = spec["type"]
+    if t == "bool":
+        if isinstance(raw, bool):
+            return raw
+        if isinstance(raw, (int, float)):
+            return bool(raw)
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        raise HTTPException(status_code=400, detail=f"{field} must be boolean")
+    if t == "int":
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{field} must be integer")
+    if t == "enum":
+        if str(raw) not in spec["values"]:
+            raise HTTPException(
+                status_code=400,
+                detail=f"{field} must be one of {list(spec['values'])}",
+            )
+        return str(raw)
+    # string
+    s = "" if raw is None else str(raw)
+    if len(s) > spec.get("max_len", 255):
+        raise HTTPException(
+            status_code=400,
+            detail=f"{field}: max {spec.get('max_len', 255)} chars",
+        )
+    return s or None if spec.get("nullable") else s
+
+
+@router.patch("/users/{target_id}")
+async def admin_user_patch(
+    target_id: int,
+    request: Request,
+    db: DbDep,
+    body: dict = Body(...),
+):
+    """Update a safe subset of user columns.
+
+    Accepts a flat dict ``{field: value}``. Unknown fields are rejected. The
+    whole update runs in a single UPDATE statement so partial failures are
+    impossible. Every call logs to ``audit_log`` with the set of changed
+    fields (values are recorded for scalar fields only — booleans/ints are
+    cheap to store, bio/display_name are truncated to avoid audit bloat).
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    if not body:
+        raise HTTPException(status_code=400, detail="empty body")
+
+    existing = await db.fetchrow("SELECT user_id FROM user_main WHERE user_id = $1", target_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="user not found")
+
+    updates: dict[str, Any] = {}
+    for field, raw in body.items():
+        if field not in EDITABLE_USER_FIELDS:
+            raise HTTPException(status_code=400, detail=f"unknown field: {field}")
+        updates[field] = _coerce_user_value(field, raw)
+
+    set_clauses = [f"{col} = ${idx}" for idx, col in enumerate(updates.keys(), start=1)]
+    values = list(updates.values())
+    values.append(target_id)
+    await db.execute(
+        f"UPDATE user_main SET {', '.join(set_clauses)} WHERE user_id = ${len(values)}",
+        *values,
+    )
+
+    # Audit: keep large strings out of JSONB — truncate bio/display_name.
+    audit_payload = {k: (v[:120] + "…") if isinstance(v, str) and len(v) > 120 else v
+                     for k, v in updates.items()}
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'PATCH', $2, 'admin', 200, $3)
+        """,
+        me_id,
+        f"/api/admin/users/{target_id}",
+        json.dumps({"target": target_id, "changes": audit_payload}),
+    )
+    return {"ok": True, "changed": list(updates.keys())}
+
+
+@router.post("/users/{target_id}/ban")
+async def admin_user_ban(
+    target_id: int,
+    request: Request,
+    db: DbDep,
+    body: dict = Body(default={}),
+):
+    """Mark user as banned — sets ``banned_at = NOW()`` and records reason."""
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    reason = (body or {}).get("reason") or None
+    if reason is not None and len(reason) > 280:
+        reason = reason[:280]
+    row = await db.fetchrow(
+        """
+        UPDATE user_main
+        SET banned_at = NOW(), ban_reason = $2
+        WHERE user_id = $1
+        RETURNING user_id, banned_at
+        """,
+        target_id, reason,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="user not found")
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        """,
+        me_id, f"/api/admin/users/{target_id}/ban",
+        json.dumps({"target": target_id, "reason": reason}),
+    )
+    return {"ok": True, "banned_at": row["banned_at"].isoformat()}
+
+
+@router.post("/users/{target_id}/unban")
+async def admin_user_unban(target_id: int, request: Request, db: DbDep):
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    row = await db.fetchrow(
+        """
+        UPDATE user_main
+        SET banned_at = NULL, ban_reason = NULL
+        WHERE user_id = $1
+        RETURNING user_id
+        """,
+        target_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="user not found")
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        """,
+        me_id, f"/api/admin/users/{target_id}/unban",
+        json.dumps({"target": target_id}),
+    )
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Runtime settings (app_settings) — AI model/timeouts, free-tier limits, flags
+# ---------------------------------------------------------------------------
+
+
+@router.get("/settings")
+async def admin_list_settings(request: Request, db: DbDep):
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    from app.services.runtime_settings import list_settings
+    return {"items": await list_settings()}
+
+
+@router.put("/settings/{key}")
+async def admin_set_setting(
+    key: str, request: Request, db: DbDep, body: dict = Body(...),
+):
+    """Update a single runtime setting.
+
+    Body: ``{"value": ...}``. The value is coerced to the declared type in
+    ``runtime_settings.KNOWN_SETTINGS``. Writes are audited.
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    from app.services.runtime_settings import KNOWN_SETTINGS, set_setting
+    if key not in KNOWN_SETTINGS:
+        raise HTTPException(status_code=400, detail=f"unknown setting: {key}")
+    if "value" not in (body or {}):
+        raise HTTPException(status_code=400, detail="missing 'value'")
+    try:
+        stored = await set_setting(key, body["value"], updated_by=me_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'PUT', $2, 'admin', 200, $3)
+        """,
+        me_id, f"/api/admin/settings/{key}",
+        json.dumps({"key": key, "new_value": stored}),
+    )
+    return {"ok": True, "key": key, "value": stored}
+
+
+@router.get("/env-view")
+async def admin_env_view(request: Request, db: DbDep):
+    """Metadata-only view of secret-carrying env vars.
+
+    Never returns raw values. For each known secret we return
+    ``{present, length, prefix, tail}`` so the admin can confirm the right
+    key is loaded without reading it back.
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    from app.services import ai_service as _ai
+    settings = get_settings()
+
+    def mask(v: str | None, show_prefix: int = 4, show_tail: int = 4) -> dict:
+        if not v:
+            return {"present": False, "length": 0, "prefix": None, "tail": None}
+        v = str(v)
+        return {
+            "present": True,
+            "length": len(v),
+            "prefix": v[:show_prefix] + "…" if len(v) > show_prefix else v,
+            "tail": "…" + v[-show_tail:] if len(v) > show_tail else v,
+        }
+
+    return {
+        "environment": settings.ENVIRONMENT,
+        "secrets": {
+            "GEMINI_API_KEY":     mask(settings.GEMINI_API_KEY, 6, 4),
+            "JWT_SECRET_KEY":     mask(settings.JWT_SECRET_KEY, 4, 4),
+            "ADMIN_PASSWORD":     mask(settings.ADMIN_PASSWORD, 2, 2),
+            "DB_PASSWORD":        mask(settings.DB_PASSWORD, 2, 2),
+            "TELEGRAM_TOKEN":     mask(settings.TELEGRAM_TOKEN, 6, 4),
+            "GOOGLE_CLIENT_ID":   mask(settings.GOOGLE_CLIENT_ID, 12, 6),
+        },
+        "ai_model_effective": _ai._current_model_name(),  # noqa: SLF001
+        "ai_model_env":       settings.GEMINI_MODEL,
+        "frontend_url":       settings.FRONTEND_URL,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Social moderation — posts list with hidden/pinned state, mutation endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/social/posts")
+async def admin_social_posts(
+    request: Request,
+    db: DbDep,
+    search: Optional[str] = Query(None, description="Substring of title/body/tags"),
+    status: str = Query("all", pattern=r"^(all|visible|hidden|pinned)$"),
+    kind: Optional[str] = Query(None, pattern=r"^(form|meal|workout)$"),
+    target_user: Optional[int] = Query(None, alias="user_id"),
+    limit: int = Query(40, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+):
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+
+    where = ["1=1"]
+    args: list[Any] = []
+    if status == "visible":
+        where.append("sp.hidden_at IS NULL")
+    elif status == "hidden":
+        where.append("sp.hidden_at IS NOT NULL")
+    elif status == "pinned":
+        where.append("sp.pinned_at IS NOT NULL")
+    if kind:
+        args.append(kind)
+        where.append(f"sp.kind = ${len(args)}")
+    if target_user is not None:
+        args.append(target_user)
+        where.append(f"sp.user_id = ${len(args)}")
+    if search:
+        args.append(f"%{search.lower()}%")
+        where.append(
+            f"(LOWER(COALESCE(sp.title,'')) LIKE ${len(args)} "
+            f" OR LOWER(sp.body) LIKE ${len(args)} "
+            f" OR EXISTS (SELECT 1 FROM unnest(sp.tags) t WHERE LOWER(t) LIKE ${len(args)}))"
+        )
+
+    args_with_paging = [*args, limit, offset]
+    rows = await db.fetch(
+        f"""
+        SELECT sp.id, sp.user_id, sp.kind, sp.title, sp.body, sp.tags,
+               sp.likes_count, sp.created_at, sp.hidden_at, sp.hidden_reason,
+               sp.pinned_at,
+               COALESCE(um.display_name, um.user_name, um.telegram_username, 'user') AS author_name,
+               um.telegram_username
+        FROM social_posts sp
+        LEFT JOIN user_main um ON um.user_id = sp.user_id
+        WHERE {' AND '.join(where)}
+        ORDER BY (sp.pinned_at IS NOT NULL) DESC,
+                 COALESCE(sp.pinned_at, sp.created_at) DESC
+        LIMIT ${len(args_with_paging) - 1} OFFSET ${len(args_with_paging)}
+        """,
+        *args_with_paging,
+    )
+    total = await db.fetchval(
+        f"SELECT COUNT(*) FROM social_posts sp WHERE {' AND '.join(where)}",
+        *args,
+    )
+    return {
+        "items": [
+            {
+                "id": r["id"],
+                "user_id": r["user_id"],
+                "author_name": r["author_name"],
+                "telegram_username": r["telegram_username"],
+                "kind": r["kind"],
+                "title": r["title"],
+                "body": r["body"],
+                "tags": list(r["tags"] or []),
+                "likes_count": int(r["likes_count"] or 0),
+                "created_at": r["created_at"].isoformat(),
+                "hidden_at": r["hidden_at"].isoformat() if r["hidden_at"] else None,
+                "hidden_reason": r["hidden_reason"],
+                "pinned_at": r["pinned_at"].isoformat() if r["pinned_at"] else None,
+            }
+            for r in rows
+        ],
+        "total": int(total or 0),
+    }
+
+
+@router.patch("/social/posts/{post_id}")
+async def admin_social_post_patch(
+    post_id: int,
+    request: Request,
+    db: DbDep,
+    body: dict = Body(...),
+):
+    """Apply one of: ``{action: "hide" | "unhide" | "pin" | "unpin"}``.
+
+    Optional ``reason`` (max 280 chars) is stored for hide only.
+    """
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    action = (body or {}).get("action")
+    reason = (body or {}).get("reason") or None
+    if action not in {"hide", "unhide", "pin", "unpin"}:
+        raise HTTPException(status_code=400, detail="action must be hide|unhide|pin|unpin")
+    if reason and len(reason) > 280:
+        reason = reason[:280]
+
+    exists = await db.fetchval("SELECT 1 FROM social_posts WHERE id = $1", post_id)
+    if not exists:
+        raise HTTPException(status_code=404, detail="post not found")
+
+    if action == "hide":
+        await db.execute(
+            "UPDATE social_posts SET hidden_at = NOW(), hidden_reason = $2 WHERE id = $1",
+            post_id, reason,
+        )
+    elif action == "unhide":
+        await db.execute(
+            "UPDATE social_posts SET hidden_at = NULL, hidden_reason = NULL WHERE id = $1",
+            post_id,
+        )
+    elif action == "pin":
+        await db.execute(
+            "UPDATE social_posts SET pinned_at = NOW() WHERE id = $1", post_id,
+        )
+    else:  # unpin
+        await db.execute(
+            "UPDATE social_posts SET pinned_at = NULL WHERE id = $1", post_id,
+        )
+
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'PATCH', $2, 'social', 200, $3)
+        """,
+        me_id, f"/api/admin/social/posts/{post_id}",
+        json.dumps({"post_id": post_id, "action": action, "reason": reason}),
+    )
+    return {"ok": True, "action": action}
+
+
+@router.delete("/social/posts/{post_id}")
+async def admin_social_post_delete(post_id: int, request: Request, db: DbDep):
+    me_id = await _try_user_id(request)
+    await _admin_or_password(request, me_id, db)
+    row = await db.fetchrow(
+        "SELECT user_id FROM social_posts WHERE id = $1", post_id,
+    )
+    if not row:
+        raise HTTPException(status_code=404, detail="post not found")
+    await db.execute("DELETE FROM social_posts WHERE id = $1", post_id)
+    await db.execute(
+        """
+        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
+        VALUES ($1, 'DELETE', $2, 'social', 200, $3)
+        """,
+        me_id, f"/api/admin/social/posts/{post_id}",
+        json.dumps({"post_id": post_id, "owner_user_id": row["user_id"]}),
+    )
+    return {"ok": True, "deleted": post_id}

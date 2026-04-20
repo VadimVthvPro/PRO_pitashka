@@ -25,6 +25,16 @@ async def lifespan(app: FastAPI):
     await init_db()
     await init_redis()
 
+    # Pre-warm runtime settings cache — AI model / timeouts come from DB,
+    # and we want the first request to use the live values, not defaults.
+    try:
+        from app.services import runtime_settings as _rs
+        for key in _rs.KNOWN_SETTINGS:
+            await _rs.get_setting(key)
+        logger.info("Runtime settings cache warmed (%d keys)", len(_rs.KNOWN_SETTINGS))
+    except Exception as e:
+        logger.warning("Runtime settings warm-up skipped: %s", e)
+
     # Start Telegram bot for OTP delivery
     from telegram_bot.bot import start_bot, stop_bot
     await start_bot()

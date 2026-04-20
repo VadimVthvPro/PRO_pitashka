@@ -219,6 +219,38 @@ async def _resolve_chat_context(
     return history, user_info, lang, today, week, meal_plan, workout_plan
 
 
+async def _enforce_ai_access(db, user_id: int) -> None:
+    """Deny AI access for banned, AI-disabled or globally-off configurations.
+
+    Runs before every chat turn. Matches the language of the user-visible
+    error text to whatever's in `user_lang` for this user — but since we
+    don't want an extra query here, we stick to RU for the rare deny paths.
+    """
+    from app.services.runtime_settings import get_setting as _get_setting
+    if not bool(await _get_setting("ai_chat_enabled")):
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "ai_disabled_globally",
+                    "message": "AI-чат временно отключён администрацией."},
+        )
+    row = await db.fetchrow(
+        "SELECT banned_at, ai_disabled FROM user_main WHERE user_id = $1",
+        user_id,
+    )
+    if row and row["banned_at"] is not None:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "user_banned",
+                    "message": "Аккаунт заблокирован администрацией."},
+        )
+    if row and row["ai_disabled"]:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "ai_disabled_for_user",
+                    "message": "AI-чат недоступен для этого аккаунта."},
+        )
+
+
 async def _run_chat_and_persist(
     db,
     redis,
@@ -233,6 +265,7 @@ async def _run_chat_and_persist(
     ``persist_user=False`` is used by /regenerate, which keeps the original
     user message and only swaps in a fresh assistant reply.
     """
+    await _enforce_ai_access(db, user_id)
     history, user_info, lang, today, week, meal_plan, workout_plan = (
         await _resolve_chat_context(db, redis, user_id, attach)
     )
@@ -253,7 +286,9 @@ async def _run_chat_and_persist(
         logger.warning("AI chat failed: %s", e)
         raise _ai_http_error(e)
     latency_ms = int((time.perf_counter() - started) * 1000)
-    model_name = get_settings().GEMINI_MODEL or "gemini-2.5-flash"
+    # Record the *effective* model (runtime override wins over env) so the
+    # admin log shows exactly which model produced each reply.
+    model_name = ai_service._current_model_name()  # noqa: SLF001
 
     chat_repo = ChatRepository(db)
     inserted_id: int | None = None

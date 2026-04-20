@@ -6,8 +6,11 @@ import { motion, AnimatePresence } from "motion/react";
 import { api } from "@/lib/api";
 import { useI18n, type Lang } from "@/lib/i18n";
 import { AiLogPanel } from "@/components/admin/AiLogPanel";
+import { SettingsPanel } from "@/components/admin/SettingsPanel";
+import { SocialModerationPanel } from "@/components/admin/SocialModerationPanel";
+import { UserEditor, type EditableUser } from "@/components/admin/UserEditor";
 
-type Tab = "overview" | "audit" | "users" | "ai" | "tables";
+type Tab = "overview" | "audit" | "users" | "ai" | "social" | "settings" | "tables";
 
 interface SessionInfo {
   authorized: boolean;
@@ -165,6 +168,12 @@ export default function AdminPage() {
         <TabBtn icon="solar:magic-stick-3-bold-duotone" active={tab === "ai"} onClick={() => setTab("ai")}>
           {t("admin_tab_ai")}
         </TabBtn>
+        <TabBtn icon="solar:chat-round-bold-duotone" active={tab === "social"} onClick={() => setTab("social")}>
+          {t("admin_tab_social")}
+        </TabBtn>
+        <TabBtn icon="solar:settings-bold-duotone" active={tab === "settings"} onClick={() => setTab("settings")}>
+          {t("admin_tab_settings")}
+        </TabBtn>
         <TabBtn icon="solar:database-bold-duotone" active={tab === "tables"} onClick={() => setTab("tables")}>
           {t("admin_tab_tables")}
         </TabBtn>
@@ -183,6 +192,8 @@ export default function AdminPage() {
             {tab === "audit" && <AuditPanel />}
             {tab === "users" && <UsersPanel />}
             {tab === "ai" && <AiLogPanel />}
+            {tab === "social" && <SocialModerationPanel />}
+            {tab === "settings" && <SettingsPanel />}
             {tab === "tables" && <TablesPanel />}
           </motion.div>
         </AnimatePresence>
@@ -985,6 +996,7 @@ function UserDetail({
   const { t, lang } = useI18n();
   const [data, setData] = useState<UserDetailData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   useEffect(() => {
     if (!userId) {
@@ -995,7 +1007,7 @@ function UserDetail({
     api(`/api/admin/users/${userId}`)
       .then((d) => setData(d as UserDetailData))
       .finally(() => setLoading(false));
-  }, [userId]);
+  }, [userId, reloadTick]);
 
   if (!userId) {
     return (
@@ -1026,6 +1038,12 @@ function UserDetail({
           <Icon icon="solar:close-circle-bold-duotone" width={22} />
         </button>
       </div>
+
+      {/* Editor — safe subset of columns + ban/unban */}
+      <UserEditor
+        user={data.user as unknown as EditableUser}
+        onSaved={() => setReloadTick((n) => n + 1)}
+      />
 
       {/* Selected profile fields */}
       <div className="grid grid-cols-2 gap-2">

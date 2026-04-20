@@ -86,7 +86,9 @@ async def feed(
     limit: int = Query(30, ge=1, le=100),
     offset: int = Query(0, ge=0),
 ):
-    where = []
+    # Admin-hidden posts never appear in the public feed. Pinned posts bubble
+    # up to the top regardless of their created_at timestamp.
+    where = ["hidden_at IS NULL"]
     args: list[Any] = []
     if kind:
         if kind not in VALID_KINDS:
@@ -99,14 +101,15 @@ async def feed(
     if author:
         args.append(author)
         where.append(f"user_id = ${len(args)}")
-    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+    where_sql = "WHERE " + " AND ".join(where)
     args.extend([limit, offset])
     rows = await db.fetch(
         f"""
         SELECT id, user_id, kind, title, body, tags, payload, likes_count, created_at
         FROM social_posts
         {where_sql}
-        ORDER BY created_at DESC
+        ORDER BY (pinned_at IS NOT NULL) DESC,
+                 COALESCE(pinned_at, created_at) DESC
         LIMIT ${len(args) - 1} OFFSET ${len(args)}
         """,
         *args,
@@ -135,6 +138,21 @@ async def create_post(
     payload = body.get("payload") or {}
     if not isinstance(payload, dict):
         raise HTTPException(status_code=400, detail="payload must be object")
+
+    # Hard guardrails: banned or social-disabled users can't post; and the
+    # admin can flip a global kill-switch for social posting via runtime
+    # settings (useful during incident response).
+    perms = await db.fetchrow(
+        "SELECT banned_at, social_disabled FROM user_main WHERE user_id = $1",
+        user_id,
+    )
+    if perms and perms["banned_at"] is not None:
+        raise HTTPException(status_code=403, detail="Аккаунт заблокирован администрацией")
+    if perms and perms["social_disabled"]:
+        raise HTTPException(status_code=403, detail="Публикации отключены для этого аккаунта")
+    from app.services.runtime_settings import get_setting as _get_setting
+    if not bool(await _get_setting("social_posting_enabled")):
+        raise HTTPException(status_code=503, detail="Публикация временно недоступна")
 
     row = await db.fetchrow(
         """

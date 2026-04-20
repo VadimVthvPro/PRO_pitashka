@@ -65,7 +65,19 @@ class AITimeoutError(AIUpstreamError):
         super().__init__(message, retryable=True)
 
 
-_PER_CALL_TIMEOUT = 25.0
+# Static fallbacks — overridden at runtime by `runtime_settings`. The
+# decorator-based retry still uses these as hard bounds; per-call timeout is
+# re-read on every call so admin edits take effect without restart.
+_PER_CALL_TIMEOUT = 60.0
+
+
+async def _current_per_call_timeout() -> float:
+    from app.services import runtime_settings as _rs
+    try:
+        v = await _rs.get_setting("gemini_per_call_timeout")
+        return float(v) if v is not None else _PER_CALL_TIMEOUT
+    except Exception:
+        return _PER_CALL_TIMEOUT
 
 
 def _ai_retry_predicate(exc: BaseException) -> bool:
@@ -84,7 +96,7 @@ _GEMINI_RETRY = dict(
     max_delay=20.0,
     factor=2.0,
     jitter=0.25,
-    total_budget=60.0,
+    total_budget=150.0,
     retry_on=_ai_retry_predicate,
 )
 
@@ -139,11 +151,27 @@ def _ensure_configured(key: str) -> None:
         logger.info("Gemini configured (key tail: ...%s)", key[-4:])
 
 
+def _current_model_name() -> str:
+    """Live model name: runtime override if present, else env, else default.
+
+    Synchronous on purpose — the `_model_for` path is called from sync code
+    too. We piggy-back on the process cache already populated by async reads
+    (TTL=30s) and fall back to env if the cache hasn't warmed up yet.
+    """
+    from app.services import runtime_settings as _rs
+    cached = _rs._cache.get("gemini_model")  # noqa: SLF001
+    if cached:
+        v = cached[1]
+        if v:
+            return str(v)
+    return get_settings().GEMINI_MODEL or "gemini-2.5-flash"
+
+
 def _model_for(role: str, system_instruction: str) -> genai.GenerativeModel:
     """Return a memoised model bound to the given system instruction."""
     settings = get_settings()
     key = settings.GEMINI_API_KEY
-    model_name = settings.GEMINI_MODEL or "gemini-2.5-flash"
+    model_name = _current_model_name()
     _ensure_configured(key)
     cache_key = (model_name, key, role)
     if cache_key not in _models:
@@ -187,8 +215,9 @@ def _classify_error(exc: BaseException) -> Exception:
 
 
 async def _call_model(coro_factory) -> Any:
+    timeout = await _current_per_call_timeout()
     try:
-        return await asyncio.wait_for(coro_factory(), timeout=_PER_CALL_TIMEOUT)
+        return await asyncio.wait_for(coro_factory(), timeout=timeout)
     except (AIConfigError, AIQuotaError, AIUpstreamError):
         raise
     except asyncio.TimeoutError as exc:
@@ -238,7 +267,8 @@ async def health_check() -> dict[str, Any]:
         "key_prefix": (key[:6] + "...") if key else None,
         "key_tail": ("..." + key[-4:]) if key else None,
         "key_looks_valid": bool(key) and any(key.startswith(p) for p in _VALID_KEY_PREFIXES),
-        "model": settings.GEMINI_MODEL,
+        "model": _current_model_name(),
+        "env_model": settings.GEMINI_MODEL,
     }
     try:
         _validate_key(key)
