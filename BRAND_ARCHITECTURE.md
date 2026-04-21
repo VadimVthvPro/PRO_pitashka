@@ -30,7 +30,8 @@ export const BRANDS = {
     shortName: "ПРОпиташка",
     tagline: "Тёплый дневник питания и тренировок",
     logoDir: "/brand/propitashka",
-    wordmarkBody: "pitashka",      // рендерится в Sidebar/MobileMenu/TopBar
+    wordmarkBody: "pitashka",       // используется при wordmarkLayout="split"
+    wordmarkLayout: "split",        // PRO (мелкий капс) + pitashka. (display)
     askForm: { ru: "Пропитошку", en: "Propitoshka", ... },
   },
   profit: {
@@ -40,9 +41,25 @@ export const BRANDS = {
     tagline: "AI-наставник по питанию и тренировкам",
     logoDir: "/brand/profit",
     wordmarkBody: "fit",
+    wordmarkLayout: "unified",      // целиком PROfit. одним display-шрифтом
     askForm: { ru: "PROfit", en: "PROfit", ... },
   },
 } as const;
+```
+
+**Почему `wordmarkLayout` разный:** при коротком теле (≤ 4 букв) двухъярусная
+композиция `PRO\nfit.` выглядит обрубком — строка «fit.» не уравновешивает
+капс-префикс сверху. Для таких брендов используем `unified` — всё имя
+набрано одним display-шрифтом в строку. Компонент `<BrandWordmark />` из
+`frontend/src/components/brand/BrandWordmark.tsx` сам выбирает рендер по
+этому полю — в Sidebar / MobileMenu / MobileTopBar caller лишь передаёт
+`size` и `orientation`.
+
+```ts
+// пример использования
+<BrandWordmark size="lg" orientation="stacked" />    // Sidebar
+<BrandWordmark size="md" orientation="stacked" />    // MobileMenu
+<BrandWordmark size="sm" orientation="inline-baseline" /> // MobileTopBar
 
 export type BrandId = keyof typeof BRANDS;
 export type BrandData = (typeof BRANDS)[BrandId];
