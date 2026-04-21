@@ -41,6 +41,13 @@ class Settings(BaseSettings):
     # становятся `fm_access_token`/`fm_refresh_token` и не пересекаются.
     AUTH_COOKIE_PREFIX: str = ""
 
+    # --- Brand (dual-brand parity) ---
+    # Один и тот же код обслуживает два бренда: "propitashka" (исторический,
+    # для конкурса) и "profit" (публичный). Переключение на сервере через env +
+    # рестарт backend'а (~5 сек) для runtime-логики (AI-промпты, бот, paywall).
+    # Подробности — см. BRAND_ARCHITECTURE.md и .cursor/rules/dual-brand-parity.mdc.
+    BRAND: str = "propitashka"
+
     # Admin
     ADMIN_SECRET_KEY: str = "change-me-in-production"
     ADMIN_PASSWORD: str = ""

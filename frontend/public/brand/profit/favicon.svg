@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  PROfit favicon: :><?0:B=>-G8B05<0O P + A83=0BC@=0O B>G:0-AB8:5@.
+  @8 @07<5@5 16×16 25AL wordmark =5 G8B05BAO, ?>MB><C 15@Q< P + dot 
+  42>9=>9 marker 1@5=40 (=0G0;L=0O 1C:20 + brand accent color).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="PROfit">
+  <rect x="0" y="0" width="64" height="64" rx="14" fill="#FFF9ED"/>
+  <text x="32" y="48"
+        text-anchor="middle"
+        font-family="Pobeda Bold, Inter, system-ui, sans-serif"
+        font-weight="700"
+        font-size="48"
+        fill="#2E2824"
+        letter-spacing="-0.03em">P</text>
+  <g transform="translate(49 12) rotate(-3)">
+    <circle cx="0" cy="0" r="6" fill="#D97757"/>
+  </g>
+</svg>

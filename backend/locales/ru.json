@@ -13,6 +13,6 @@
   "workout_football": "Футбол",
   "workout_basketball": "Баскетбол",
   "workout_skiing": "Лыжи",
-  "otp_message": "Ваш код для входа в PROpitashka: {code}. Действителен 5 минут.",
-  "welcome": "Добро пожаловать в PROpitashka!"
+  "otp_message": "Ваш код для входа в {brand}: {code}. Действителен 5 минут.",
+  "welcome": "Добро пожаловать в {brand}!"
 }

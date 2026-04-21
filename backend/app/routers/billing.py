@@ -102,7 +102,8 @@ async def create_stars_invoice(
         stars_amount=int(plan["price_stars"]),
     )
 
-    title = f"{plan['name']} — PROpitashka"
+    from app import brand as _brand
+    title = f"{plan['name']} — {_brand.display_name()}"
     description = _plan_description(plan)
 
     try:

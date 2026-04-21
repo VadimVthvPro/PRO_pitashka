@@ -9,18 +9,23 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.database import init_db, close_db
 from app.redis import init_redis, close_redis
+from app import brand as _brand
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
+# Internal logger name stays "propitashka" for log aggregation continuity;
+# the user-facing brand is resolved dynamically via `_brand.display_name()`.
 logger = logging.getLogger("propitashka")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    logger.info("Starting PROpitashka backend [%s]", settings.ENVIRONMENT)
+    logger.info(
+        "Starting %s backend [%s]", _brand.display_name(), settings.ENVIRONMENT
+    )
 
     await init_db()
     await init_redis()
@@ -44,11 +49,11 @@ async def lifespan(app: FastAPI):
     await stop_bot()
     await close_redis()
     await close_db()
-    logger.info("PROpitashka backend stopped")
+    logger.info("%s backend stopped", _brand.display_name())
 
 
 app = FastAPI(
-    title="PROpitashka API",
+    title=f"{_brand.display_name()} API",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/api/docs" if get_settings().ENVIRONMENT != "production" else None,
@@ -88,6 +93,7 @@ os.environ["UPLOADS_DIR"] = str(UPLOADS_DIR)
 from app.routers import (
     auth, users, food, workouts, water, summary, ai, settings, admin,
     streaks, weight, digest, google_auth, social, billing,
+    brand as brand_router,
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
@@ -105,6 +111,7 @@ app.include_router(weight.router, prefix="/api/weight", tags=["weight"])
 app.include_router(digest.router, prefix="/api/digest", tags=["digest"])
 app.include_router(social.router, prefix="/api/social", tags=["social"])
 app.include_router(billing.router, prefix="/api/billing", tags=["billing"])
+app.include_router(brand_router.router, prefix="/api/brand", tags=["brand"])
 
 # User-uploaded media (currently social post photos). Mounted under
 # /uploads/ so it never collides with API routes; the directory is

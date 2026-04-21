@@ -2,6 +2,7 @@
 "use client";
 
 import { useState } from "react";
+import { brand } from "@/lib/brand";
 
 type Font = "pobeda" | "arkhip" | "appetite";
 
@@ -35,7 +36,7 @@ function Sample({ font }: { font: Font }) {
       {/* Hero-заголовок */}
       <div className="mb-8 border-b border-border pb-6">
         <div className="text-xs uppercase tracking-widest text-muted mb-2">Hero / Brand</div>
-        <h1 className={`text-7xl leading-[0.95] ${cls}`}>PROpitashka</h1>
+        <h1 className={`text-7xl leading-[0.95] ${cls}`}>{brand.displayName}</h1>
         <p className={`text-3xl mt-2 ${cls}`}>Твоя форма — твоя формула</p>
       </div>
 

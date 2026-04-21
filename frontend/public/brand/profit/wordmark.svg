@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PROfit  compact wordmark without underline. Used in tight headers. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 200" role="img" aria-label="PROfit">
+  <title>PROfit</title>
+  <style>
+    .wm-text {
+      font: 700 180px/1 "Pobeda Bold", "Inter", "Helvetica Neue", system-ui, sans-serif;
+      fill: #2E2824;
+      letter-spacing: -0.02em;
+    }
+    .wm-dot { fill: #D97757; }
+    @media (prefers-color-scheme: dark) {
+      .wm-text { fill: #FFF9ED; }
+    }
+  </style>
+  <text x="20" y="160" class="wm-text">PROfit</text>
+  <g transform="translate(478 42) rotate(-3)">
+    <circle cx="0" cy="0" r="16" class="wm-dot"/>
+  </g>
+</svg>

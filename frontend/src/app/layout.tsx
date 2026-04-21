@@ -5,6 +5,7 @@ import "./globals.css";
 import { ThemeProvider, themeBootstrapScript } from "@/lib/theme";
 import { I18nProvider } from "@/lib/i18n";
 import { TelegramMiniAppBridge, telegramBootstrapScript } from "@/lib/telegram";
+import { brand } from "@/lib/brand";
 
 const pobeda = localFont({
   src: "../../public/fonts/pobeda-bold.ttf",
@@ -44,9 +45,17 @@ const jetbrainsMono = JetBrains_Mono({
   display: "swap",
 });
 
+const metadataTitleByBrand: Record<typeof brand.name, string> = {
+  propitashka: "PROpitashka — Персональный помощник по питанию и фитнесу",
+  profit: "PROfit — AI-наставник по питанию и тренировкам",
+};
+
 export const metadata: Metadata = {
-  title: "PROpitashka — Персональный помощник по питанию и фитнесу",
+  title: metadataTitleByBrand[brand.name],
   description: "Трекер питания, тренировок и воды с AI-ассистентом",
+  icons: {
+    icon: `${brand.logoDir}/favicon.svg`,
+  },
 };
 
 export const viewport: Viewport = {

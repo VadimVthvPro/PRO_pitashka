@@ -1,6 +1,6 @@
 {
-  "app_name": "PROpitashka",
-  "meta_title": "PROpitashka — Персональный помощник по питанию и фитнесу",
+  "app_name": "{brand}",
+  "meta_title": "{brand} — Персональный помощник по питанию и фитнесу",
   "meta_description": "Трекер питания, тренировок и воды с AI-ассистентом",
 
   "common_yes": "да",

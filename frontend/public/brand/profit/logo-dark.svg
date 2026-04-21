@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PROfit  wordmark for explicitly dark backgrounds. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 220" role="img" aria-label="PROfit">
+  <title>PROfit</title>
+  <style>
+    .wm-text {
+      font: 700 180px/1 "Pobeda Bold", "Inter", "Helvetica Neue", system-ui, sans-serif;
+      fill: #FFF9ED;
+      letter-spacing: -0.02em;
+    }
+    .wm-dot { fill: #D97757; }
+    .wm-underline { stroke: #D97757; stroke-width: 7; stroke-linecap: round; fill: none; }
+  </style>
+  <text x="20" y="160" class="wm-text">PROfit</text>
+  <g transform="translate(478 42) rotate(-3)">
+    <circle cx="0" cy="0" r="16" class="wm-dot"/>
+  </g>
+  <path class="wm-underline"
+        d="M 22 190
+           Q 120 182, 220 188
+           T 420 190
+           T 620 186" />
+</svg>

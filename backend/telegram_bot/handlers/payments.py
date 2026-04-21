@@ -63,8 +63,9 @@ async def cmd_premium(message: Message) -> None:
             InlineKeyboardButton(text="Открыть сайт", url=_settings.FRONTEND_URL),
         ])
 
+    from app import brand as _brand
     text = (
-        "✨ <b>Premium в PROpitashka</b>\n\n"
+        f"✨ <b>Premium в {_brand.display_name()}</b>\n\n"
         "Расширенные лимиты на AI-чат, фото-анализ и планы питания.\n"
         "Оплата — звёздами Telegram, без привязки карты."
     )
@@ -100,9 +101,10 @@ async def cb_buy_plan(query: CallbackQuery) -> None:
     )
 
     from aiogram.types import LabeledPrice
+    from app import brand as _brand
     try:
         await query.message.answer_invoice(
-            title=f"{plan['name']} — PROpitashka"[:32],
+            title=f"{plan['name']} — {_brand.display_name()}"[:32],
             description=_desc(plan),
             payload=payload,
             provider_token="",

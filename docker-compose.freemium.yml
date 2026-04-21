@@ -67,6 +67,8 @@ services:
       REDIS_HOST: redis
       APP_VARIANT: freemium
       AUTH_COOKIE_PREFIX: ${AUTH_COOKIE_PREFIX:-fm_}
+      # Активный бренд. Переключение — см. scripts/switch-brand.sh
+      BRAND: ${BRAND:-propitashka}
     depends_on:
       postgres:
         condition: service_healthy
@@ -98,6 +100,9 @@ services:
         NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-PROpitashka_test_bot}
         NEXT_PUBLIC_APP_VARIANT: freemium
         NEXT_PUBLIC_AUTH_COOKIE_PREFIX: ${NEXT_PUBLIC_AUTH_COOKIE_PREFIX:-fm_}
+        # Brand — fixed at build time (logo paths + metadata). Switching
+        # requires image rebuild. See scripts/switch-brand.sh.
+        NEXT_PUBLIC_BRAND: ${NEXT_PUBLIC_BRAND:-propitashka}
     container_name: propitashka-frontend-freemium
     restart: unless-stopped
     environment:
@@ -107,6 +112,7 @@ services:
       NEXT_PUBLIC_APP_VARIANT: freemium
       NEXT_PUBLIC_BOT_USERNAME: ${NEXT_PUBLIC_BOT_USERNAME:-PROpitashka_test_bot}
       NEXT_PUBLIC_AUTH_COOKIE_PREFIX: ${NEXT_PUBLIC_AUTH_COOKIE_PREFIX:-fm_}
+      NEXT_PUBLIC_BRAND: ${NEXT_PUBLIC_BRAND:-propitashka}
     depends_on:
       - backend
     networks:

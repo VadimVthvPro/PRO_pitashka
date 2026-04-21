@@ -1,0 +1,128 @@
+---
+description: Правила параллельной поддержки двух брендов (PROpitashka и PROfit) из одной кодовой базы
+alwaysApply: true
+---
+
+# Dual-brand parity: PROpitashka ↔ PROfit
+
+Этот продукт поставляется в **двух брендах одновременно**:
+
+1. **PROpitashka** — исходный бренд, существует из-за участия в конкурсе и по историческим причинам. Имя нельзя менять.
+2. **PROfit** — рыночный бренд, публичная версия.
+
+Обе версии обслуживаются из **одной кодовой базы** и переключаются через переменную окружения `BRAND` (значения: `propitashka` | `profit`).
+
+Если в проекте нет `BRAND_ARCHITECTURE.md` — значит архитектура ещё не реализована, при первом же запросе на правки, затрагивающие бренд, создать и реализовать по плану, описанному пользователем ранее. Формальный план: одна кодовая база + brand-config через env (Вариант B).
+
+## Жёсткие правила
+
+### 1. Никогда не хардкодить имя бренда
+
+Запрещено в любом файле писать литералы `"PROpitashka"`, `"Пропиташка"`, `"пропиташка"`, `"propitashka"`, `"PROfit"`, `"Profit"` как отображаемый пользователю текст.
+
+- **Frontend:** импортировать из `frontend/src/lib/brand.ts` — `brand.displayName`, `brand.name`, `brand.tagline`
+- **Backend:** читать из `app.config.settings.BRAND_DISPLAY_NAME`, `settings.BRAND_NAME`
+- **Docker / env:** использовать `${BRAND}` / `${BRAND_DISPLAY_NAME}` в compose-файлах
+- **AI-промпты (`backend/app/services/prompts.py`):** все упоминания бренда в `system_*` и `prompt_*` функциях принимают `brand_name: str` аргументом и подставляют его через f-string, **никогда** не хардкодят `"PROpitashka"`
+
+### 2. Парность правок
+
+Любое изменение, затрагивающее UI-тексты, AI-промпты, email, push, OG-метаданные, telegram-bot ответы — **автоматически работает в обеих брендах**, если сделано правильно (через `brand.*`).
+
+Если я (Cursor) замечаю, что изменение затрагивает хардкод имени — обязан:
+1. Остановить текущую правку
+2. Показать пользователю, что хардкод будет ломать parity
+3. Предложить рефакторинг через `brand.*`
+
+### 3. Смоук-тест обеих сборок
+
+Перед любым `git push` для изменений, затрагивающих бренд-зависимые файлы, обязан проверить:
+
+```bash
+BRAND=profit docker compose -f docker-compose.freemium.yml config -q
+BRAND=propitashka docker compose -f docker-compose.freemium.yml config -q
+```
+
+(или лёгкий эквивалент: грепом по собранным артефактам проверить, что имя другого бренда не просочилось.)
+
+### 4. Список файлов, которые могут отличаться между брендами
+
+Разрешено иметь «бренд-специфичные» варианты только для:
+
+- `frontend/public/brand/propitashka/logo.svg`, `favicon.ico`, `og-image.png`
+- `frontend/public/brand/profit/logo.svg`, `favicon.ico`, `og-image.png`
+- `frontend/src/lib/brand.config.ts` — read-only словарь с данными по каждому бренду
+
+Весь остальной код — brand-agnostic и читает данные через `brand.*`.
+
+### 5. Переключение на сервере
+
+Требование пользователя: «одна команда на сервере — и бренд сменился».
+
+Реализация:
+
+```bash
+# на сервере
+cd /path/to/PROpitashka
+# переключение на Profit
+sed -i 's/^BRAND=.*/BRAND=profit/' .env.freemium
+docker compose -f docker-compose.freemium.yml up -d --force-recreate frontend_freemium backend_freemium
+
+# переключение на PROpitashka
+sed -i 's/^BRAND=.*/BRAND=propitashka/' .env.freemium
+docker compose -f docker-compose.freemium.yml up -d --force-recreate frontend_freemium backend_freemium
+```
+
+Время переключения ≤ 30 сек (время пересборки фронта в prod-режиме не нужно — Next.js build при переключении имени не требуется, так как имя читается в runtime через `NEXT_PUBLIC_BRAND_*` env).
+
+> **Важно:** `NEXT_PUBLIC_*` переменные фиксируются в момент **сборки** Next.js. Для runtime-переключения нужно использовать серверный API-эндпоинт `/api/brand` или server components с `process.env` — это решается в `BRAND_ARCHITECTURE.md`.
+
+### 6. Секреты
+
+Переключение бренда **никогда** не должно требовать правки секретов в `.env.freemium`. Все секреты (токены бота, ключи AI, пароли БД) брендонезависимы.
+
+Исключение: `TELEGRAM_BOT_TOKEN` и `NEXT_PUBLIC_BOT_USERNAME` — могут отличаться между брендами, если используются разные боты. В таком случае в `.env.freemium` держатся обе пары (`TELEGRAM_BOT_TOKEN_PROFIT`, `TELEGRAM_BOT_TOKEN_PROPITASHKA`) и `docker-compose` выбирает нужную через `${TELEGRAM_BOT_TOKEN_${BRAND^^}}`.
+
+### 7. Тесты на parity
+
+При первой реализации этой архитектуры добавить тест:
+
+```ts
+// frontend/src/__tests__/brand-parity.test.ts
+// Загружаем оба brand-config, проверяем, что все ключи присутствуют в обоих.
+```
+
+```python
+# backend/tests/test_brand_parity.py
+# Аналогично для settings.BRAND_*.
+```
+
+## Чеклист при любой правке, касающейся бренда
+
+- [ ] Ни в одном добавляемом файле нет литералов `PROpitashka` / `PROfit` как UI-текста
+- [ ] Все AI-промпты получают `brand_name` аргументом
+- [ ] Логотипы читаются из `/brand/${BRAND}/` директории
+- [ ] `BRAND_ARCHITECTURE.md` обновлён, если появилось новое место бренд-зависимости
+- [ ] `BRAND=profit` и `BRAND=propitashka` оба запускаются без ошибок
+- [ ] Ни один секрет не протёк в коммит
+
+## Антипаттерны
+
+```tsx
+// ❌ ПЛОХО
+<h1>Добро пожаловать в PROpitashka</h1>
+
+// ✅ ХОРОШО
+import { brand } from "@/lib/brand";
+<h1>Добро пожаловать в {brand.displayName}</h1>
+```
+
+```python
+# ❌ ПЛОХО
+def system_chat(lang: str) -> str:
+    return "You are PROpitashka — a warm, knowledgeable coach..."
+
+# ✅ ХОРОШО
+def system_chat(lang: str, brand_name: str) -> str:
+    return f"You are {brand_name} — a warm, knowledgeable coach..."
+```

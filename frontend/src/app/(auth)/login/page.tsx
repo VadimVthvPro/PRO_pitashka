@@ -10,10 +10,21 @@ import { HandDrawnUnderline } from "@/components/hand/HandDrawnUnderline";
 import { HandArrow } from "@/components/hand/HandArrow";
 import { Sticker } from "@/components/hand/Sticker";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { brand } from "@/lib/brand";
 
 type Step = "username" | "code";
 
-const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || "PROpitashka_bot";
+const BOT_USERNAME =
+  process.env.NEXT_PUBLIC_BOT_USERNAME ||
+  (brand.name === "profit" ? "PROpitashka_test_bot" : "PROpitashka_bot");
+
+// Брендовый «префикс» в левом верхнем углу hero-экрана. Для PROpitashka
+// разбивали слово на «PRO · pitashka», для PROfit — «PRO · fit». Любой
+// новый бренд — добавить строчку.
+const BRAND_HERO_PREFIX: Record<typeof brand.name, string> = {
+  propitashka: "PRO · pitashka",
+  profit: "PRO · fit",
+};
 const RESEND_SECONDS = 45;
 
 export default function LoginPage() {
@@ -149,7 +160,7 @@ export default function LoginPage() {
               transition={{ duration: 0.5 }}
               className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]"
             >
-              PRO · pitashka
+              {BRAND_HERO_PREFIX[brand.name]}
             </motion.p>
 
             <motion.h1

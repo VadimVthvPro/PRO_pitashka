@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PROpitashka  primary wordmark. Same primitives as PROfit for parity. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 220" role="img" aria-label="PROpitashka">
+  <title>PROpitashka</title>
+  <style>
+    .wm-text {
+      font: 700 180px/1 "Pobeda Bold", "Inter", "Helvetica Neue", system-ui, sans-serif;
+      fill: #2E2824;
+      letter-spacing: -0.02em;
+    }
+    .wm-dot { fill: #D97757; }
+    .wm-underline { stroke: #D97757; stroke-width: 7; stroke-linecap: round; fill: none; }
+    @media (prefers-color-scheme: dark) {
+      .wm-text { fill: #FFF9ED; }
+    }
+  </style>
+  <text x="20" y="160" class="wm-text">PROpitashka</text>
+  <!-- Dot over the 'i' of 'pitashka'. Position estimated for Pobeda Bold @180px. -->
+  <g transform="translate(650 42) rotate(-3)">
+    <circle cx="0" cy="0" r="16" class="wm-dot"/>
+  </g>
+  <path class="wm-underline"
+        d="M 22 190
+           Q 200 182, 400 188
+           T 800 190
+           T 1180 186" />
+</svg>

@@ -4,6 +4,7 @@ from aiogram.filters import CommandStart
 from aiogram.types import Message
 
 from app.database import get_pool
+from app import brand as _brand
 
 logger = logging.getLogger(__name__)
 otp_router = Router()
@@ -64,9 +65,11 @@ async def cmd_start(message: Message):
         full_name,
     )
 
+    brand_name = _brand.display_name()
+
     if not message.from_user.username:
         await message.answer(
-            "👋 Привет! Я бот PROpitashka.\n\n"
+            f"👋 Привет! Я бот {brand_name}.\n\n"
             "⚠️ У тебя не задан Telegram @username — без него сайт не сможет найти твой чат.\n"
             "Открой Telegram → Settings → Username и придумай его, потом отправь /start ещё раз."
         )
@@ -75,7 +78,7 @@ async def cmd_start(message: Message):
     pending = await _pop_pending_otp(message.from_user.username)
     if pending:
         await message.answer(
-            f"👋 Привет! Я бот PROpitashka.\n\n"
+            f"👋 Привет! Я бот {brand_name}.\n\n"
             f"Сайт ждёт от тебя код — вот он:\n\n"
             f"<code>{pending}</code>\n\n"
             f"Скопируй и вставь на сайте. Действует 5 минут.",
@@ -84,7 +87,7 @@ async def cmd_start(message: Message):
         return
 
     await message.answer(
-        "👋 Привет! Я бот PROpitashka.\n\n"
+        f"👋 Привет! Я бот {brand_name}.\n\n"
         "Через меня приходят коды для входа на сайт и уведомления.\n"
         f"Твой @{message.from_user.username} сохранён — теперь возвращайся на сайт "
         f"и нажми «Прислать код»."

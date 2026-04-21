@@ -84,9 +84,10 @@ async def send_otp_message(chat_id: int, code: str) -> bool:
         logger.error("Bot not initialized, cannot send OTP")
         return False
     try:
+        from app import brand as _brand
         await bot.send_message(
             chat_id=chat_id,
-            text=f"🔐 Ваш код для входа на PROpitashka: <b>{code}</b>\n\n"
+            text=f"🔐 Ваш код для входа на {_brand.display_name()}: <b>{code}</b>\n\n"
                  f"Код действителен 5 минут. Не сообщайте его никому.",
             parse_mode="HTML",
         )
