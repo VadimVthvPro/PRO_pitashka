@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 import io
+import json
+import logging
 import os
 import secrets
 from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, Body, File, HTTPException, Query, UploadFile
+
+logger = logging.getLogger(__name__)
 
 from app.dependencies import CurrentUserDep, DbDep
 
@@ -42,6 +46,39 @@ def _normalize_tags(raw: list[str] | None) -> list[str]:
     return out
 
 
+def _coerce_payload(raw: Any) -> dict[str, Any]:
+    """Payload в БД исторически мог быть double-encoded JSON (сохранён как
+    ``"{\"photo_url\":...}"`` вместо ``{"photo_url":...}``). Причина — баг
+    в ранних версиях ``POST /posts``, где ``json.dumps`` вызывался поверх
+    уже настроенного asyncpg jsonb codec. Миграция
+    ``alembic/versions/015_social_payload_unwrap.py`` распаковывает их
+    на уровне БД, но этот хелпер остаётся последней линией обороны на
+    случай ручных инсертов, старых реплик или повторного проявления бага.
+
+    Логика:
+      * ``None``/``{}`` → ``{}``.
+      * ``dict`` (ожидаемый случай после codec) → возвращается как есть.
+      * ``str`` (double-encoded) → пытаемся ``json.loads`` до тех пор,
+        пока не получим dict, максимум 3 итерации (параноиковый loop).
+      * Всё остальное → пустой dict, с warning в логи.
+    """
+    if raw is None or raw == "":
+        return {}
+    value = raw
+    for _ in range(3):
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+                continue
+            except (TypeError, ValueError):
+                break
+        break
+    logger.warning("social_posts.payload has unexpected shape: %r", raw)
+    return {}
+
+
 async def _post_row(db, user_id: int, row) -> dict[str, Any]:
     """Convert asyncpg Record to API dict, including liked_by_me flag."""
     liked = await db.fetchval(
@@ -62,7 +99,7 @@ async def _post_row(db, user_id: int, row) -> dict[str, Any]:
         "title": row["title"],
         "body": row["body"],
         "tags": list(row["tags"] or []),
-        "payload": dict(row["payload"] or {}),
+        "payload": _coerce_payload(row["payload"]),
         "likes_count": row["likes_count"],
         "liked_by_me": bool(liked),
         "created_at": row["created_at"].isoformat(),
@@ -154,24 +191,22 @@ async def create_post(
     if not bool(await _get_setting("social_posting_enabled")):
         raise HTTPException(status_code=503, detail="Публикация временно недоступна")
 
+    # jsonb codec из app/database.py сам сериализует dict через json.dumps —
+    # передавать сюда json-строку нельзя, иначе она encode-нётся ВТОРОЙ раз
+    # и в БД попадёт '"{\"photo_url\":...}"' (см. migration 015).
     row = await db.fetchrow(
         """
         INSERT INTO social_posts (user_id, kind, title, body, tags, payload)
         VALUES ($1, $2, $3, $4, $5, $6::jsonb)
         RETURNING id, user_id, kind, title, body, tags, payload, likes_count, created_at
         """,
-        user_id, kind, title, text, tags, _to_jsonb(payload),
+        user_id, kind, title, text, tags, payload,
     )
     await db.execute(
         "UPDATE user_main SET social_score = social_score + 2 WHERE user_id = $1",
         user_id,
     )
     return await _post_row(db, user_id, row)
-
-
-def _to_jsonb(d: dict) -> str:
-    import json
-    return json.dumps(d, ensure_ascii=False)
 
 
 @router.post("/posts/photo")
