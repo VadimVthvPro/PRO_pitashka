@@ -6,7 +6,7 @@ import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
 import { StreakFlame } from "@/components/streak/StreakFlame";
 import { useI18n } from "@/lib/i18n";
-import { brand } from "@/lib/brand";
+import { BrandWordmark } from "@/components/brand/BrandWordmark";
 
 interface NavItem {
   href: string;
@@ -38,22 +38,13 @@ export default function Sidebar() {
     <aside className="hidden lg:flex flex-col w-[var(--sidebar-width)] h-screen sticky top-0 bg-transparent border-r border-[var(--border)] px-4 py-6 backdrop-blur-[2px]">
       <Link
         href="/dashboard"
-        className="block mb-10 px-2 group"
+        className="block mb-10 px-2 group text-[var(--foreground)]"
       >
-        <span className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
-          PRO
-        </span>
-        <span
-          className="block text-[2.1rem] font-bold text-[var(--foreground)] leading-[0.9] transition-transform group-hover:-rotate-[1deg] origin-left"
-          style={{
-            fontFamily: "var(--font-display)",
-            letterSpacing: "-0.035em",
-          }}
-          aria-label={brand.displayName}
-        >
-          {brand.wordmarkBody}
-          <span className="text-[var(--accent)]">.</span>
-        </span>
+        <BrandWordmark
+          size="lg"
+          orientation="stacked"
+          className="transition-transform group-hover:-rotate-[1deg] origin-left"
+        />
       </Link>
 
       <nav className="flex-1 flex flex-col gap-1">

@@ -6,7 +6,7 @@ import { Icon } from "@iconify/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
-import { brand } from "@/lib/brand";
+import { BrandWordmark } from "@/components/brand/BrandWordmark";
 
 interface NavItem {
   href: string;
@@ -104,16 +104,7 @@ export default function MobileMenu({ open, onClose }: Props) {
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <div>
-                <span className="block text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
-                  PRO
-                </span>
-                <span
-                  className="block text-2xl font-bold leading-[0.9]"
-                  style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.035em" }}
-                  aria-label={brand.displayName}
-                >
-                  {brand.wordmarkBody}<span className="text-[var(--accent)]">.</span>
-                </span>
+                <BrandWordmark size="md" orientation="stacked" />
               </div>
               <button
                 onClick={onClose}

@@ -28,11 +28,20 @@ export interface BrandData {
   /**
    * «Тело» wordmark-а — часть названия, идущая после малого капс-
    * префикса `PRO`. Для `PROpitashka` это `pitashka`, для `PROfit` — `fit`.
-   * Рендерится в Sidebar / MobileMenu / MobileTopBar как основное
-   * display-слово. Хранится отдельно (а не парсится из `displayName`),
-   * чтобы не было хрупкой магии со slicing-ом строк.
+   * Используется только при `wordmarkLayout === "split"`.
    */
   wordmarkBody: string;
+  /**
+   * Как рендерить wordmark в Sidebar / MobileMenu / MobileTopBar:
+   *  - `split`:   `PRO` (малый капс-префикс) + большое тело (`pitashka.`).
+   *               Подходит для длинного slug-а (≥ 6 букв) — двухъярусная
+   *               композиция выглядит массивно и сбалансированно.
+   *  - `unified`: целиком `displayName` + терракотовая точка, один
+   *               display-шрифт в одну строку (`PROfit.`). Используется
+   *               когда тело короткое и split-композиция выглядит
+   *               обрубком.
+   */
+  wordmarkLayout: "split" | "unified";
   /**
    * Словоформа для конструкций типа «Спроси {askForm}» / «Ask {askForm}».
    * Разная форма для разных языков (в русском — винительный падеж, в
@@ -50,6 +59,7 @@ export const BRANDS: Record<BrandId, BrandData> = {
     tagline: "Тёплый дневник питания и тренировок",
     logoDir: "/brand/propitashka",
     wordmarkBody: "pitashka",
+    wordmarkLayout: "split",
     askForm: {
       ru: "Пропитошку",
       en: "Propitoshka",
@@ -65,6 +75,7 @@ export const BRANDS: Record<BrandId, BrandData> = {
     tagline: "AI-наставник по питанию и тренировкам",
     logoDir: "/brand/profit",
     wordmarkBody: "fit",
+    wordmarkLayout: "unified",
     askForm: {
       // PROfit — не склоняется: "Спроси PROfit", "Ask PROfit" и т.д.
       // Оставлено одинаково на всех языках, т.к. брендовое имя латиницей.

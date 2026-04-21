@@ -55,8 +55,8 @@ export async function fetchBrand(baseUrl = ""): Promise<BrandData> {
     };
     const id = (data.name?.toLowerCase?.() ?? "") as BrandId;
     if (id in BRANDS) {
-      // askForm / wordmarkBody остаются локальными — они зависят от клиента
-      // и не меняются между средами. Берём из статического словаря.
+      // askForm / wordmarkBody / wordmarkLayout остаются локальными — они
+      // зависят от клиента и не меняются между средами. Берём из словаря.
       return {
         name: id,
         displayName: data.display_name ?? BRANDS[id].displayName,
@@ -64,6 +64,7 @@ export async function fetchBrand(baseUrl = ""): Promise<BrandData> {
         tagline: data.tagline ?? BRANDS[id].tagline,
         logoDir: BRANDS[id].logoDir,
         wordmarkBody: BRANDS[id].wordmarkBody,
+        wordmarkLayout: BRANDS[id].wordmarkLayout,
         askForm: BRANDS[id].askForm,
       };
     }

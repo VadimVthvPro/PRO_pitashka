@@ -6,7 +6,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import MobileMenu from "./MobileMenu";
 import { useI18n } from "@/lib/i18n";
-import { brand } from "@/lib/brand";
+import { BrandWordmark } from "@/components/brand/BrandWordmark";
 
 export default function MobileTopBar() {
   const { t } = useI18n();
@@ -20,17 +20,8 @@ export default function MobileTopBar() {
         style={{ paddingTop: "var(--safe-top)" }}
       >
         <div className="flex items-center justify-between px-4 h-14">
-          <Link href="/dashboard" className="flex items-baseline gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.3em] text-[var(--muted)]">
-              PRO
-            </span>
-            <span
-              className="text-xl font-bold leading-none"
-              style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.035em" }}
-              aria-label={brand.displayName}
-            >
-              {brand.wordmarkBody}<span className="text-[var(--accent)]">.</span>
-            </span>
+          <Link href="/dashboard" className="inline-flex items-center">
+            <BrandWordmark size="sm" orientation="inline-baseline" />
           </Link>
 
           <motion.button
