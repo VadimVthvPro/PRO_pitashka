@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { api, apiUpload } from "@/lib/api";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { api, apiUploadWithProgress } from "@/lib/api";
 import { Icon } from "@iconify/react";
-import { motion } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { Sticker } from "@/components/hand/Sticker";
 import { Scribble } from "@/components/hand/Scribble";
 import { Highlight } from "@/components/hand/Highlight";
@@ -14,11 +15,13 @@ import { useI18n } from "@/lib/i18n";
 type Tab = "photo" | "manual" | "repeat";
 
 interface FoodItem {
+  id?: number;
   name_of_food: string;
   b: number;
   g: number;
   u: number;
   cal: number;
+  photo_url?: string | null;
 }
 
 interface FavoriteItem {
@@ -79,9 +82,14 @@ export default function FoodPage() {
   const [dayError, setDayError] = useState("");
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoDragging, setPhotoDragging] = useState(false);
   const [photoSubmitting, setPhotoSubmitting] = useState(false);
+  const [photoPhase, setPhotoPhase] = useState<"idle" | "uploading" | "analyzing">("idle");
+  const [photoProgress, setPhotoProgress] = useState(0);
   const [photoError, setPhotoError] = useState("");
+  const [lastRecognized, setLastRecognized] = useState<{ items: FoodItem[]; photo_url: string | null } | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   const [manualFoods, setManualFoods] = useState("");
   const [manualGrams, setManualGrams] = useState("");
@@ -190,8 +198,34 @@ export default function FoodPage() {
     e.stopPropagation();
     setPhotoDragging(false);
     const f = e.dataTransfer.files?.[0];
-    if (f) setPhotoFile(f);
+    if (f) pickPhoto(f);
   }
+
+  // Один вход для выбора фото: drag-n-drop, <input type="file">, вставка из буфера.
+  // Сразу рвём предыдущий object URL (иначе утечка) и создаём новый для превью.
+  function pickPhoto(f: File | null) {
+    if (previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+    }
+    setPhotoFile(f);
+    if (f) {
+      const url = URL.createObjectURL(f);
+      previewUrlRef.current = url;
+      setPhotoPreview(url);
+    } else {
+      setPhotoPreview(null);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (previewUrlRef.current) {
+        URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = null;
+      }
+    };
+  }, []);
 
   async function submitPhoto() {
     if (!photoFile) {
@@ -200,26 +234,76 @@ export default function FoodPage() {
     }
     setPhotoError("");
     setPhotoSubmitting(true);
+    setPhotoPhase("uploading");
+    setPhotoProgress(0);
     try {
       const fd = new FormData();
       fd.append("file", photoFile);
-      const res = await apiUpload<unknown>(
+      const res = await apiUploadWithProgress<{
+        items: FoodItem[];
+        photo_url?: string | null;
+        error?: string;
+      }>(
         `/api/food/photo?food_date=${encodeURIComponent(date)}`,
         fd,
+        {
+          onProgress: (pct) => {
+            setPhotoProgress(pct);
+            // Достигли 100% загрузки — сервер теперь разговаривает с Gemini,
+            // это может занять 5–15 с. Переходим в индетерминированный режим,
+            // чтобы прогресс-бар не «лгал» остановкой на 100%.
+            if (pct >= 100) setPhotoPhase("analyzing");
+          },
+        },
       );
       if (hasErrorPayload(res)) {
         setPhotoError(res.error);
         return;
       }
       handleActivityResponse(res as Parameters<typeof handleActivityResponse>[0]);
-      setPhotoFile(null);
+      setLastRecognized({
+        items: Array.isArray(res.items) ? res.items : [],
+        photo_url: res.photo_url ?? null,
+      });
+      // Сбрасываем локальный файл/превью — сервер уже держит нормализованную
+      // копию, и мы её подхватим из /api/food при перезагрузке ленты.
+      pickPhoto(null);
       await loadDay();
     } catch (e) {
       setPhotoError(e instanceof Error ? e.message : t("food_err_upload"));
     } finally {
       setPhotoSubmitting(false);
+      setPhotoPhase("idle");
+      setPhotoProgress(0);
     }
   }
+
+  // Группируем позиции дня по одной «тарелке» (общий photo_url) — чтобы
+  // одно фото не рендерилось 4 раза подряд для салата из 4 ингредиентов.
+  const groupedDay = useMemo(() => {
+    if (!foodDay) return [] as Array<{ key: string; photo_url: string | null; items: FoodItem[] }>;
+    const out: Array<{ key: string; photo_url: string | null; items: FoodItem[] }> = [];
+    let current: { key: string; photo_url: string | null; items: FoodItem[] } | null = null;
+    foodDay.items.forEach((it, idx) => {
+      const url = it.photo_url ?? null;
+      // Склеиваем только последовательные записи с одним и тем же URL —
+      // чтобы ручные вставки не «прилипали» к старым тарелкам.
+      if (current && current.photo_url === url && url !== null) {
+        current.items.push(it);
+      } else {
+        current = { key: `${url ?? "manual"}-${idx}`, photo_url: url, items: [it] };
+        out.push(current);
+      }
+    });
+    return out;
+  }, [foodDay]);
+
+  // Промпт в AI-чат для «спросить про мой день» — бэкенд сам добавит
+  // сегодняшний срез КБЖУ как system-контекст, нам нужен только вопрос.
+  const dayQuestionPrefill = useMemo(() => {
+    if (!foodDay || foodDay.items.length === 0) return t("food_ai_prefill_empty");
+    return t("food_ai_prefill_today", { n: foodDay.items.length });
+  }, [foodDay, t]);
 
   async function submitManual() {
     const foods = manualFoods
@@ -267,7 +351,7 @@ export default function FoodPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 relative">
       <ScrollReveal>
         <div className="flex items-end justify-between gap-4 flex-wrap">
           <div>
@@ -331,43 +415,133 @@ export default function FoodPage() {
       </div>
 
       {tab === "photo" && (
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-6 shadow-[var(--shadow-1)] space-y-4">
-          <div
-            role="presentation"
-            onDragOver={onPhotoDragOver}
-            onDragLeave={onPhotoDragLeave}
-            onDrop={onPhotoDrop}
-            className={`border-2 border-dashed rounded-[var(--radius-lg)] p-10 text-center transition-colors ${
-              photoDragging
-                ? "border-[var(--accent)] bg-[var(--color-sand)]/40"
-                : "border-[var(--border)] bg-[var(--input-bg)]"
-            }`}
-          >
-            <p className="text-sm text-[var(--muted)] mb-2">
-              {t("food_dropzone_extended")}
-            </p>
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              id="food-photo-input"
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) setPhotoFile(f);
-              }}
-            />
-            <label
-              htmlFor="food-photo-input"
-              className="inline-flex items-center justify-center px-5 min-h-11 text-sm font-medium rounded-[var(--radius)] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] cursor-pointer transition-colors touch-manipulation"
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-4 sm:p-6 shadow-[var(--shadow-1)] space-y-4">
+          {/* Если файл не выбран — показываем dropzone как раньше.
+              Если выбран — показываем crisp-превью 16:9 + кнопки «другое фото/удалить»,
+              а при submit поверх превью наплывает прогресс-оверлей. */}
+          {!photoPreview ? (
+            <div
+              role="presentation"
+              onDragOver={onPhotoDragOver}
+              onDragLeave={onPhotoDragLeave}
+              onDrop={onPhotoDrop}
+              className={`border-2 border-dashed rounded-[var(--radius-lg)] p-8 sm:p-10 text-center transition-colors ${
+                photoDragging
+                  ? "border-[var(--accent)] bg-[var(--color-sand)]/40"
+                  : "border-[var(--border)] bg-[var(--input-bg)]"
+              }`}
             >
-              {t("food_pick_file")}
-            </label>
-            {photoFile && (
-              <p className="mt-3 text-sm text-[var(--foreground)] font-mono truncate max-w-full">
-                {photoFile.name}
+              <Icon
+                icon="solar:camera-add-bold-duotone"
+                width={44}
+                className="mx-auto mb-3 text-[var(--accent)]"
+                aria-hidden
+              />
+              <p className="text-sm text-[var(--muted)] mb-3 max-w-[42ch] mx-auto">
+                {t("food_dropzone_extended")}
               </p>
-            )}
-          </div>
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                id="food-photo-input"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  pickPhoto(f ?? null);
+                  e.target.value = "";
+                }}
+              />
+              <label
+                htmlFor="food-photo-input"
+                className="inline-flex items-center justify-center gap-2 px-5 min-h-11 text-sm font-semibold rounded-[var(--radius)] bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] cursor-pointer transition-colors touch-manipulation"
+              >
+                <Icon icon="solar:gallery-add-bold-duotone" width={18} />
+                {t("food_pick_file")}
+              </label>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--input-bg)] aspect-[4/3] sm:aspect-[16/9]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={photoPreview}
+                  alt={t("food_photo_preview_alt")}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                <AnimatePresence>
+                  {photoSubmitting && (
+                    <motion.div
+                      key="overlay"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-[color-mix(in_oklab,var(--foreground)_45%,transparent)] backdrop-blur-sm flex flex-col items-center justify-center gap-3 p-4 text-center"
+                    >
+                      <div className="w-12 h-12 rounded-full border-4 border-white/35 border-t-white animate-spin" aria-hidden />
+                      <p className="text-sm font-semibold text-white">
+                        {photoPhase === "uploading"
+                          ? t("food_photo_uploading", { pct: photoProgress })
+                          : t("food_photo_analyzing")}
+                      </p>
+                      <div className="w-full max-w-[260px] h-1.5 rounded-full bg-white/25 overflow-hidden">
+                        {photoPhase === "uploading" ? (
+                          <motion.div
+                            className="h-full bg-white"
+                            initial={false}
+                            animate={{ width: `${photoProgress}%` }}
+                            transition={{ type: "tween", duration: 0.18 }}
+                          />
+                        ) : (
+                          <motion.div
+                            className="h-full w-1/2 bg-white"
+                            animate={{ x: ["-100%", "200%"] }}
+                            transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                          />
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  id="food-photo-input-replace"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    pickPhoto(f ?? null);
+                    e.target.value = "";
+                  }}
+                />
+                <label
+                  htmlFor="food-photo-input-replace"
+                  className={`inline-flex items-center gap-1.5 px-4 min-h-11 text-sm font-medium rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] text-[var(--foreground)] hover:border-[var(--accent)]/40 cursor-pointer transition touch-manipulation ${photoSubmitting ? "opacity-50 pointer-events-none" : ""}`}
+                >
+                  <Icon icon="solar:gallery-edit-bold-duotone" width={16} />
+                  {t("food_photo_replace")}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => pickPhoto(null)}
+                  disabled={photoSubmitting}
+                  className="inline-flex items-center gap-1.5 px-4 min-h-11 text-sm font-medium rounded-[var(--radius)] border border-[var(--border)] text-[var(--muted-foreground)] hover:text-[var(--destructive)] hover:border-[var(--destructive)]/40 disabled:opacity-50 transition touch-manipulation"
+                >
+                  <Icon icon="solar:trash-bin-minimalistic-bold-duotone" width={16} />
+                  {t("food_photo_remove")}
+                </button>
+                {photoFile && (
+                  <span className="inline-flex items-center gap-1.5 px-3 min-h-11 text-[11px] text-[var(--muted-foreground)] font-mono rounded-[var(--radius)] bg-[var(--input-bg)] truncate max-w-[260px]">
+                    {photoFile.name}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
           {photoError && (
             <p className="text-sm text-[var(--destructive)]">{photoError}</p>
           )}
@@ -375,10 +549,38 @@ export default function FoodPage() {
             type="button"
             onClick={() => void submitPhoto()}
             disabled={photoSubmitting || !photoFile}
-            className="w-full py-3 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="w-full py-3 min-h-[48px] rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 disabled:cursor-not-allowed transition-all inline-flex items-center justify-center gap-2"
           >
-            {photoSubmitting ? t("food_photo_submitting") : t("food_photo_save")}
+            {photoSubmitting ? (
+              <>
+                <span className="w-4 h-4 rounded-full border-2 border-white/40 border-t-white animate-spin" aria-hidden />
+                {photoPhase === "uploading"
+                  ? t("food_photo_uploading", { pct: photoProgress })
+                  : t("food_photo_analyzing")}
+              </>
+            ) : (
+              <>
+                <Icon icon="solar:chef-hat-bold-duotone" width={18} />
+                {t("food_photo_save")}
+              </>
+            )}
           </button>
+
+          {lastRecognized && lastRecognized.items.length > 0 && !photoSubmitting && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-[var(--radius)] border border-[var(--success)]/30 bg-[var(--success)]/10 p-3 text-sm"
+            >
+              <p className="font-medium text-[var(--success)] flex items-center gap-1.5">
+                <Icon icon="solar:check-circle-bold-duotone" width={18} />
+                {t("food_photo_added", { n: lastRecognized.items.length })}
+              </p>
+              <p className="text-[var(--muted-foreground)] mt-1 text-xs">
+                {lastRecognized.items.map((it) => it.name_of_food).join(", ")}
+              </p>
+            </motion.div>
+          )}
         </div>
       )}
 
@@ -659,40 +861,86 @@ export default function FoodPage() {
                 </div>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-[10px] font-medium uppercase tracking-wider text-[var(--muted-foreground)]">
-                      <th className="pb-2">{t("food_th_dish")}</th>
-                      <th className="pb-2 text-right">{t("food_macro_protein")}</th>
-                      <th className="pb-2 text-right">{t("food_macro_fat")}</th>
-                      <th className="pb-2 text-right">{t("food_macro_carbs")}</th>
-                      <th className="pb-2 text-right">{t("food_macro_kcal")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {foodDay.items.map((f, i) => (
-                      <tr
-                        key={`${f.name_of_food}-${i}`}
-                        className="border-t border-[var(--border)] hover:bg-[var(--color-sand)]/50"
-                      >
-                        <td className="py-2 pr-2">{f.name_of_food}</td>
-                        <td className="py-2 text-right font-mono text-xs">{Math.round(f.b)}</td>
-                        <td className="py-2 text-right font-mono text-xs">{Math.round(f.g)}</td>
-                        <td className="py-2 text-right font-mono text-xs">{Math.round(f.u)}</td>
-                        <td className="py-2 text-right font-mono text-xs font-medium">
-                          {Math.round(f.cal)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-3">
+                {groupedDay.map((group, gi) => (
+                  <div
+                    key={group.key}
+                    className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--input-bg)] overflow-hidden"
+                  >
+                    {group.photo_url && (
+                      <div className="relative aspect-[16/9] sm:aspect-[21/9] w-full bg-[var(--card)] overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={group.photo_url}
+                          alt={group.items[0]?.name_of_food ?? ""}
+                          className="absolute inset-0 w-full h-full object-cover"
+                          loading="lazy"
+                        />
+                        <div
+                          className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/65 via-black/20 to-transparent pointer-events-none"
+                          aria-hidden
+                        />
+                        <Sticker
+                          color="cream"
+                          size="sm"
+                          rotate={-4}
+                          className="absolute top-3 left-3"
+                        >
+                          <Icon icon="solar:camera-bold-duotone" width={14} className="inline mr-1" />
+                          {t("food_photo_badge")}
+                        </Sticker>
+                      </div>
+                    )}
+                    <div className="divide-y divide-[var(--border)]">
+                      {group.items.map((f, i) => (
+                        <div
+                          key={`${gi}-${f.id ?? i}`}
+                          className="flex items-center gap-3 px-3 sm:px-4 py-2.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium text-[var(--foreground)] truncate">
+                              {f.name_of_food}
+                            </p>
+                            <p className="text-[11px] text-[var(--muted-foreground)] font-mono tabular-nums mt-0.5">
+                              {t("food_macro_protein")} {Math.round(f.b)} ·{" "}
+                              {t("food_macro_fat")} {Math.round(f.g)} ·{" "}
+                              {t("food_macro_carbs")} {Math.round(f.u)}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-mono tabular-nums text-sm font-semibold text-[var(--foreground)]">
+                              {Math.round(f.cal)}
+                            </p>
+                            <p className="text-[10px] uppercase tracking-wider text-[var(--muted-foreground)]">
+                              {t("food_macro_kcal")}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </>
         )}
       </div>
       </ScrollReveal>
+
+      {/* Floating «спросить AI о питании».
+          Редиректим в /ai-chat с `prefill`, чтобы вопрос подставился в инпут;
+          сегодняшний КБЖУ-срез добавляется бэкендом через system-контекст. */}
+      <Link
+        href={`/ai-chat?prefill=${encodeURIComponent(dayQuestionPrefill)}&context=food`}
+        aria-label={t("food_ai_ask_aria")}
+        className="fixed z-40 right-4 sm:right-8 bottom-[calc(84px+var(--safe-bottom))] lg:bottom-8 inline-flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-[var(--accent)] text-white font-semibold shadow-[var(--shadow-accent)] hover:bg-[var(--accent-hover)] active:scale-95 transition-all touch-manipulation"
+      >
+        <span className="relative inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/15">
+          <Icon icon="solar:chat-round-dots-bold-duotone" width={18} />
+          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--success)] border-2 border-[var(--accent)]" aria-hidden />
+        </span>
+        <span className="text-sm whitespace-nowrap">{t("food_ai_ask")}</span>
+      </Link>
     </div>
   );
 }

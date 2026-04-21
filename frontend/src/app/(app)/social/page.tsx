@@ -207,8 +207,11 @@ export default function SocialPage() {
         </button>
       </header>
 
+      {/* На мобиле сначала показываем профиль и лидерборд (aside получает
+          order-first), затем ленту. Так пользователь видит «это я и мой
+          рейтинг» выше первого экрана — без бесконечного скролла вниз. */}
       <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-        <div className="min-w-0">
+        <div className="min-w-0 order-last lg:order-first">
           <div className="flex flex-wrap gap-2 mb-3">
             <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>
               {t("social_filter_all")}
@@ -279,7 +282,7 @@ export default function SocialPage() {
           )}
         </div>
 
-        <aside className="space-y-4">
+        <aside className="space-y-4 order-first lg:order-last">
           {me && <MyCard me={me} onChanged={loadMe} />}
 
           <div className="card-base p-4">

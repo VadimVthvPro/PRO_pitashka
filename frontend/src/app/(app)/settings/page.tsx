@@ -157,16 +157,7 @@ export default function SettingsPage() {
           <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)] mb-2">
             {t("settings_profile")}
           </p>
-          <h1
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "clamp(2.25rem, 1.5rem + 2.5vw, 3.5rem)",
-              letterSpacing: "-0.03em",
-              lineHeight: 0.95,
-            }}
-          >
-            {t("settings_title")}
-          </h1>
+          <h1 className="page-title">{t("settings_title")}</h1>
         </div>
       </ScrollReveal>
 
@@ -183,7 +174,7 @@ export default function SettingsPage() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-base font-semibold text-[var(--foreground)]">
-                  {billing?.plan_name ?? "Подписка"}
+                  {billing?.plan_name ?? t("settings_subscription")}
                 </span>
                 <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--accent)]">
                   {(billing?.tier ?? "free").toUpperCase()}
@@ -191,10 +182,12 @@ export default function SettingsPage() {
               </div>
               <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
                 {billing?.tier === "free"
-                  ? "Расширь лимиты за звёздочки Telegram"
+                  ? t("settings_subscription_upsell")
                   : billing?.end_at
-                    ? `Активен до ${new Date(billing.end_at).toLocaleDateString("ru-RU")}`
-                    : "Управление подпиской"}
+                    ? t("settings_subscription_active_until", {
+                        date: new Date(billing.end_at).toLocaleDateString(lang),
+                      })
+                    : t("settings_subscription_manage")}
               </div>
             </div>
             <Icon icon="solar:arrow-right-linear" width={18} className="text-[var(--muted)] flex-shrink-0" />

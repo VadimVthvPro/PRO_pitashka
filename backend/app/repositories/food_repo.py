@@ -9,17 +9,18 @@ class FoodRepository:
     async def add(
         self, user_id: int, food_date: date, name: str,
         protein: float, fat: float, carbs: float, calories: float,
+        photo_url: str | None = None,
     ) -> dict:
         row = await self.pool.fetchrow(
-            "INSERT INTO food (user_id, date, name_of_food, b, g, u, cal) "
-            "VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *",
-            user_id, food_date, name, protein, fat, carbs, calories,
+            "INSERT INTO food (user_id, date, name_of_food, b, g, u, cal, photo_url) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *",
+            user_id, food_date, name, protein, fat, carbs, calories, photo_url,
         )
         return dict(row)
 
     async def get_by_date(self, user_id: int, food_date: date) -> list[dict]:
         rows = await self.pool.fetch(
-            "SELECT name_of_food, b, g, u, cal FROM food "
+            "SELECT id, name_of_food, b, g, u, cal, photo_url FROM food "
             "WHERE user_id = $1 AND date = $2 ORDER BY id",
             user_id, food_date,
         )
@@ -73,8 +74,8 @@ class FoodRepository:
         row = await self.pool.fetchrow(
             """
             WITH inserted AS (
-              INSERT INTO food (user_id, date, name_of_food, b, g, u, cal)
-              SELECT user_id, $3, name_of_food, b, g, u, cal
+              INSERT INTO food (user_id, date, name_of_food, b, g, u, cal, photo_url)
+              SELECT user_id, $3, name_of_food, b, g, u, cal, photo_url
               FROM food
               WHERE user_id = $1 AND date = $2
               RETURNING 1
@@ -84,3 +85,10 @@ class FoodRepository:
             user_id, source_date, target_date,
         )
         return int(row["c"]) if row else 0
+
+    async def delete_by_id(self, user_id: int, food_id: int) -> bool:
+        res = await self.pool.execute(
+            "DELETE FROM food WHERE id = $1 AND user_id = $2",
+            food_id, user_id,
+        )
+        return res.endswith(" 1")

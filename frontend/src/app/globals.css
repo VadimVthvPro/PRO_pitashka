@@ -127,6 +127,16 @@
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  /* Высота «хрома» мобильного layout'а, которую надо вычесть из 100dvh,
+     чтобы получить реальную высоту main-контейнера:
+       56px (MobileTopBar h-14) + 40px (main py-5 x2) + 72px (BottomNav) = 168px.
+     В TMA топбара нет — уменьшаем до 112. Эта переменная — единая точка
+     правды для таких вьюпорт-завязанных экранов, как /ai-chat. */
+  --app-chrome-h: 168px;
+}
+
+html[data-tma="1"] {
+  --app-chrome-h: 112px;
 }
 
 html[data-tma="1"] body {
@@ -136,6 +146,23 @@ html[data-tma="1"] body {
 }
 html[data-tma="1"] [data-mobile-topbar] {
   display: none !important;
+}
+
+/* Утилита: высота экрана минус «хром» и safe-area.
+   В TMA приоритетно используем Telegram viewport — он надёжнее dvh,
+   который в iOS WKWebView прыгает при появлении клавиатуры. */
+.h-app-screen {
+  height: calc(100dvh - var(--app-chrome-h) - var(--safe-top) - var(--safe-bottom));
+}
+html[data-tma="1"] .h-app-screen {
+  height: calc(
+    var(--tg-viewport-height, 100dvh) - var(--app-chrome-h) - var(--safe-bottom)
+  );
+}
+@media (min-width: 1024px) {
+  .h-app-screen {
+    height: min(880px, calc(100vh - 7rem));
+  }
 }
 
 /* Mobile-first table sanity: avoid horizontal page scroll caused by wide

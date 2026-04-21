@@ -7,6 +7,7 @@ from app.repositories.food_repo import FoodRepository
 from app.services import ai_service, streak_service, quota_service
 from app.services.quota_service import QuotaExceeded
 from app.services.cache_service import CacheService
+from app.services.media_service import save_user_photo
 from app.repositories.user_repo import UserRepository
 from app.config import get_settings
 
@@ -110,30 +111,74 @@ async def add_food_photo(
     file: UploadFile = File(...),
     food_date: date = Query(default_factory=date.today),
 ):
+    """Принять фото тарелки → распознать в Gemini → сохранить позиции в БД.
+
+    Сохраняем одну нормализованную копию (jpeg, длинная сторона 1600px, без
+    EXIF) в `/uploads/food/{user_id}/`, URL пишем в каждую распознанную
+    позицию — так в ленте дня и в ответе AI-чата видно «с какой тарелки».
+
+    Квоту (`ai_photo`) тратим ДО сохранения файла, но ПОСЛЕ валидации — чтобы
+    битый jpeg не съедал попытку. Фото сохраняем ДО вызова AI: если Gemini
+    упал, файл всё равно привязываем к ручным попыткам повторить через /chat.
+    """
+    # 1. Считаем байты и валидируем размер/формат (раньше квоты — иначе 6 МБ
+    #    .HEIC могли бы сжигать попытку впустую).
+    image_bytes = await file.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Пустой файл")
+
     try:
         await quota_service.consume(db, redis, user_id, "ai_photo")
     except QuotaExceeded as exc:
         raise _photo_quota_error(exc)
-    image_bytes = await file.read()
+
+    # 2. Сохраняем нормализованную копию. Если изображение битое — 4xx до AI.
+    try:
+        photo_url, jpeg_bytes, _ = save_user_photo(
+            kind="food",
+            user_id=user_id,
+            raw=image_bytes,
+            content_type=file.content_type,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("food.photo: save failed user=%s: %s", user_id, exc)
+        # Fallback на сырые байты — AI ещё может распознать, но URL не привяжем
+        photo_url = None
+        jpeg_bytes = image_bytes
+
+    # 3. AI — на нормализованной копии (меньше трафика в Gemini).
     lang = await UserRepository(db).get_lang(user_id) or "ru"
     try:
-        items = await ai_service.recognize_food_photo(image_bytes, lang=lang)
+        items = await ai_service.recognize_food_photo(jpeg_bytes, lang=lang)
     except Exception as e:
         logger.warning("AI photo recognition failed: %s", e)
-        raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже или добавьте еду вручную.")
+        # Файл оставляем — пригодится для ручного ввода/повтора.
+        raise HTTPException(
+            status_code=503,
+            detail="AI-сервис временно недоступен. Попробуйте позже или добавьте еду вручную.",
+        )
 
+    # 4. Пишем строки в БД, прикрепляя URL снимка к каждому блюду с одной тарелки.
     repo = FoodRepository(db)
+    enriched_items: list[dict] = []
     for item in items:
-        await repo.add(
+        row = await repo.add(
             user_id=user_id, food_date=food_date,
             name=item.get("name", ""),
             protein=item.get("b", 0), fat=item.get("g", 0),
             carbs=item.get("u", 0), calories=item.get("cal", 0),
+            photo_url=photo_url,
         )
+        enriched = dict(item)
+        enriched["photo_url"] = photo_url
+        enriched["id"] = row.get("id")
+        enriched_items.append(enriched)
 
     streak = None
     new_badges: list = []
-    if items and food_date == date.today():
+    if enriched_items and food_date == date.today():
         update = await streak_service.safe_touch_activity(db, user_id)
         streak = {
             "current": update.current,
@@ -143,7 +188,12 @@ async def add_food_photo(
         }
         new_badges = update.newly_earned_badges
 
-    return {"items": items, "streak": streak, "newly_earned_badges": new_badges}
+    return {
+        "items": enriched_items,
+        "photo_url": photo_url,
+        "streak": streak,
+        "newly_earned_badges": new_badges,
+    }
 
 
 @router.get("")

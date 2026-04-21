@@ -138,3 +138,55 @@ export async function apiUpload<T>(
   }
   return JSON.parse(text) as T;
 }
+
+/** Загрузка файла с реальным прогрессом — `fetch()` не даёт upload.progress,
+ *  поэтому используем XHR. Коллбек `onProgress(pct)` получает 0..100 пока идёт
+ *  upload; после завершения upload (pct=100) сервер может ещё думать над AI —
+ *  это как раз сигнал переключить UI в индетерминированный «анализируем…».
+ *
+ *  401 обрабатываем как `api()`: пытаемся refresh и повторяем один раз. */
+export async function apiUploadWithProgress<T>(
+  path: string,
+  formData: FormData,
+  opts: { onProgress?: (pct: number) => void; signal?: AbortSignal } = {},
+): Promise<T> {
+  const doRequest = (): Promise<{ status: number; text: string }> =>
+    new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE}${path}`, true);
+      xhr.withCredentials = true;
+      xhr.responseType = "text";
+      xhr.upload.onprogress = (ev) => {
+        if (!opts.onProgress || !ev.lengthComputable) return;
+        opts.onProgress(Math.round((ev.loaded / ev.total) * 100));
+      };
+      xhr.onload = () => resolve({ status: xhr.status, text: xhr.responseText });
+      xhr.onerror = () => reject(new Error("Сеть недоступна"));
+      xhr.onabort = () => reject(new Error("Отменено"));
+      if (opts.signal) {
+        if (opts.signal.aborted) {
+          xhr.abort();
+        } else {
+          opts.signal.addEventListener("abort", () => xhr.abort(), { once: true });
+        }
+      }
+      xhr.send(formData);
+    });
+
+  let r = await doRequest();
+  if (r.status === 401) {
+    const ok = await tryRefresh();
+    if (ok) {
+      r = await doRequest();
+    } else {
+      redirectToLogin();
+      throw new Error("Session expired");
+    }
+  }
+  if (r.status < 200 || r.status >= 300) {
+    const fakeRes = { status: r.status, statusText: "" } as Response;
+    throw new Error(errorMessage(fakeRes, r.text));
+  }
+  if (!r.text) return undefined as T;
+  return JSON.parse(r.text) as T;
+}

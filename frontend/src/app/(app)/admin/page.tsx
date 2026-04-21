@@ -220,7 +220,7 @@ function TabBtn({
   return (
     <button
       onClick={onClick}
-      className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full text-xs font-semibold transition active:scale-95 ${
+      className={`shrink-0 inline-flex items-center gap-1.5 px-3.5 min-h-11 rounded-full text-xs font-semibold transition active:scale-95 touch-manipulation ${
         active
           ? "bg-[var(--accent)] text-white shadow-[var(--shadow-1)]"
           : "bg-[var(--card)] text-[var(--muted)] border border-[var(--border)] hover:text-[var(--foreground)]"
@@ -1346,9 +1346,9 @@ function UserTierPanel({
           type="button"
           onClick={() => void grant()}
           disabled={busy || plans.length === 0}
-          className="px-3 py-1.5 rounded text-[12px] font-medium bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 inline-flex items-center gap-1"
+          className="px-4 min-h-11 rounded-[var(--radius)] text-sm font-semibold bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-50 inline-flex items-center gap-1.5 touch-manipulation"
         >
-          <Icon icon="solar:medal-star-bold-duotone" width={14} />
+          <Icon icon="solar:medal-star-bold-duotone" width={16} />
           {t("admin_tier_grant")}
         </button>
         {isPaid && (
@@ -1356,16 +1356,16 @@ function UserTierPanel({
             type="button"
             onClick={() => void revoke()}
             disabled={busy}
-            className="px-3 py-1.5 rounded text-[12px] font-medium border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)]/10 disabled:opacity-50 inline-flex items-center gap-1"
+            className="px-4 min-h-11 rounded-[var(--radius)] text-sm font-semibold border border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning)]/10 disabled:opacity-50 inline-flex items-center gap-1.5 touch-manipulation"
           >
-            <Icon icon="solar:shield-cross-bold-duotone" width={14} />
+            <Icon icon="solar:shield-cross-bold-duotone" width={16} />
             {t("admin_tier_revoke")}
           </button>
         )}
         <button
           type="button"
           onClick={() => setHistoryOpen((v) => !v)}
-          className="ml-auto px-2 py-1 rounded text-[10px] uppercase tracking-wide text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          className="ml-auto px-3 min-h-11 rounded-full text-[11px] font-semibold uppercase tracking-wide text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:bg-[var(--input-bg)] border border-[var(--border)] inline-flex items-center gap-1 touch-manipulation"
         >
           {historyOpen ? t("plans_history_close") : t("admin_tier_history")}
         </button>

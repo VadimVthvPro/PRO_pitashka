@@ -303,25 +303,26 @@ export default function WorkoutsPage() {
               aria-label={t("common_close")}
               onClick={closeModal}
             />
-            {/* Bottom-sheet on mobile, centered card on sm+. */}
+            {/* Bottom-sheet on mobile, centered card on sm+.
+                Ограничение max-h + sticky footer: CTA не уезжают вниз на
+                iPhone SE / Telegram WebView с открытой клавиатурой. */}
             <motion.div
               key="workout-sheet"
               initial={{ opacity: 0, y: 32 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 16 }}
               transition={{ type: "spring", stiffness: 320, damping: 26 }}
-              className="relative w-full sm:max-w-md bg-[var(--card)] border border-[var(--card-border)] rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] shadow-[var(--shadow-3)] p-6 z-10"
-              style={{ paddingBottom: "max(1.5rem, calc(var(--safe-bottom) + 1rem))" }}
+              className="relative w-full sm:max-w-md bg-[var(--card)] border border-[var(--card-border)] rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] shadow-[var(--shadow-3)] z-10 flex flex-col max-h-[92dvh] sm:max-h-[min(640px,88vh)] overflow-hidden"
             >
-              <span className="sm:hidden block w-10 h-1 rounded-full bg-[var(--border)] mx-auto mb-3" aria-hidden />
-              <div className="flex items-center gap-3 mb-4">
+              <span className="sm:hidden block w-10 h-1 rounded-full bg-[var(--border)] mx-auto mt-3 mb-1" aria-hidden />
+              <div className="px-6 pt-4 pb-3 flex items-center gap-3 border-b border-[var(--border)]">
                 <div className="shrink-0 w-12 h-12 rounded-[var(--radius)] bg-gradient-to-br from-[var(--color-sand)] to-[var(--color-cream)] flex items-center justify-center text-[var(--accent)]">
                   <WorkoutIcon id={modalType.id} emoji={modalType.emoji} size={28} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <h2
                     id="workout-modal-title"
-                    className="text-2xl font-bold"
+                    className="text-2xl font-bold truncate"
                     style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
                   >
                     {modalType.name}
@@ -331,39 +332,47 @@ export default function WorkoutsPage() {
                   </p>
                 </div>
               </div>
-            <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
-              {t("workouts_modal_duration")}
-            </label>
-            <input
-              type="number"
-              min={1}
-              max={600}
-              value={durationStr}
-              onChange={(e) => setDurationStr(e.target.value)}
-              inputMode="numeric"
-              className="w-full min-w-0 px-4 min-h-11 mb-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
-            />
-            {submitError && (
-              <p className="text-sm text-[var(--destructive)] mb-4">{submitError}</p>
-            )}
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={closeModal}
-                disabled={submitting}
-                className="flex-1 min-h-11 rounded-[var(--radius)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 disabled:opacity-50 touch-manipulation"
+
+              <div className="flex-1 overflow-y-auto px-6 py-4">
+                <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-2">
+                  {t("workouts_modal_duration")}
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={600}
+                  value={durationStr}
+                  onChange={(e) => setDurationStr(e.target.value)}
+                  inputMode="numeric"
+                  autoFocus
+                  className="w-full min-w-0 px-4 min-h-12 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] font-mono text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
+                />
+                {submitError && (
+                  <p className="text-sm text-[var(--destructive)] mt-3">{submitError}</p>
+                )}
+              </div>
+
+              <div
+                className="shrink-0 px-6 py-4 border-t border-[var(--border)] bg-[var(--card)] flex gap-3"
+                style={{ paddingBottom: "max(1rem, calc(var(--safe-bottom) + 0.75rem))" }}
               >
-                {t("workouts_modal_cancel")}
-              </button>
-              <button
-                type="button"
-                onClick={() => void submitWorkout()}
-                disabled={submitting}
-                className="flex-1 min-h-11 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] disabled:opacity-50 active:scale-[0.97] transition-transform touch-manipulation"
-              >
-                {submitting ? t("workouts_modal_saving") : t("workouts_modal_save")}
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  disabled={submitting}
+                  className="flex-1 min-h-12 rounded-[var(--radius)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 disabled:opacity-50 touch-manipulation font-medium"
+                >
+                  {t("workouts_modal_cancel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void submitWorkout()}
+                  disabled={submitting}
+                  className="flex-1 min-h-12 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] disabled:opacity-50 active:scale-[0.97] transition-transform touch-manipulation"
+                >
+                  {submitting ? t("workouts_modal_saving") : t("workouts_modal_save")}
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}

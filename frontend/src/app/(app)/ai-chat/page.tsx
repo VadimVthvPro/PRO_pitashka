@@ -156,6 +156,22 @@ export default function AiChatPage() {
   useEffect(() => {
     const a = searchParams.get("attach");
     if (a === "meal_plan" || a === "workout_plan") setAttach(a);
+    // Prefill приходит с /food (FAB «Спросить AI»). Не перезаписываем,
+    // если юзер уже успел что-то напечатать — иначе перехват ввода при
+    // прокидывании роутера через прелоад будет раздражать.
+    const pre = searchParams.get("prefill");
+    if (pre) {
+      setInput((prev) => (prev && prev.trim().length > 0 ? prev : pre));
+      // Убираем ?prefill= из адресной строки, чтобы при refresh вопрос не
+      // подставился ещё раз. replace, не push — не засоряем history.
+      if (typeof window !== "undefined") {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("prefill");
+        url.searchParams.delete("context");
+        router.replace(url.pathname + (url.search ? url.search : ""), { scroll: false });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   useEffect(() => {
@@ -326,13 +342,14 @@ export default function AiChatPage() {
     }
   }
 
-  // Mobile height formula:
-  //   - 56px (MobileTopBar h-14) + safe-top (notch)
-  //   - 40px (main py-5 top + bottom)
-  //   - 72px (BottomNav) + safe-bottom
-  // Keeps composer above home-indicator even with iOS URL bar collapse.
+  // Высоту экрана считает единая CSS-утилита `.h-app-screen` (см. globals.css):
+  //   - в обычном браузере: 100dvh − --app-chrome-h (168 / 112 в TMA) − safe-area
+  //   - в Telegram Mini App: используется реальный --tg-viewport-height,
+  //     который Telegram сообщает через viewportChanged.
+  // Так чат больше не обрезается и не «торчит» ниже видимой зоны при появлении
+  // клавиатуры или сокрытии топбара TG.
   return (
-    <div className="flex flex-col gap-3 lg:gap-6 lg:flex-row h-[calc(100dvh-168px-var(--safe-top)-var(--safe-bottom))] lg:h-[min(880px,calc(100vh-7rem))] min-h-[420px] lg:min-h-[560px]">
+    <div className="flex flex-col gap-3 lg:gap-6 lg:flex-row h-app-screen min-h-[420px] lg:min-h-[560px]">
       {/* Rail — full on desktop, hidden on mobile (compact strip lives inside the lane) */}
       <div className="hidden lg:block lg:w-[280px] xl:w-[320px] shrink-0 lg:overflow-y-auto lg:pr-1">
         <ContextRail
