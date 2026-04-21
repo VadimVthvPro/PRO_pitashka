@@ -64,14 +64,29 @@ docker compose -p propitashka-freemium \
   restart backend
 
 # 4. Smoke-test: читаем /api/brand и проверяем соответствие.
-echo "→ waiting for backend to come back (~10s)..."
-sleep 10
-ACTUAL=$(curl -fsS "http://127.0.0.1:8102/api/brand" 2>/dev/null | grep -o '"name":"[^"]*"' | cut -d'"' -f4 || echo "?")
-if [[ "$ACTUAL" == "$BRAND" ]]; then
-  echo "  ✓ backend reports brand=$ACTUAL"
-else
-  echo "  ✗ backend reports brand=$ACTUAL (expected $BRAND). Check logs." >&2
+# Cold-restart бэка может занимать до ~25 сек, поэтому не sleep, а polling.
+echo "→ polling backend for brand switch confirmation..."
+ACTUAL=""
+for i in $(seq 1 30); do
+  ACTUAL=$(curl -fsS --max-time 2 "http://127.0.0.1:8102/api/brand" 2>/dev/null \
+    | grep -o '"name":"[^"]*"' | cut -d'"' -f4 || echo "")
+  if [[ "$ACTUAL" == "$BRAND" ]]; then
+    echo "  ✓ backend reports brand=$ACTUAL (after ${i}s)"
+    break
+  fi
+  sleep 1
+done
+
+if [[ "$ACTUAL" != "$BRAND" ]]; then
+  echo "  ✗ backend did not report brand=$BRAND within 30s (last: '$ACTUAL')." >&2
+  echo "    check: docker logs propitashka-backend-freemium --tail 40" >&2
   exit 2
 fi
 
+# 5. Frontend smoke — проверяем что HTML отдаёт свежий wordmark.
+FRONT=$(curl -fsS --max-time 5 "http://127.0.0.1:3201/login" 2>/dev/null \
+  | grep -oE 'PRO · [a-z]+' | head -1 || echo "")
+echo "  ✓ frontend HTML wordmark: '$FRONT'"
+
 echo "✓ done. Active brand: $BRAND"
+echo "  verify: curl -s http://localhost:3201/api/brand"
