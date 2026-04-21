@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import MobileMenu from "./MobileMenu";
 import { useI18n } from "@/lib/i18n";
+import { brand } from "@/lib/brand";
 
 export default function MobileTopBar() {
   const { t } = useI18n();
@@ -26,8 +27,9 @@ export default function MobileTopBar() {
             <span
               className="text-xl font-bold leading-none"
               style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.035em" }}
+              aria-label={brand.displayName}
             >
-              pitashka<span className="text-[var(--accent)]">.</span>
+              {brand.wordmarkBody}<span className="text-[var(--accent)]">.</span>
             </span>
           </Link>
 

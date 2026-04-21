@@ -30,17 +30,17 @@ export const BRANDS = {
     shortName: "ПРОпиташка",
     tagline: "Тёплый дневник питания и тренировок",
     logoDir: "/brand/propitashka",
-    themeAccent: "var(--accent)",
-    botUsername: process.env.NEXT_PUBLIC_BOT_USERNAME_PROPITASHKA || "",
+    wordmarkBody: "pitashka",      // рендерится в Sidebar/MobileMenu/TopBar
+    askForm: { ru: "Пропитошку", en: "Propitoshka", ... },
   },
   profit: {
     name: "profit",
-    displayName: "PROfit",         // ← зависит от ответа на Вопрос 1
+    displayName: "PROfit",
     shortName: "PROfit",
     tagline: "AI-наставник по питанию и тренировкам",
     logoDir: "/brand/profit",
-    themeAccent: "var(--accent)",  // терракота сохраняется
-    botUsername: process.env.NEXT_PUBLIC_BOT_USERNAME_PROFIT || "",
+    wordmarkBody: "fit",
+    askForm: { ru: "PROfit", en: "PROfit", ... },
   },
 } as const;
 
@@ -205,33 +205,59 @@ SVG-файлы:
 ```bash
 # локально
 git checkout freemium-stars
-# ... реализуем архитектуру ...
 git add .
 git commit -m "brand: introduce dual-brand parity (PROpitashka ↔ PROfit)"
 git push origin freemium-stars
 
-# на сервере
+# на сервере (workdir: /opt/propitashka-freemium)
 ssh root@82.38.66.177
-cd ~/PROpitashka/PROpitashka
+cd /opt/propitashka-freemium
 git pull origin freemium-stars
-# в .env.freemium добавлен BRAND=profit
-docker compose -f docker-compose.freemium.yml up -d --build
+
+# ВАЖНО: compose подставляет ${BRAND} и ${NEXT_PUBLIC_BRAND} из переменных
+# shell-среды или из файла .env (БЕЗ суффикса). Наш env-файл называется
+# .env.freemium — его нужно явно передать через --env-file, иначе
+# переменные подставятся дефолтами из compose-файла (propitashka).
+docker compose -f docker-compose.freemium.yml --env-file .env.freemium \
+  up -d --build
 ```
 
 ### 7.2 Переключение бренда (ежедневный сценарий)
 
-```bash
-# на сервере
-cd ~/PROpitashka/PROpitashka
+**Один скрипт делает всё:**
 
-# → PROfit
+```bash
+ssh root@82.38.66.177
+cd /opt/propitashka-freemium
+
+# → PROfit (на порту 3201)
 ./scripts/switch-brand.sh profit
 
-# → PROpitashka
+# → PROpitashka (на том же порту 3201)
 ./scripts/switch-brand.sh propitashka
 ```
 
-Где `scripts/switch-brand.sh` — см. §9.
+Что делает скрипт (см. `scripts/switch-brand.sh` и §9):
+1. Меняет `BRAND=` и `NEXT_PUBLIC_BRAND=` в `.env.freemium`.
+2. Пересобирает frontend с новым `NEXT_PUBLIC_BRAND` (~2 мин — билд-тайм).
+3. Ребилдит / рестартует backend (~5–15 с — BRAND читается на каждый запрос).
+4. Делает smoke-test: `curl /api/brand` → сверяет `name` с ожидаемым.
+
+**Проверить вручную после переключения:**
+
+```bash
+# на сервере
+curl -s http://localhost:3201/api/brand | python3 -m json.tool
+# должно вернуть {"name":"profit", "display_name":"PROfit", ...}
+
+# или HTML-титул
+curl -s http://localhost:3201/ | grep -oE '<title>[^<]+'
+# → <title>PROfit — AI-наставник по питанию и тренировкам
+```
+
+**Важные нюансы:**
+- Первый пуш после обновления кода — руками: `git pull && docker compose -f docker-compose.freemium.yml --env-file .env.freemium up -d --build`. `switch-brand.sh` делает только brand-switch, не pull.
+- Пока Telegram-бот один (`@PROpitashka_test_bot`), он отвечает от имени активного бренда (тексты бота брендируются из `brand.display_name()` в backend). При желании можно создать отдельного бота `@PROfit_bot` и переключать `NEXT_PUBLIC_BOT_USERNAME` + `TELEGRAM_BOT_TOKEN` через тот же `.env.freemium`.
 
 ### 7.3 Секреты
 

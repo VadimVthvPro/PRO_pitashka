@@ -55,14 +55,15 @@ export async function fetchBrand(baseUrl = ""): Promise<BrandData> {
     };
     const id = (data.name?.toLowerCase?.() ?? "") as BrandId;
     if (id in BRANDS) {
-      // askForm остаётся локальным — он зависит от языка UI, а не от ответа
-      // API. Всё равно возьмём его из статического словаря.
+      // askForm / wordmarkBody остаются локальными — они зависят от клиента
+      // и не меняются между средами. Берём из статического словаря.
       return {
         name: id,
         displayName: data.display_name ?? BRANDS[id].displayName,
         shortName: data.short_name ?? BRANDS[id].shortName,
         tagline: data.tagline ?? BRANDS[id].tagline,
         logoDir: BRANDS[id].logoDir,
+        wordmarkBody: BRANDS[id].wordmarkBody,
         askForm: BRANDS[id].askForm,
       };
     }

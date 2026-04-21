@@ -18,13 +18,10 @@ const BOT_USERNAME =
   process.env.NEXT_PUBLIC_BOT_USERNAME ||
   (brand.name === "profit" ? "PROpitashka_test_bot" : "PROpitashka_bot");
 
-// Брендовый «префикс» в левом верхнем углу hero-экрана. Для PROpitashka
-// разбивали слово на «PRO · pitashka», для PROfit — «PRO · fit». Любой
-// новый бренд — добавить строчку.
-const BRAND_HERO_PREFIX: Record<typeof brand.name, string> = {
-  propitashka: "PRO · pitashka",
-  profit: "PRO · fit",
-};
+// Брендовый «префикс» в левом верхнем углу hero-экрана строится из
+// `brand.wordmarkBody`: "PRO · pitashka" / "PRO · fit". Источник истины —
+// `brand.config.ts` → `BRANDS[...].wordmarkBody`.
+const BRAND_HERO_PREFIX = `PRO · ${brand.wordmarkBody}`;
 const RESEND_SECONDS = 45;
 
 export default function LoginPage() {
@@ -160,7 +157,7 @@ export default function LoginPage() {
               transition={{ duration: 0.5 }}
               className="text-xs font-semibold uppercase tracking-[0.3em] text-[var(--muted)]"
             >
-              {BRAND_HERO_PREFIX[brand.name]}
+              {BRAND_HERO_PREFIX}
             </motion.p>
 
             <motion.h1

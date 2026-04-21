@@ -6,6 +6,7 @@ import { Icon } from "@iconify/react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect } from "react";
 import { useI18n } from "@/lib/i18n";
+import { brand } from "@/lib/brand";
 
 interface NavItem {
   href: string;
@@ -109,8 +110,9 @@ export default function MobileMenu({ open, onClose }: Props) {
                 <span
                   className="block text-2xl font-bold leading-[0.9]"
                   style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.035em" }}
+                  aria-label={brand.displayName}
                 >
-                  pitashka<span className="text-[var(--accent)]">.</span>
+                  {brand.wordmarkBody}<span className="text-[var(--accent)]">.</span>
                 </span>
               </div>
               <button

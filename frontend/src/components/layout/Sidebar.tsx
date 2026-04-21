@@ -6,6 +6,7 @@ import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
 import { StreakFlame } from "@/components/streak/StreakFlame";
 import { useI18n } from "@/lib/i18n";
+import { brand } from "@/lib/brand";
 
 interface NavItem {
   href: string;
@@ -48,8 +49,9 @@ export default function Sidebar() {
             fontFamily: "var(--font-display)",
             letterSpacing: "-0.035em",
           }}
+          aria-label={brand.displayName}
         >
-          pitashka
+          {brand.wordmarkBody}
           <span className="text-[var(--accent)]">.</span>
         </span>
       </Link>

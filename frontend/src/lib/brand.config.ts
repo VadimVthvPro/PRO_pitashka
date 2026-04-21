@@ -26,6 +26,14 @@ export interface BrandData {
   /** Директория с ассетами: logo.svg, favicon.ico, og-image.png. */
   logoDir: string;
   /**
+   * «Тело» wordmark-а — часть названия, идущая после малого капс-
+   * префикса `PRO`. Для `PROpitashka` это `pitashka`, для `PROfit` — `fit`.
+   * Рендерится в Sidebar / MobileMenu / MobileTopBar как основное
+   * display-слово. Хранится отдельно (а не парсится из `displayName`),
+   * чтобы не было хрупкой магии со slicing-ом строк.
+   */
+  wordmarkBody: string;
+  /**
    * Словоформа для конструкций типа «Спроси {askForm}» / «Ask {askForm}».
    * Разная форма для разных языков (в русском — винительный падеж, в
    * остальных — транслитерация/латинское имя). Отсутствие ключа →
@@ -41,6 +49,7 @@ export const BRANDS: Record<BrandId, BrandData> = {
     shortName: "ПРОпиташка",
     tagline: "Тёплый дневник питания и тренировок",
     logoDir: "/brand/propitashka",
+    wordmarkBody: "pitashka",
     askForm: {
       ru: "Пропитошку",
       en: "Propitoshka",
@@ -55,6 +64,7 @@ export const BRANDS: Record<BrandId, BrandData> = {
     shortName: "PROfit",
     tagline: "AI-наставник по питанию и тренировкам",
     logoDir: "/brand/profit",
+    wordmarkBody: "fit",
     askForm: {
       // PROfit — не склоняется: "Спроси PROfit", "Ask PROfit" и т.д.
       // Оставлено одинаково на всех языках, т.к. брендовое имя латиницей.
