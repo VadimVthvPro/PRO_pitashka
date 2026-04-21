@@ -372,7 +372,6 @@
   "ai_empty_neutral": "Je connais tes objectifs et tes mesures. Demande-moi sur l’alimentation, l’entraînement, la récup — je tiens compte du contexte.",
   "ai_empty_knows": "Je vois déjà : aujourd’hui {kcal} kcal et {water} verres d’eau. On débriefe la journée, on choisit un en-cas ou on rafraîchit le plan ?",
   "ai_hero_pre": "Demande à",
-  "ai_hero_word": "Propitoshka",
   "ai_sticker_knows_you": "te connaît",
   "ai_attach_active": "Joint : {kind}",
   "ai_attach_remove": "Retirer la pièce jointe",

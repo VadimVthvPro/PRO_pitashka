@@ -21,7 +21,7 @@ router = APIRouter()
 
 
 @router.get("")
-async def get_brand() -> dict[str, str]:
+async def get_brand() -> dict:
     """Return the currently configured brand data.
 
     Reads ``settings.BRAND`` on every request (cheap — ``get_settings`` is
@@ -33,4 +33,7 @@ async def get_brand() -> dict[str, str]:
         "display_name": data["display_name"],
         "short_name": data["short_name"],
         "tagline": data["tagline"],
+        # per-language "Ask X" / "Спроси X" form. Client is free to pick
+        # by its current UI language.
+        "ask_form": data["ask_form"],
     }

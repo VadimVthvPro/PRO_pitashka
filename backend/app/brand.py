@@ -25,6 +25,10 @@ class BrandData(TypedDict):
     display_name: str   # as shown to user in UI / AI responses
     short_name: str     # compact form for tight UI (sidebar, telegram)
     tagline: str        # one-line pitch
+    # Словоформа для обращения «Спроси X» / «Ask X» по языкам UI.
+    # В русском у propitashka это винительный падеж "Пропитошку";
+    # PROfit не склоняется — одинаково на всех языках.
+    ask_form: dict[str, str]
 
 
 BRANDS: dict[str, BrandData] = {
@@ -33,12 +37,26 @@ BRANDS: dict[str, BrandData] = {
         "display_name": "PROpitashka",
         "short_name": "ПРОпиташка",
         "tagline": "Тёплый дневник питания и тренировок",
+        "ask_form": {
+            "ru": "Пропитошку",
+            "en": "Propitoshka",
+            "de": "Propitoshka",
+            "fr": "Propitoshka",
+            "es": "Propitoshka",
+        },
     },
     "profit": {
         "name": "profit",
         "display_name": "PROfit",
         "short_name": "PROfit",
         "tagline": "AI-наставник по питанию и тренировкам",
+        "ask_form": {
+            "ru": "PROfit",
+            "en": "PROfit",
+            "de": "PROfit",
+            "fr": "PROfit",
+            "es": "PROfit",
+        },
     },
 }
 
@@ -68,3 +86,11 @@ def short_name() -> str:
 def tagline() -> str:
     """Shortcut: one-line pitch."""
     return current()["tagline"]
+
+
+def ask_form(lang: str) -> str:
+    """Brand name in «Ask X» form for the given UI language.
+
+    Falls back to :func:`display_name` if the language is unknown.
+    """
+    return current()["ask_form"].get((lang or "ru").lower(), display_name())

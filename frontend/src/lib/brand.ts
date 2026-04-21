@@ -15,7 +15,13 @@
  *   - Для AI / backend-контекстов бренд резолвится на бэке сам
  */
 
-import { BRANDS, DEFAULT_BRAND, type BrandData, type BrandId } from "./brand.config";
+import {
+  BRANDS,
+  DEFAULT_BRAND,
+  type BrandData,
+  type BrandId,
+  type BrandLang,
+} from "./brand.config";
 
 function resolveBuildTimeBrand(): BrandId {
   const raw = (process.env.NEXT_PUBLIC_BRAND || "").toLowerCase();
@@ -49,12 +55,15 @@ export async function fetchBrand(baseUrl = ""): Promise<BrandData> {
     };
     const id = (data.name?.toLowerCase?.() ?? "") as BrandId;
     if (id in BRANDS) {
+      // askForm остаётся локальным — он зависит от языка UI, а не от ответа
+      // API. Всё равно возьмём его из статического словаря.
       return {
         name: id,
         displayName: data.display_name ?? BRANDS[id].displayName,
         shortName: data.short_name ?? BRANDS[id].shortName,
         tagline: data.tagline ?? BRANDS[id].tagline,
         logoDir: BRANDS[id].logoDir,
+        askForm: BRANDS[id].askForm,
       };
     }
     return brand;
@@ -63,4 +72,13 @@ export async function fetchBrand(baseUrl = ""): Promise<BrandData> {
   }
 }
 
-export type { BrandData, BrandId } from "./brand.config";
+/**
+ * Словоформа бренда для конструкции «Спроси …» / «Ask …» на указанном
+ * языке. Падение на `displayName`, если язык вне поддержанного списка.
+ */
+export function brandAskForm(lang: string, data: BrandData = brand): string {
+  const key = lang.toLowerCase() as BrandLang;
+  return data.askForm[key] ?? data.displayName;
+}
+
+export type { BrandData, BrandId, BrandLang } from "./brand.config";

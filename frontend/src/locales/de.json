@@ -372,7 +372,6 @@
   "ai_empty_neutral": "Ich kenne deine Ziele und Werte. Frag zu Essen, Training oder Erholung — ich beziehe den Kontext mit ein.",
   "ai_empty_knows": "Ich sehe schon: heute {kcal} kcal und {water} Gläser Wasser. Lust, den Tag durchzugehen, einen Snack zu wählen oder den Plan aufzufrischen?",
   "ai_hero_pre": "Frag",
-  "ai_hero_word": "Propitoshka",
   "ai_sticker_knows_you": "kennt dich",
   "ai_attach_active": "Angehängt: {kind}",
   "ai_attach_remove": "Anhang entfernen",

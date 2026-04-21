@@ -167,21 +167,36 @@ export async function getBrand(): Promise<BrandData> {
 
 ### 6.2 PROfit (новый — только текст, без иконки)
 
-**Концепция (см. раздел ниже в диалоге):**
+**Полный дизайн-бриф + готовые AI-промпты** лежат в **[`frontend/public/brand/profit/LOGO_BRIEF.md`](frontend/public/brand/profit/LOGO_BRIEF.md)**. Там: концепция, палитра, don'ts, DALL·E/Midjourney промпты, validation-чеклист.
+
+Краткая выжимка:
 - Wordmark на базе Pobeda Bold (наш `--font-display`)
-- Точка над `i` заменяется на **терракотовый стикер-круг** (рифма с `Sticker` из `DESIGN_GUIDE §4.4`)
+- Точка над `i` — **терракотовый стикер-круг** (рифма с `Sticker` из `DESIGN_GUIDE §4.4`)
 - Под словом — **hand-drawn underline** в стиле `HandDrawnUnderline`, variant 2-3, цвет терракота, толщина 4-5px
-- Два цветовых варианта:
-  - **Светлый:** `#2E2824` (кофейный черный) текст + `#D97757` (терракота) точка/подчёркивание на `#FFF9ED` (крем)
-  - **Тёмный:** `#FFF9ED` текст + `#D97757` точка/подчёркивание на `#2E2824`
-- Фавикон: только точка-стикер + буква `P` (целое "Profit" не читается в 16×16)
+- Два цветовых варианта: `#2E2824` на `#FFF9ED` (светлый) и `#FFF9ED` на `#2E2824` (тёмный), акцент `#D97757`
+- Фавикон: только точка-стикер + буква `P`
 
 SVG-файлы:
 - `frontend/public/brand/profit/logo.svg` — полный wordmark
 - `frontend/public/brand/profit/logo-dark.svg` — вариант для тёмной темы
-- `frontend/public/brand/profit/wordmark-only.svg` — без подчёркивания, для шапки сайта
-- `frontend/public/brand/profit/favicon.svg` + `.ico`
-- `frontend/public/brand/profit/og-image.png` (1200×630, с слоганом §1)
+- `frontend/public/brand/profit/wordmark.svg` — без подчёркивания, для шапки сайта
+- `frontend/public/brand/profit/favicon.svg`
+- `frontend/public/brand/profit/LOGO_BRIEF.md` — дизайн-бриф и AI-промпты
+
+### 6.3 Brand-specific word forms (`askForm`)
+
+Кроме `displayName`/`shortName`, каждый бренд несёт словоформу для обращения («Спроси X» / «Ask X») **на каждый поддерживаемый язык**. Это нужно, потому что в русском имя `Пропиташка` склоняется по падежам, а `PROfit` — нет.
+
+- Frontend: `BrandData.askForm: Record<BrandLang, string>` + хелпер `brandAskForm(lang, data)` из `lib/brand.ts`.
+- Backend: `BrandData.ask_form: dict[str, str]` + функция `brand.ask_form(lang)` из `app/brand.py`.
+- API: поле `ask_form` в `GET /api/brand` (на случай RSC/middleware, которым нужны все формы сразу).
+
+В i18n-ключах используем только «префикс» (например, `ai_hero_pre = "Спроси"`). Само имя подставляется в JSX через `brandAskForm(lang)`, так что locale-файлы остаются brand-agnostic.
+
+**Как добавить новую формулировку:**
+1. Придумать префикс на 5 языках, положить в ключ `ai_<что-то>_pre` в `locales/*.json`.
+2. Если форма имени отличается от дефолтной — дополнить `askForm` словарь в `brand.config.ts` **и** `brand.py` (должны совпадать).
+3. В JSX: `{t("ai_<что-то>_pre")} {brandAskForm(lang)}`.
 
 ## 7. Deploy runbook
 

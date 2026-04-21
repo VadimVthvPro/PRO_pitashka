@@ -389,7 +389,6 @@
   "ai_empty_neutral": "I know your goals and stats. Ask me about food, training, recovery — I'll factor in the context.",
   "ai_empty_knows": "I can already see: {kcal} kcal and {water} glasses of water today. Want to break down the day, pick a snack or refresh the plan?",
   "ai_hero_pre": "Ask",
-  "ai_hero_word": "Propitoshka",
   "ai_sticker_knows_you": "knows you",
   "ai_attach_active": "Attached: {kind}",
   "ai_attach_remove": "Remove attachment",

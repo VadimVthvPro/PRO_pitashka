@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * AI assistant — full chat experience, "Пропитошка-собеседник" edition.
+ * AI assistant — full chat experience, brand-voiced companion.
  *
  * Layout (lg+):
  *   ┌──────────────┬───────────────────────────────────────┐
@@ -34,6 +34,7 @@ import { Scribble } from "@/components/hand/Scribble";
 import { api } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { useBilling } from "@/lib/billing";
+import { brand, brandAskForm } from "@/lib/brand";
 import { QuotaBar, getUsageItem } from "@/components/billing/QuotaBar";
 
 type Attach = "meal_plan" | "workout_plan" | null;
@@ -76,9 +77,10 @@ type ChatItem =
   | { kind: "msg"; key: string; message: BubbleMessage; createdAt: Date };
 
 export default function AiChatPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const askWord = brandAskForm(lang, brand);
 
   const [messages, setMessages] = useState<BubbleMessage[]>([]);
   const [createdAt, setCreatedAt] = useState<Map<number, Date>>(new Map());
@@ -372,7 +374,7 @@ export default function AiChatPage() {
               {t("ai_hero_pre")}{" "}
               <span className="relative inline-block">
                 <Highlight color="oklch(82% 0.13 80 / 0.55)">
-                  <span className="px-1">{t("ai_hero_word")}</span>
+                  <span className="px-1">{askWord}</span>
                 </Highlight>
               </span>
             </h1>

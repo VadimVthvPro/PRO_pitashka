@@ -372,7 +372,6 @@
   "ai_empty_neutral": "Conozco tus objetivos y tus datos. Pregúntame sobre comida, entreno o recuperación — tengo en cuenta el contexto.",
   "ai_empty_knows": "Ya veo: hoy {kcal} kcal y {water} vasos de agua. ¿Repasamos el día, eliges un snack o refrescamos el plan?",
   "ai_hero_pre": "Pregúntale a",
-  "ai_hero_word": "Propitoshka",
   "ai_sticker_knows_you": "te conoce",
   "ai_attach_active": "Adjunto: {kind}",
   "ai_attach_remove": "Quitar adjunto",
