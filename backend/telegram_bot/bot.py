@@ -79,24 +79,6 @@ async def stop_bot() -> None:
     logger.info("Telegram bot stopped")
 
 
-async def send_otp_message(chat_id: int, code: str) -> bool:
-    if not bot:
-        logger.error("Bot not initialized, cannot send OTP")
-        return False
-    try:
-        from app import brand as _brand
-        await bot.send_message(
-            chat_id=chat_id,
-            text=f"🔐 Ваш код для входа на {_brand.display_name()}: <b>{code}</b>\n\n"
-                 f"Код действителен 5 минут. Не сообщайте его никому.",
-            parse_mode="HTML",
-        )
-        return True
-    except Exception as e:
-        logger.error("Failed to send OTP to %s: %s", chat_id, e)
-        return False
-
-
 async def send_notification(chat_id: int, text: str) -> bool:
     if not bot:
         return False

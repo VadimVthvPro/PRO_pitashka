@@ -1,22 +1,29 @@
-"""Google Sign-In via Google Identity Services (GIS).
+"""Google Sign-In via Google Identity Services (GIS id_token JWT flow).
 
-Frontend uses the GIS button or One Tap to obtain a `credential` (a Google ID
-JWT). It POSTs that string here. We verify the signature/audience against
-GOOGLE_CLIENT_ID and either:
+Фронт получает ID-токен от Google (через встроенную кнопку GIS или
+One Tap) и POST'ит его сюда. Backend проверяет подпись/audience/issuer
+по публичным ключам Google (JWKS), извлекает `sub`/`email` и:
 
-* link the Google identity to an existing account (current logged-in user),
-* recognise a returning user by `sub` and log them in,
-* or, if a Telegram account with the same email already exists, link them.
+1. ищет существующего пользователя по `google_sub`;
+2. если не нашёл, пытается привязать по `google_email` к ранее
+   зарегистрированной записи (например, пользователь раньше регился
+   через Telegram и указывал тот же Gmail);
+3. если и это не сработало — создаёт НОВОГО пользователя.
 
-If none of those match — we currently 409 with a hint to register via
-Telegram first. We deliberately avoid creating fully unbacked accounts:
-PROpitashka still relies on Telegram username for OTP delivery.
+Новая запись получает синтетический user_id из sequence (см. миграцию
+016). У неё нет `telegram_username`/`telegram_id` — это фича, а не баг:
+у чисто Google-юзера нет Telegram и не должно быть.
+
+Эндпоинты:
+    POST /api/auth/google/login  — вход/авторегистрация
+    POST /api/auth/google/link   — привязать Google к текущей сессии
+    POST /api/auth/google/unlink — отвязать
+    GET  /api/auth/google/config — enabled + client_id для фронта
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import Optional
 
 import httpx
@@ -27,6 +34,7 @@ from jose.exceptions import JWTError
 from app.dependencies import DbDep, SettingsDep
 from app.models.auth import TokenResponse
 from app.services import auth_service
+from app.services.auth_cookies import set_auth_cookies
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -36,9 +44,10 @@ _certs_cache: dict[str, dict] | None = None
 
 
 async def _fetch_google_certs() -> dict[str, dict]:
-    """Cache Google's JWK set for the lifetime of the process.
+    """Кэшируем Google JWKS на время жизни процесса.
 
-    The JWKS rotates rarely; if a `kid` is missing we'll re-fetch on demand.
+    Ключи ротируются редко (раз в несколько недель); если текущий `kid`
+    не найден — сбрасываем кэш и запрашиваем свежий набор.
     """
     global _certs_cache
     if _certs_cache is not None:
@@ -61,7 +70,6 @@ async def _verify_id_token(id_token: str, audience: str) -> dict:
     kid = header.get("kid")
     certs = await _fetch_google_certs()
     if kid not in certs:
-        # Force refresh in case Google rotated keys.
         global _certs_cache
         _certs_cache = None
         certs = await _fetch_google_certs()
@@ -95,27 +103,64 @@ async def _set_session_cookies(
         user_agent=request.headers.get("user-agent"),
         ip_address=request.client.host if request.client else None,
     )
-    secure = settings.ENVIRONMENT == "production"
-    prefix = settings.AUTH_COOKIE_PREFIX
-    response.set_cookie(
-        key=prefix + "access_token",
-        value=access,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        path="/",
-        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-    response.set_cookie(
-        key=prefix + "refresh_token",
-        value=refresh,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        path="/",
-        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-    )
+    set_auth_cookies(response, settings, access, refresh)
     return access, refresh
+
+
+async def _find_or_create_user(db, *, sub: str, email: str, name: str | None, picture: str | None) -> tuple[int, bool]:
+    """Найти пользователя по Google-идентификатору или создать нового.
+
+    Возвращает (user_id, created) где created=True, если мы только что
+    сделали INSERT. Используется в /login для решения needs_onboarding.
+
+    Стратегия:
+    1. Точное совпадение по `google_sub` → уже залогинен через Google → возвращаем.
+    2. Совпадение по `google_email` (для ранее зарегистрированных через
+       Telegram/Yandex/VK с тем же email) → привязываем Google-sub и
+       логиним. Это удобно: пользователь не плодит дубликаты при смене
+       провайдера.
+    3. Ничего не нашли → создаём новый user_main с синтетическим user_id.
+    """
+    row = await db.fetchrow(
+        "SELECT user_id FROM user_main WHERE google_sub = $1",
+        sub,
+    )
+    if row:
+        return row["user_id"], False
+
+    if email:
+        row = await db.fetchrow(
+            "SELECT user_id FROM user_main WHERE LOWER(google_email) = $1",
+            email,
+        )
+        if row:
+            await db.execute(
+                """
+                UPDATE user_main
+                SET google_sub = $2,
+                    google_picture = COALESCE($3, google_picture),
+                    google_linked_at = COALESCE(google_linked_at, NOW())
+                WHERE user_id = $1
+                """,
+                row["user_id"], sub, picture,
+            )
+            return row["user_id"], False
+
+    # Авторегистрация: новый синтетический user_id из sequence.
+    # display_name и user_name берём из Google-профиля, чтобы в UI
+    # сразу было человеческое имя, а не «user 10000000123».
+    new_id = await auth_service.allocate_synthetic_user_id(db)
+    await db.execute(
+        """
+        INSERT INTO user_main (
+            user_id, user_name, display_name,
+            google_sub, google_email, google_picture, google_linked_at
+        )
+        VALUES ($1, $2, $2, $3, $4, $5, NOW())
+        """,
+        new_id, name, sub, email or None, picture,
+    )
+    return new_id, True
 
 
 @router.get("/config")
@@ -135,13 +180,12 @@ async def google_login(
     settings: SettingsDep,
     body: dict = Body(...),
 ):
-    """Sign in (or sign up) with a Google ID token from GIS.
+    """Sign in or sign up with a Google ID token from GIS.
 
-    Lookup order:
-      1. user_main.google_sub == sub  → existing Google user.
-      2. user_main.google_email == email (case-insensitive) → relink stale row.
-      3. — no auto-create yet — return 409 so the frontend can prompt the
-        user to finish Telegram registration first.
+    Если Google-идентичность не распознана — создаём НОВОГО пользователя
+    с синтетическим user_id (sequence `user_main_synth_id_seq`).
+    Пользователь сразу попадает в `/onboarding`, потому что у него нет
+    записи `user_health` и, следовательно, `needs_onboarding=True`.
     """
     if not settings.GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=503, detail="Google sign-in not configured")
@@ -156,40 +200,9 @@ async def google_login(
     name: str | None = payload.get("name")
     picture: str | None = payload.get("picture")
 
-    user = await db.fetchrow(
-        "SELECT user_id FROM user_main WHERE google_sub = $1",
-        sub,
+    user_id, _created = await _find_or_create_user(
+        db, sub=sub, email=email, name=name, picture=picture,
     )
-    if not user and email:
-        user = await db.fetchrow(
-            "SELECT user_id, google_sub FROM user_main WHERE LOWER(google_email) = $1",
-            email,
-        )
-        if user:
-            await db.execute(
-                """
-                UPDATE user_main
-                SET google_sub = $2, google_picture = COALESCE($3, google_picture),
-                    google_linked_at = COALESCE(google_linked_at, NOW())
-                WHERE user_id = $1
-                """,
-                user["user_id"], sub, picture,
-            )
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "code": "google_account_not_linked",
-                "message": (
-                    "У этого Google-аккаунта нет привязки. "
-                    "Зайди через Telegram и нажми «Привязать Google» в Настройках."
-                ),
-                "email": email,
-            },
-        )
-
-    user_id = user["user_id"]
 
     health = await db.fetchrow(
         "SELECT imt FROM user_health WHERE user_id = $1 ORDER BY date DESC LIMIT 1",
@@ -212,7 +225,7 @@ async def google_link(
     settings: SettingsDep,
     body: dict = Body(...),
 ):
-    """Link the current logged-in Telegram user to a Google identity."""
+    """Link the current logged-in user to a Google identity."""
     from app.dependencies import get_current_user_id
 
     user_id = await get_current_user_id(request, settings)

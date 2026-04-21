@@ -92,12 +92,16 @@ os.environ["UPLOADS_DIR"] = str(UPLOADS_DIR)
 # Routers
 from app.routers import (
     auth, users, food, workouts, water, summary, ai, settings, admin,
-    streaks, weight, digest, google_auth, social, billing,
+    streaks, weight, digest, google_auth, yandex_auth, social, billing,
     brand as brand_router,
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 app.include_router(google_auth.router, prefix="/api/auth/google", tags=["auth"])
+app.include_router(yandex_auth.router, prefix="/api/auth/yandex", tags=["auth"])
+# VK ID (OAuth 2.1 + PKCE) временно не подключаем — см. 016_oauth_providers:
+# БД-колонки vk_* и unique-index оставлены в схеме, так что когда мы
+# добавим роутер обратно, миграции не понадобится.
 app.include_router(users.router, prefix="/api/users", tags=["users"])
 app.include_router(food.router, prefix="/api/food", tags=["food"])
 app.include_router(workouts.router, prefix="/api/workouts", tags=["workouts"])

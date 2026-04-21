@@ -52,14 +52,34 @@ class Settings(BaseSettings):
     ADMIN_SECRET_KEY: str = "change-me-in-production"
     ADMIN_PASSWORD: str = ""
 
-    # Google OAuth (optional — leave blank to disable Google sign-in)
+    # ===== OAuth providers =====
+    # Любой из трёх опционален — если client_id не задан, соответствующая
+    # кнопка в UI просто скрывается (backend отвечает enabled=false на
+    # endpoint'ах /config). Это позволяет deploy'ить код до регистрации
+    # приложений у провайдеров.
+    #
+    # Google Sign-In (Google Identity Services — JWT id_token flow, не нужен secret)
     GOOGLE_CLIENT_ID: str = ""
+    # Yandex ID (OAuth 2.0 Authorization Code flow — нужны id + secret)
+    # Регистрация: https://oauth.yandex.ru/client/new
+    YANDEX_CLIENT_ID: str = ""
+    YANDEX_CLIENT_SECRET: str = ""
+    # VK ID (OAuth 2.1 / Authorization Code + PKCE)
+    # Регистрация: https://id.vk.com (раздел «Приложения»)
+    VK_CLIENT_ID: str = ""
+    VK_CLIENT_SECRET: str = ""
 
     # App
     ENVIRONMENT: str = "development"
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = Field(default=False)
     FRONTEND_URL: str = "http://localhost:3000"
+    # Публичный base-URL, на который провайдеры OAuth возвращают юзера
+    # после авторизации. Используется для формирования redirect_uri.
+    # В dev это обычно http://localhost:3201; на проде —
+    # https://propitashka.ru или https://profit.<domain>.
+    # Если пусто — fallback на FRONTEND_URL.
+    OAUTH_REDIRECT_BASE: str = ""
 
     # Cache TTLs (seconds)
     CACHE_ENABLED: bool = True

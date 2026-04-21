@@ -1,13 +1,18 @@
+"""Auth request/response models shared across auth providers.
+
+После миграции на user_id-based OTP (см. alembic 017) `OTPVerifyRequest`
+принимает ТОЛЬКО 6-символьный код — никакого telegram_username: поиск
+идёт по partial-unique `otp_codes.code WHERE used=FALSE`.
+
+`TokenResponse.needs_onboarding` используется фронтом, чтобы понять,
+куда редиректить после логина: на `/onboarding` (если пользователь ещё
+не заполнил рост/вес) или сразу на `/dashboard`.
+"""
 from pydantic import BaseModel, Field
 
 
-class OTPRequest(BaseModel):
-    telegram_username: str = Field(min_length=1, max_length=255)
-
-
-class OTPVerify(BaseModel):
-    telegram_username: str = Field(min_length=1, max_length=255)
-    code: str = Field(min_length=4, max_length=6)
+class OTPVerifyRequest(BaseModel):
+    code: str = Field(min_length=4, max_length=8)
 
 
 class TokenResponse(BaseModel):

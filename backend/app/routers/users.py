@@ -6,6 +6,73 @@ from app.services.user_service import UserService
 router = APIRouter()
 
 
+@router.get("/me/account")
+async def get_account(user_id: CurrentUserDep, db: DbDep):
+    """Summary of linked auth-providers for the settings page.
+
+    Возвращает, через какие способы пользователь может войти в свой
+    аккаунт: Telegram (если есть `telegram_username`), Google, Yandex, VK.
+    UI использует эти флаги чтобы показать «Привязано» / «Привязать»
+    для каждого провайдера и правильно подписать кнопку «Выйти».
+    """
+    row = await db.fetchrow(
+        """
+        SELECT
+            user_id,
+            display_name,
+            user_name,
+            telegram_username,
+            google_email,
+            google_picture,
+            google_linked_at,
+            yandex_email,
+            yandex_login,
+            yandex_avatar_id,
+            yandex_linked_at
+        FROM user_main
+        WHERE user_id = $1
+        """,
+        user_id,
+    )
+    if not row:
+        return {
+            "user_id": user_id,
+            "display_name": None,
+            "providers": {
+                "telegram": {"linked": False},
+                "google": {"linked": False},
+                "yandex": {"linked": False},
+            },
+        }
+
+    # Telegram «linked» определяем по наличию telegram_username, потому
+    # что после миграции 017 user_id ≠ обязательно Telegram id: у
+    # Google/Yandex/VK-only юзеров user_id синтетический (>= 10^13).
+    tg_linked = bool(row["telegram_username"])
+
+    return {
+        "user_id": row["user_id"],
+        "display_name": row["display_name"] or row["user_name"],
+        "providers": {
+            "telegram": {
+                "linked": tg_linked,
+                "username": row["telegram_username"],
+            },
+            "google": {
+                "linked": row["google_linked_at"] is not None,
+                "email": row["google_email"],
+                "picture": row["google_picture"],
+            },
+            "yandex": {
+                "linked": row["yandex_linked_at"] is not None,
+                "email": row["yandex_email"],
+                "login": row["yandex_login"],
+                "avatar_id": row["yandex_avatar_id"],
+            },
+        },
+    }
+
+
 @router.get("/me", response_model=ProfileResponse)
 async def get_profile(user_id: CurrentUserDep, db: DbDep):
     svc = UserService(db)

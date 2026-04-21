@@ -1,35 +1,46 @@
+"""Auth endpoints: Telegram OTP verification, refresh, logout.
+
+Telegram-flow теперь состоит из одного шага со стороны сайта:
+
+    1. Пользователь кликает «Войти через Telegram» → открывается бот.
+    2. В боте нажимает /start → бот создаёт OTP, привязанный к его
+       telegram user_id, и присылает 6-значный код (с кнопкой «Прислать
+       новый ключ» на случай, если пользователь закрыл сообщение).
+    3. На сайте пользователь вставляет код → POST /api/auth/verify-otp
+       → JWT/session cookies выставлены, редирект на /dashboard или
+       /onboarding.
+
+Никаких `@username`-инпутов, никакого `request-otp` на сайте — если
+пользователь хочет «переслать ещё один код», он делает это в самом боте.
+Это решение принято осознанно: сайт не должен знать Telegram-username
+пользователя, а OTP должен привязываться к идентичности пользователя
+в Telegram (user_id), а не к mutable @username.
+"""
+
 from fastapi import APIRouter, HTTPException, Response, Request, status
+
 from app.dependencies import DbDep, SettingsDep
-from app.models.auth import OTPRequest, OTPVerify, TokenResponse
+from app.models.auth import OTPVerifyRequest, TokenResponse
 from app.services import auth_service
+from app.services.auth_cookies import set_auth_cookies, clear_auth_cookies
 
 router = APIRouter()
 
 
-@router.post("/request-otp")
-async def request_otp(body: OTPRequest, db: DbDep):
-    code = await auth_service.request_otp(db, body.telegram_username)
-    if not code:
-        raise HTTPException(status_code=500, detail="Failed to generate OTP")
-
-    user_row = await db.fetchrow(
-        "SELECT user_id FROM user_main WHERE telegram_username = $1",
-        body.telegram_username.lower(),
-    )
-
-    sent = False
-    if user_row:
-        from telegram_bot.bot import send_otp_message
-        sent = await send_otp_message(user_row["user_id"], code)
-
-    return {"message": "OTP sent" if sent else "OTP created (user not found in bot yet)", "sent": sent}
-
-
 @router.post("/verify-otp", response_model=TokenResponse)
-async def verify_otp(body: OTPVerify, db: DbDep, settings: SettingsDep, request: Request, response: Response):
-    user_id = await auth_service.verify_otp(db, body.telegram_username, body.code)
+async def verify_otp(
+    body: OTPVerifyRequest,
+    db: DbDep,
+    settings: SettingsDep,
+    request: Request,
+    response: Response,
+):
+    user_id = await auth_service.verify_otp_code(db, body.code)
     if user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired OTP")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Код не найден или истёк. Нажми /start в боте, чтобы получить новый.",
+        )
 
     access, refresh = await auth_service.create_session(
         db, user_id,
@@ -37,10 +48,13 @@ async def verify_otp(body: OTPVerify, db: DbDep, settings: SettingsDep, request:
         ip_address=request.client.host if request.client else None,
     )
 
-    _set_auth_cookies(response, settings, access, refresh)
+    set_auth_cookies(response, settings, access, refresh)
 
+    # Онбординг нужен тем, у кого ещё не заполнена базовая анкета.
+    # Google/Yandex/VK flow проверяет то же самое — см. auth_cookies.needs_onboarding.
     health = await db.fetchrow(
-        "SELECT imt FROM user_health WHERE user_id = $1 ORDER BY date DESC LIMIT 1", user_id
+        "SELECT imt FROM user_health WHERE user_id = $1 ORDER BY date DESC LIMIT 1",
+        user_id,
     )
     needs_onboarding = health is None
 
@@ -48,7 +62,12 @@ async def verify_otp(body: OTPVerify, db: DbDep, settings: SettingsDep, request:
 
 
 @router.post("/refresh", response_model=TokenResponse)
-async def refresh_token(request: Request, db: DbDep, settings: SettingsDep, response: Response):
+async def refresh_token(
+    request: Request,
+    db: DbDep,
+    settings: SettingsDep,
+    response: Response,
+):
     refresh = request.cookies.get(settings.AUTH_COOKIE_PREFIX + "refresh_token")
     if not refresh:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No refresh token")
@@ -61,38 +80,21 @@ async def refresh_token(request: Request, db: DbDep, settings: SettingsDep, resp
     payload = auth_service.decode_token(access)
     user_id = int(payload["sub"])
 
-    _set_auth_cookies(response, settings, access, new_refresh)
+    set_auth_cookies(response, settings, access, new_refresh)
 
     return TokenResponse(access_token=access, user_id=user_id)
 
 
 @router.post("/logout")
-async def logout(request: Request, db: DbDep, settings: SettingsDep, response: Response):
+async def logout(
+    request: Request,
+    db: DbDep,
+    settings: SettingsDep,
+    response: Response,
+):
     prefix = settings.AUTH_COOKIE_PREFIX
     token = request.cookies.get(prefix + "access_token")
     if token:
         await auth_service.invalidate_session(db, token)
-    response.delete_cookie(prefix + "access_token", path="/")
-    # Delete refresh on both the new path (/) and the legacy path
-    # (/api/auth/refresh) to clean up cookies issued before the path migration.
-    response.delete_cookie(prefix + "refresh_token", path="/")
-    response.delete_cookie(prefix + "refresh_token", path="/api/auth/refresh")
+    clear_auth_cookies(response, settings)
     return {"message": "Logged out"}
-
-
-def _set_auth_cookies(response: Response, settings, access: str, refresh: str) -> None:
-    """Issue auth cookies on the SAME path so the Next.js middleware can do
-    silent refresh from any protected route (was a major source of bogus
-    "redirected to /login on every navigation" bugs)."""
-    secure = settings.ENVIRONMENT == "production"
-    prefix = settings.AUTH_COOKIE_PREFIX
-    response.set_cookie(
-        key=prefix + "access_token", value=access,
-        httponly=True, secure=secure, samesite="lax", path="/",
-        max_age=settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-    response.set_cookie(
-        key=prefix + "refresh_token", value=refresh,
-        httponly=True, secure=secure, samesite="lax", path="/",
-        max_age=settings.JWT_REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-    )

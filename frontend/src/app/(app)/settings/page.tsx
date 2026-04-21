@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Icon } from "@iconify/react";
 import { motion } from "motion/react";
 
@@ -9,8 +10,32 @@ import { useTheme, type ThemeMode } from "@/lib/theme";
 import { useI18n, SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
 import { ScrollReveal } from "@/components/motion/ScrollReveal";
 import { Sticker } from "@/components/hand/Sticker";
+import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
+import { brand } from "@/lib/brand";
 import Link from "next/link";
 import { useBilling } from "@/lib/billing";
+
+const BOT_USERNAME =
+  process.env.NEXT_PUBLIC_BOT_USERNAME ||
+  (brand.name === "profit" ? "PROpitashka_test_bot" : "PROpitashka_bot");
+
+/** Провайдер — блок в секции «Аккаунт». `null` = данных ещё нет. */
+interface LinkedProvider {
+  linked: boolean;
+  email?: string | null;
+  username?: string | null;
+  login?: string | null;
+  picture?: string | null;
+}
+interface AccountResponse {
+  user_id: number;
+  display_name: string | null;
+  providers: {
+    telegram: LinkedProvider;
+    google: LinkedProvider;
+    yandex: LinkedProvider;
+  };
+}
 
 interface SettingsResponse {
   theme: ThemeMode;
@@ -362,6 +387,11 @@ export default function SettingsPage() {
         </section>
       </ScrollReveal>
 
+      {/* Account — linked providers + logout */}
+      <ScrollReveal delay={0.22}>
+        <AccountSection />
+      </ScrollReveal>
+
       {/* Status banner */}
       <div className="min-h-[24px]">
         {savedFlash && (
@@ -403,5 +433,264 @@ function FieldGroup({ label, children }: { label: string; children: React.ReactN
       </span>
       {children}
     </label>
+  );
+}
+
+/**
+ * Блок «Аккаунт»: показывает состояние привязки трёх провайдеров
+ * (Telegram / Google / Yandex) и даёт кнопку Выхода.
+ *
+ * Важно: не позволяем отвязать ЕДИНСТВЕННЫЙ способ входа — иначе
+ * пользователь заблокирует сам себя (никак не сможет войти).
+ * Эта проверка чисто клиентская (удобство UX); бэкенд в unlink-эндпоинтах
+ * всё равно обновляет колонки без дополнительных проверок, считая, что
+ * пользователь осознанно принял решение.
+ */
+function AccountSection() {
+  const { t } = useI18n();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [data, setData] = useState<AccountResponse | null>(null);
+  const [banner, setBanner] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const d = await api<AccountResponse>("/api/users/me/account");
+      setData(d);
+    } catch (e) {
+      setBanner({ kind: "err", text: e instanceof Error ? e.message : t("error") });
+    }
+  }, [t]);
+
+  useEffect(() => {
+    void load();
+    // Если пришли с OAuth redirect'а (yandex link/login), покажем
+    // уведомление — эти query-параметры ставятся бэкендом в routers/yandex_auth.py.
+    const linked = searchParams.get("auth_linked");
+    const error = searchParams.get("auth_error");
+    if (linked) {
+      setBanner({ kind: "ok", text: t("settings_account_linked", { provider: linked }) });
+    } else if (error) {
+      setBanner({ kind: "err", text: t("settings_account_link_error") });
+    }
+    // Intentionally run once; reading searchParams deps leads to loops on client navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const linkedCount = data
+    ? Number(data.providers.telegram.linked) +
+      Number(data.providers.google.linked) +
+      Number(data.providers.yandex.linked)
+    : 0;
+
+  const unlink = async (provider: "google" | "yandex") => {
+    if (linkedCount <= 1) {
+      setBanner({ kind: "err", text: t("settings_account_cannot_unlink_last") });
+      return;
+    }
+    setBusy(true);
+    try {
+      await api(`/api/auth/${provider}/unlink`, { method: "POST" });
+      setBanner({ kind: "ok", text: t("settings_account_unlinked") });
+      await load();
+    } catch (e) {
+      setBanner({ kind: "err", text: e instanceof Error ? e.message : t("error") });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const logout = async () => {
+    if (!window.confirm(t("settings_logout_confirm"))) return;
+    setBusy(true);
+    try {
+      await api("/api/auth/logout", { method: "POST" });
+    } catch {
+      // Игнорируем: всё равно чистим клиента и отправляем на /login.
+      // Даже если бэк ответил 401 — refresh-кука уже протухла, значит
+      // пользователь уже «технически вышел», просто завершаем процесс.
+    } finally {
+      router.push("/login");
+    }
+  };
+
+  if (!data) {
+    return (
+      <section className="card-base p-5 sm:p-6 opacity-60">
+        <div className="flex items-center gap-2 mb-2">
+          <Icon icon="solar:shield-user-bold-duotone" width={22} className="text-[var(--accent)]" />
+          <h2 className="text-base font-semibold">{t("settings_account")}</h2>
+        </div>
+        <p className="text-sm text-[var(--muted-foreground)]">{t("common_loading_dots")}</p>
+      </section>
+    );
+  }
+
+  const telegram = data.providers.telegram;
+  const google = data.providers.google;
+  const yandex = data.providers.yandex;
+
+  return (
+    <section className="card-base p-5 sm:p-6">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon icon="solar:shield-user-bold-duotone" width={22} className="text-[var(--accent)]" />
+        <h2 className="text-base font-semibold">{t("settings_account")}</h2>
+      </div>
+      <p className="text-sm text-[var(--muted-foreground)] mb-4">
+        {t("settings_account_hint")}
+      </p>
+
+      <div className="space-y-3">
+        {/* Telegram — привязка только через /start в боте, unlink намеренно отсутствует. */}
+        <ProviderRow
+          icon="logos:telegram"
+          title="Telegram"
+          subtitle={
+            telegram.linked
+              ? telegram.username
+                ? `@${telegram.username}`
+                : t("settings_account_tg_linked_no_username")
+              : t("settings_account_tg_not_linked")
+          }
+          linked={telegram.linked}
+          action={
+            telegram.linked ? null : (
+              <a
+                href={`https://t.me/${BOT_USERNAME}?start=login`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-[var(--accent)] hover:underline touch-manipulation min-h-11 inline-flex items-center px-2"
+              >
+                {t("settings_account_link")}
+              </a>
+            )
+          }
+        />
+
+        {/* Google — link через встроенный GIS-виджет (тот же компонент, что на логине, только mode=link). */}
+        <ProviderRow
+          icon="logos:google-icon"
+          title="Google"
+          subtitle={google.linked ? google.email || t("settings_account_linked_nomail") : t("settings_account_google_not_linked")}
+          linked={google.linked}
+          action={
+            google.linked ? (
+              <button
+                onClick={() => void unlink("google")}
+                disabled={busy}
+                className="text-sm font-medium text-[var(--destructive)] hover:underline disabled:opacity-50 touch-manipulation min-h-11 px-2"
+              >
+                {t("settings_account_unlink")}
+              </button>
+            ) : (
+              <div className="w-56">
+                <GoogleSignInButton
+                  mode="link"
+                  onSuccess={async () => {
+                    setBanner({ kind: "ok", text: t("settings_account_linked", { provider: "google" }) });
+                    await load();
+                  }}
+                  onError={(msg) => setBanner({ kind: "err", text: msg })}
+                />
+              </div>
+            )
+          }
+        />
+
+        {/* Yandex — redirect flow. Link-callback возвращает на /settings?auth_linked=yandex. */}
+        <ProviderRow
+          icon="simple-icons:yandex"
+          iconColor="#FC3F1D"
+          title="Yandex"
+          subtitle={yandex.linked ? yandex.email || yandex.login || t("settings_account_linked_nomail") : t("settings_account_yandex_not_linked")}
+          linked={yandex.linked}
+          action={
+            yandex.linked ? (
+              <button
+                onClick={() => void unlink("yandex")}
+                disabled={busy}
+                className="text-sm font-medium text-[var(--destructive)] hover:underline disabled:opacity-50 touch-manipulation min-h-11 px-2"
+              >
+                {t("settings_account_unlink")}
+              </button>
+            ) : (
+              <a
+                href="/api/auth/yandex/authorize?mode=link"
+                className="text-sm font-medium text-[var(--accent)] hover:underline touch-manipulation min-h-11 inline-flex items-center px-2"
+              >
+                {t("settings_account_link")}
+              </a>
+            )
+          }
+        />
+      </div>
+
+      {banner && (
+        <p
+          className={`mt-4 text-sm flex items-center gap-2 ${
+            banner.kind === "ok" ? "text-[var(--color-sage)]" : "text-[var(--destructive)]"
+          }`}
+        >
+          <Icon
+            icon={banner.kind === "ok" ? "solar:check-circle-bold-duotone" : "solar:danger-circle-bold-duotone"}
+            width={18}
+          />
+          {banner.text}
+        </p>
+      )}
+
+      <div className="mt-6 pt-5 border-t border-[var(--border)] flex items-center justify-between gap-3 flex-wrap">
+        <div className="text-xs text-[var(--muted-foreground)]">
+          {t("settings_logout_hint")}
+        </div>
+        <motion.button
+          whileTap={{ scale: 0.96 }}
+          onClick={() => void logout()}
+          disabled={busy}
+          className="inline-flex items-center gap-2 px-4 min-h-11 rounded-[var(--radius)] border border-[var(--destructive)]/40 text-[var(--destructive)] text-sm font-semibold hover:bg-[var(--destructive)]/10 disabled:opacity-50 touch-manipulation"
+        >
+          <Icon icon="solar:logout-3-bold-duotone" width={18} />
+          {t("settings_logout")}
+        </motion.button>
+      </div>
+    </section>
+  );
+}
+
+function ProviderRow({
+  icon,
+  iconColor,
+  title,
+  subtitle,
+  linked,
+  action,
+}: {
+  icon: string;
+  iconColor?: string;
+  title: string;
+  subtitle: string;
+  linked: boolean;
+  action: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3 p-3 rounded-[var(--radius)] border border-[var(--border)]">
+      <div className="w-10 h-10 rounded-full bg-[var(--color-sand)]/40 flex items-center justify-center flex-shrink-0">
+        <Icon icon={icon} width={22} color={iconColor} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">{title}</span>
+          {linked && (
+            <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--color-sage)]">
+              ✓
+            </span>
+          )}
+        </div>
+        <div className="text-xs text-[var(--muted-foreground)] truncate">{subtitle}</div>
+      </div>
+      <div className="flex-shrink-0">{action}</div>
+    </div>
   );
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { Icon } from "@iconify/react";
 import { api } from "@/lib/api";
 import { useI18n, SUPPORTED_LANGS, type Lang } from "@/lib/i18n";
@@ -12,129 +12,88 @@ import { Sticker } from "@/components/hand/Sticker";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { brand } from "@/lib/brand";
 
-type Step = "username" | "code";
-
+// Имя Telegram-бота для глубокой ссылки. Если env не задан — fallback
+// зависит от бренда: у PROfit отдельный @PROpitashka_test_bot (для
+// freemium-среды), у PROpitashka — прод-бот.
 const BOT_USERNAME =
   process.env.NEXT_PUBLIC_BOT_USERNAME ||
   (brand.name === "profit" ? "PROpitashka_test_bot" : "PROpitashka_bot");
 
-// Брендовый «префикс» в левом верхнем углу hero-экрана строится из
-// `brand.wordmarkBody`: "PRO · pitashka" / "PRO · fit". Источник истины —
-// `brand.config.ts` → `BRANDS[...].wordmarkBody`.
 const BRAND_HERO_PREFIX = `PRO · ${brand.wordmarkBody}`;
-const RESEND_SECONDS = 45;
+
+/**
+ * Уникальный 6-символьный alphanumeric код, который бот присылает в чат.
+ * Алфавит в auth_service.py: 23456789ABCDEFGHJKLMNPQRSTUVWXYZ.
+ * На фронте: приводим к upper-case, разрешаем только этот алфавит,
+ * максимум 6 символов. Так пользователь не сможет «случайно» ввести
+ * строчные буквы или 0/O — это сократит количество «ключ не подошёл»
+ * ошибок.
+ */
+const CODE_ALPHABET = /[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]/g;
+const CODE_LENGTH = 6;
 
 export default function LoginPage() {
   const router = useRouter();
   const { lang, setLang, t } = useI18n();
 
-  const [step, setStep] = useState<Step>("username");
-  const [username, setUsername] = useState("");
-  const [code, setCode] = useState(["", "", "", ""]);
+  const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [needsBotStart, setNeedsBotStart] = useState(false);
-  const [resendIn, setResendIn] = useState(0);
 
-  useEffect(() => {
-    if (resendIn <= 0) return;
-    const intervalId = window.setInterval(() => setResendIn((v) => Math.max(0, v - 1)), 1000);
-    return () => window.clearInterval(intervalId);
-  }, [resendIn]);
+  const normalizeCode = (raw: string): string => {
+    const matches = raw.toUpperCase().match(CODE_ALPHABET);
+    return matches ? matches.join("").slice(0, CODE_LENGTH) : "";
+  };
 
-  const requestOtp = useCallback(async () => {
-    const name = username.trim().replace(/^@/, "");
-    if (!name) return;
-    setLoading(true);
+  const verifyCode = useCallback(
+    async (value: string) => {
+      if (value.length < CODE_LENGTH) return;
+      setLoading(true);
+      setError("");
+      try {
+        const res = await api<{ needs_onboarding: boolean }>(
+          "/api/auth/verify-otp",
+          {
+            method: "POST",
+            body: JSON.stringify({ code: value }),
+          },
+        );
+        router.push(res.needs_onboarding ? "/onboarding" : "/dashboard");
+      } catch (e) {
+        // Типичные ошибки бэка — 401 «Код не найден или истёк». Переводим
+        // на i18n-ключ `login_invalid_code` с call-to-action.
+        setError(t("login_invalid_code") || (e instanceof Error ? e.message : t("error")));
+        setCode("");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [router, t],
+  );
+
+  const handleCodeInput = (raw: string) => {
+    const normalized = normalizeCode(raw);
+    setCode(normalized);
     setError("");
-    setNeedsBotStart(false);
-    try {
-      const res = await api<{ sent: boolean }>("/api/auth/request-otp", {
-        method: "POST",
-        body: JSON.stringify({ telegram_username: name }),
-      });
-      setStep("code");
-      setResendIn(RESEND_SECONDS);
-      if (!res.sent) setNeedsBotStart(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("error"));
-    } finally {
-      setLoading(false);
+    if (normalized.length === CODE_LENGTH) {
+      // Автоподтверждение: когда введены все 6 символов — сразу verify.
+      // UX-решение: так же работает OTP в App Store / Telegram Login Widget;
+      // пользователю не приходится делать лишний клик.
+      void verifyCode(normalized);
     }
-  }, [username, t]);
+  };
 
-  async function handleRequestOTP() {
-    await requestOtp();
-  }
-
-  async function handleResend() {
-    if (resendIn > 0) return;
-    await requestOtp();
-  }
-
-  async function handleVerifyOTP() {
-    const fullCode = code.join("");
-    if (fullCode.length < 4) return;
-    setLoading(true);
-    setError("");
-    try {
-      const res = await api<{ needs_onboarding: boolean }>(
-        "/api/auth/verify-otp",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            telegram_username: username.trim().replace(/^@/, ""),
-            code: fullCode,
-          }),
-        },
-      );
-      router.push(res.needs_onboarding ? "/onboarding" : "/dashboard");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : t("error"));
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleCodeChange(index: number, value: string) {
-    if (value.length > 1) value = value.slice(-1);
-    if (value && !/^\d$/.test(value)) return;
-    const next = [...code];
-    next[index] = value;
-    setCode(next);
-    if (value && index < 3) {
-      document.getElementById(`otp-${index + 1}`)?.focus();
-    }
-    if (!value && index > 0) return;
-    if (next.every((d) => d !== "") && next.join("").length === 4) {
-      setTimeout(() => handleVerifyOTP(), 50);
-    }
-  }
-
-  function handleCodeKeyDown(index: number, e: React.KeyboardEvent) {
-    if (e.key === "Backspace" && !code[index] && index > 0) {
-      document.getElementById(`otp-${index - 1}`)?.focus();
-    }
-    if (e.key === "Enter") {
-      handleVerifyOTP();
-    }
-  }
-
-  function handleCodePaste(e: React.ClipboardEvent) {
-    const pasted = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 4);
-    if (pasted.length >= 4) {
-      e.preventDefault();
-      setCode(pasted.split(""));
-      document.getElementById("otp-3")?.focus();
-    }
-  }
+  const handleYandex = () => {
+    // Переход на бэк, который поднимет consent-экран Яндекса и вернёт
+    // пользователя в /api/auth/yandex/callback → cookies → /dashboard|/onboarding.
+    window.location.href = "/api/auth/yandex/authorize?mode=login";
+  };
 
   return (
-    <div className="min-h-[100dvh] relative overflow-hidden" style={{ paddingTop: "var(--safe-top)", paddingBottom: "var(--safe-bottom)" }}>
-      {/* Atmospheric mesh background */}
+    <div
+      className="min-h-[100dvh] relative overflow-hidden"
+      style={{ paddingTop: "var(--safe-top)", paddingBottom: "var(--safe-bottom)" }}
+    >
       <div className="absolute inset-0 mesh-warm opacity-80" aria-hidden />
       <div
         className="absolute top-[-10%] right-[-15%] w-[60vw] h-[60vw] rounded-full blur-[120px] opacity-40"
@@ -212,7 +171,6 @@ export default function LoginPage() {
             </motion.div>
           </div>
 
-          {/* Footer / testimonial-ish */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -239,7 +197,6 @@ export default function LoginPage() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="w-full max-w-sm relative"
           >
-            {/* Little pointing arrow, visible on desktop */}
             <div className="hidden lg:block absolute -left-16 top-4">
               <HandArrow
                 variant="curve-right"
@@ -274,179 +231,88 @@ export default function LoginPage() {
                   letterSpacing: "-0.02em",
                 }}
               >
-                {step === "username" ? t("login_step_1") : t("login_step_2")}
+                {t("login_title")}
               </h2>
               <p className="text-sm text-[var(--muted)] mb-6">
-                {step === "username" ? t("login_intro_username") : t("login_intro_code")}
+                {t("login_intro_methods")}
               </p>
 
-              {step === "username" && (
-                <div className="space-y-4">
-                  <ol className="text-xs text-[var(--muted-foreground)] space-y-1.5 mb-3 leading-snug">
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold text-[var(--accent)]">1.</span>
-                      <span>{t("login_how_1")}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold text-[var(--accent)]">2.</span>
-                      <span>{t("login_how_2")}</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="font-bold text-[var(--accent)]">3.</span>
-                      <span>{t("login_how_3")}</span>
-                    </li>
-                  </ol>
+              {/* ==== Telegram flow (упрощённый: бот → код → вход) ==== */}
+              <div className="space-y-3">
+                <ol className="text-xs text-[var(--muted-foreground)] space-y-1.5 leading-snug">
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold text-[var(--accent)]">1.</span>
+                    <span>{t("login_tg_step1")}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="font-bold text-[var(--accent)]">2.</span>
+                    <span>{t("login_tg_step2")}</span>
+                  </li>
+                </ol>
 
-                  <a
-                    href={`https://t.me/${BOT_USERNAME}?start=login`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 w-full min-h-11 rounded-[var(--radius)] border border-[var(--accent)]/40 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition touch-manipulation"
-                  >
-                    <Icon icon="logos:telegram" width={18} />
-                    {t("login_open_bot", { bot: BOT_USERNAME })}
-                  </a>
+                <a
+                  href={`https://t.me/${BOT_USERNAME}?start=login`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full min-h-11 rounded-[var(--radius)] border border-[var(--accent)]/40 text-[var(--accent)] text-sm font-medium hover:bg-[var(--accent)]/10 transition touch-manipulation"
+                >
+                  <Icon icon="logos:telegram" width={18} />
+                  {t("login_open_bot", { bot: BOT_USERNAME })}
+                </a>
 
-                  <div>
-                    <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
-                      {t("login_username_label")}
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none">
-                        @
-                      </span>
-                      <input
-                        type="text"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        onKeyDown={(e) =>
-                          e.key === "Enter" && handleRequestOTP()
-                        }
-                        placeholder={t("login_username_placeholder")}
-                        autoFocus
-                        autoCapitalize="off"
-                        autoCorrect="off"
-                        spellCheck={false}
-                        className="w-full min-w-0 min-h-11 pl-10 pr-4 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15 transition-colors"
-                      />
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                      {t("login_username_appsettings")}
-                    </p>
-                  </div>
-                  <motion.button
-                    whileHover={{ scale: loading ? 1 : 1.02 }}
-                    whileTap={{ scale: 0.97 }}
-                    onClick={handleRequestOTP}
-                    disabled={loading || !username.trim()}
-                    className="w-full min-h-11 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)] touch-manipulation"
-                  >
-                    {loading ? t("login_sending") : t("login_send_code")}
-                  </motion.button>
-
-                  <div className="flex items-center gap-3 my-1">
-                    <div className="flex-1 h-px bg-[var(--border)]" />
-                    <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
-                      {t("login_or")}
-                    </span>
-                    <div className="flex-1 h-px bg-[var(--border)]" />
-                  </div>
-
-                  <GoogleSignInButton
-                    onSuccess={(res) =>
-                      router.push(res.needs_onboarding ? "/onboarding" : "/dashboard")
-                    }
-                    onError={(msg) => setError(msg)}
+                <div>
+                  <label className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
+                    {t("login_tg_code_label")}
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="text"
+                    autoComplete="one-time-code"
+                    autoCapitalize="characters"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={CODE_LENGTH}
+                    value={code}
+                    onChange={(e) => handleCodeInput(e.target.value)}
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData("text");
+                      const normalized = normalizeCode(pasted);
+                      if (normalized) {
+                        e.preventDefault();
+                        handleCodeInput(normalized);
+                      }
+                    }}
+                    placeholder="AB3K7Y"
+                    className="w-full min-h-12 text-center font-mono text-2xl tracking-[0.35em] bg-[var(--input-bg)] border-2 border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/20 transition-colors"
+                    style={{ fontFamily: "var(--font-mono)" }}
+                    disabled={loading}
                   />
+                  <p className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                    {t("login_tg_code_hint")}
+                  </p>
                 </div>
-              )}
+              </div>
 
-              {step === "code" && (
-                <div className="space-y-4">
-                  <AnimatePresence>
-                    {needsBotStart && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0 }}
-                        className="rounded-[var(--radius)] border-2 border-dashed border-[var(--warning)] bg-[var(--warning)]/5 p-3"
-                      >
-                        <div className="flex items-start gap-2 mb-2">
-                          <Icon
-                            icon="solar:info-circle-bold-duotone"
-                            width={20}
-                            className="text-[var(--warning)] shrink-0 mt-0.5"
-                          />
-                          <p className="text-sm leading-snug">{t("login_needs_bot_start_body")}</p>
-                        </div>
-                        <a
-                          href={`https://t.me/${BOT_USERNAME}?start=login`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center gap-2 w-full min-h-11 rounded-[var(--radius)] bg-[var(--warning)] text-white text-sm font-semibold touch-manipulation"
-                        >
-                          <Icon icon="logos:telegram" width={16} />
-                          {t("login_not_found_action")}
-                        </a>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+              <div className="flex items-center gap-3 my-5">
+                <div className="flex-1 h-px bg-[var(--border)]" />
+                <span className="text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                  {t("login_or")}
+                </span>
+                <div className="flex-1 h-px bg-[var(--border)]" />
+              </div>
 
-                  <div
-                    className="grid grid-cols-4 gap-2 sm:gap-3"
-                    onPaste={handleCodePaste}
-                  >
-                    {code.map((digit, i) => (
-                      <motion.input
-                        key={i}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.07, duration: 0.35 }}
-                        id={`otp-${i}`}
-                        type="text"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        maxLength={1}
-                        size={1}
-                        value={digit}
-                        onChange={(e) => handleCodeChange(i, e.target.value)}
-                        onKeyDown={(e) => handleCodeKeyDown(i, e)}
-                        autoFocus={i === 0}
-                        className="w-full min-w-0 aspect-square sm:h-16 sm:aspect-auto text-center font-mono text-2xl sm:text-3xl font-bold bg-[var(--input-bg)] border-2 border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/20 transition-colors"
-                        style={{ fontFamily: "var(--font-mono)" }}
-                      />
-                    ))}
-                  </div>
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={handleVerifyOTP}
-                    disabled={loading || code.join("").length < 4}
-                    className="w-full min-h-11 py-3 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius)] hover:bg-[var(--accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-accent)] touch-manipulation"
-                  >
-                    {loading ? t("login_verifying") : t("login_btn_enter")}
-                  </motion.button>
-                  <div className="flex items-center justify-between text-xs gap-2">
-                    <button
-                      onClick={() => {
-                        setStep("username");
-                        setCode(["", "", "", ""]);
-                        setError("");
-                        setNeedsBotStart(false);
-                      }}
-                      className="min-h-11 px-2 text-[var(--muted)] hover:text-[var(--foreground)] transition-colors touch-manipulation"
-                    >
-                      {t("login_back_username")}
-                    </button>
-                    <button
-                      onClick={() => void handleResend()}
-                      disabled={resendIn > 0 || loading}
-                      className="min-h-11 px-2 text-[var(--accent)] hover:underline disabled:text-[var(--muted)] disabled:no-underline disabled:cursor-not-allowed touch-manipulation"
-                    >
-                      {resendIn > 0 ? t("login_resend_in", { seconds: resendIn }) : t("login_resend_now")}
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* ==== Google (GIS id_token flow) ==== */}
+              <div className="mb-3">
+                <GoogleSignInButton
+                  onSuccess={(res) =>
+                    router.push(res.needs_onboarding ? "/onboarding" : "/dashboard")
+                  }
+                  onError={(msg) => setError(msg)}
+                />
+              </div>
+
+              {/* ==== Yandex (Authorization Code flow) ==== */}
+              <YandexButton onClick={handleYandex} label={t("login_yandex")} />
 
               {error && (
                 <motion.p
@@ -478,5 +344,37 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Кнопка «Войти через Яндекс». Внутри делаем запрос к /api/auth/yandex/config,
+ * чтобы понять, настроен ли провайдер на бэке: если нет — просто не
+ * рендерим кнопку (как это делает GoogleSignInButton).
+ */
+function YandexButton({ onClick, label }: { onClick: () => void; label: string }) {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<{ enabled: boolean }>("/api/auth/yandex/config")
+      .then((cfg) => !cancelled && setEnabled(cfg.enabled))
+      .catch(() => !cancelled && setEnabled(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!enabled) return null;
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center justify-center gap-2 w-full min-h-11 rounded-[var(--radius)] border border-[var(--border)] bg-white text-black text-sm font-medium hover:bg-gray-50 transition touch-manipulation"
+      style={{ boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }}
+    >
+      <Icon icon="simple-icons:yandex" width={16} color="#FC3F1D" />
+      {label}
+    </button>
   );
 }
