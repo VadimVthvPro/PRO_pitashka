@@ -44,6 +44,7 @@
   "login_tg_code_hint": "6 characters. Didn't get one? Tap \"Send new key\" inside the bot.",
   "login_yandex": "Sign in with Yandex",
   "login_invalid_code": "The key didn't match or has expired. Open the bot and press /start to get a new one.",
+  "login_magic_expired": "The auto-login link has expired. Press /start in the bot to get a new one.",
   "login_send_code": "Send code",
   "login_code_sent": "Code sent to your Telegram",
   "login_enter_code": "Enter code",

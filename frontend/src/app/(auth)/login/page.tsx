@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { Icon } from "@iconify/react";
 import { api } from "@/lib/api";
@@ -12,14 +12,11 @@ import { Sticker } from "@/components/hand/Sticker";
 import { GoogleSignInButton } from "@/components/auth/GoogleSignInButton";
 import { brand } from "@/lib/brand";
 
-// Имя Telegram-бота для глубокой ссылки. Если env не задан — fallback
-// зависит от бренда: у PROfit отдельный @PROpitashka_test_bot (для
-// freemium-среды), у PROpitashka — прод-бот.
-const BOT_USERNAME =
-  process.env.NEXT_PUBLIC_BOT_USERNAME ||
-  (brand.name === "profit" ? "PROpitashka_test_bot" : "PROpitashka_bot");
+// Имя Telegram-бота для глубокой ссылки. NEXT_PUBLIC_BOT_USERNAME имеет
+// приоритет; если не задан — используем fallback из brand-конфига.
+const BOT_USERNAME = process.env.NEXT_PUBLIC_BOT_USERNAME || brand.defaultBotUsername;
 
-const BRAND_HERO_PREFIX = `PRO · ${brand.wordmarkBody}`;
+const BRAND_HERO_PREFIX = brand.heroPrefix;
 
 /**
  * Уникальный 6-символьный alphanumeric код, который бот присылает в чат.
@@ -34,11 +31,24 @@ const CODE_LENGTH = 6;
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { lang, setLang, t } = useI18n();
 
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    const authError = searchParams.get("auth_error");
+    if (authError === "invalid_code") return ""; // will be set in useEffect
+    return "";
+  });
+
+  useEffect(() => {
+    const authError = searchParams.get("auth_error");
+    if (authError === "invalid_code") {
+      setError(t("login_magic_expired"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const normalizeCode = (raw: string): string => {
     const matches = raw.toUpperCase().match(CODE_ALPHABET);

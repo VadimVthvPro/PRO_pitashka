@@ -42,6 +42,7 @@
   "login_tg_code_hint": "6 Zeichen. Nichts bekommen? Tippe im Bot auf „Neuen Schlüssel senden“.",
   "login_yandex": "Mit Yandex anmelden",
   "login_invalid_code": "Der Schlüssel passt nicht oder ist abgelaufen. Tippe im Bot auf /start, um einen neuen zu erhalten.",
+  "login_magic_expired": "Der Auto-Login-Link ist abgelaufen. Tippe /start im Bot, um einen neuen zu bekommen.",
   "login_send_code": "Code senden",
   "login_code_sent": "Code ist in Telegram angekommen",
   "login_enter_code": "Code eingeben",

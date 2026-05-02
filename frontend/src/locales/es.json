@@ -42,6 +42,7 @@
   "login_tg_code_hint": "6 caracteres. ¿No llegó? Pulsa «Enviar clave nueva» dentro del bot.",
   "login_yandex": "Entrar con Yandex",
   "login_invalid_code": "La clave no coincide o caducó. Abre el bot y pulsa /start para una nueva.",
+  "login_magic_expired": "El enlace de acceso automático ha caducado. Pulsa /start en el bot para obtener uno nuevo.",
   "login_send_code": "Enviar código",
   "login_code_sent": "Código enviado a tu Telegram",
   "login_enter_code": "Introduce el código",

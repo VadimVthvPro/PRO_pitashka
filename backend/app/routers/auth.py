@@ -1,29 +1,28 @@
-"""Auth endpoints: Telegram OTP verification, refresh, logout.
+"""Auth endpoints: Telegram OTP verification, magic link, refresh, logout.
 
-Telegram-flow теперь состоит из одного шага со стороны сайта:
+Два способа войти через Telegram OTP:
 
-    1. Пользователь кликает «Войти через Telegram» → открывается бот.
-    2. В боте нажимает /start → бот создаёт OTP, привязанный к его
-       telegram user_id, и присылает 6-значный код (с кнопкой «Прислать
-       новый ключ» на случай, если пользователь закрыл сообщение).
-    3. На сайте пользователь вставляет код → POST /api/auth/verify-otp
-       → JWT/session cookies выставлены, редирект на /dashboard или
-       /onboarding.
+1. **Ручной ввод** — POST /api/auth/verify-otp { code }.
+2. **Magic link** — GET /api/auth/magic?code=... (бот встраивает код в
+   URL-кнопку «Открыть NutriFit»; пользователь кликает → backend
+   верифицирует → ставит cookies → 302 на /dashboard).
 
-Никаких `@username`-инпутов, никакого `request-otp` на сайте — если
-пользователь хочет «переслать ещё один код», он делает это в самом боте.
-Это решение принято осознанно: сайт не должен знать Telegram-username
-пользователя, а OTP должен привязываться к идентичности пользователя
-в Telegram (user_id), а не к mutable @username.
+Оба пути вызывают один и тот же `verify_otp_code`, поэтому OTP
+одноразовый: кто первый использовал (клик или ручной ввод) — тот и
+залогинен, второй вызов вернёт ошибку.
 """
 
-from fastapi import APIRouter, HTTPException, Response, Request, status
+import logging
+
+from fastapi import APIRouter, HTTPException, Query, Response, Request, status
+from fastapi.responses import RedirectResponse
 
 from app.dependencies import DbDep, SettingsDep
 from app.models.auth import OTPVerifyRequest, TokenResponse
 from app.services import auth_service
 from app.services.auth_cookies import set_auth_cookies, clear_auth_cookies
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -59,6 +58,47 @@ async def verify_otp(
     needs_onboarding = health is None
 
     return TokenResponse(access_token=access, user_id=user_id, needs_onboarding=needs_onboarding)
+
+
+@router.get("/magic")
+async def magic_link(
+    request: Request,
+    db: DbDep,
+    settings: SettingsDep,
+    code: str = Query(..., min_length=4, max_length=8),
+):
+    """Auto-login по клику из Telegram-бота.
+
+    Бот встраивает OTP-код в URL кнопки: /api/auth/magic?code=AB3K7Y.
+    Пользователь кликает → мы верифицируем код, создаём сессию, ставим
+    cookies и делаем 302 на фронт. Ни одного ручного шага.
+    """
+    frontend = (settings.FRONTEND_URL or "").rstrip("/")
+    login_url = f"{frontend}/login"
+
+    user_id = await auth_service.verify_otp_code(db, code)
+    if user_id is None:
+        logger.info("Magic link: invalid/expired code")
+        return RedirectResponse(
+            f"{login_url}?auth_error=invalid_code",
+            status_code=302,
+        )
+
+    access, refresh = await auth_service.create_session(
+        db, user_id,
+        user_agent=request.headers.get("user-agent"),
+        ip_address=request.client.host if request.client else None,
+    )
+
+    health = await db.fetchrow(
+        "SELECT imt FROM user_health WHERE user_id = $1 ORDER BY date DESC LIMIT 1",
+        user_id,
+    )
+    destination = "/onboarding" if health is None else "/dashboard"
+
+    redirect = RedirectResponse(f"{frontend}{destination}", status_code=302)
+    set_auth_cookies(redirect, settings, access, refresh)
+    return redirect
 
 
 @router.post("/refresh", response_model=TokenResponse)
