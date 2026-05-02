@@ -351,7 +351,7 @@ export default function AiChatPage() {
   // Так чат больше не обрезается и не «торчит» ниже видимой зоны при появлении
   // клавиатуры или сокрытии топбара TG.
   return (
-    <div className="flex flex-col gap-3 lg:gap-6 lg:flex-row h-app-screen min-h-[420px] lg:min-h-[560px]">
+    <div className="flex flex-col gap-2 lg:gap-6 lg:flex-row h-app-screen lg:min-h-[560px] overflow-hidden">
       {/* Rail — full on desktop, hidden on mobile (compact strip lives inside the lane) */}
       <div className="hidden lg:block lg:w-[280px] xl:w-[320px] shrink-0 lg:overflow-y-auto lg:pr-1">
         <ContextRail
@@ -366,11 +366,11 @@ export default function AiChatPage() {
       </div>
 
       {/* Conversation lane */}
-      <div className="flex-1 min-w-0 flex flex-col gap-2 lg:gap-3">
-        {/* Header — compact on mobile */}
-        <div className="flex items-center justify-between gap-3">
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-1.5 lg:gap-3">
+        {/* Header — compact on mobile to save vertical space */}
+        <div className="flex items-center justify-between gap-2 shrink-0">
           <div className="min-w-0">
-            <h1 className="text-2xl sm:text-3xl lg:page-title font-display leading-tight truncate">
+            <h1 className="text-lg sm:text-2xl lg:page-title font-display leading-tight truncate">
               {t("ai_hero_pre")}{" "}
               <span className="relative inline-block">
                 <Highlight color="oklch(82% 0.13 80 / 0.55)">
@@ -378,9 +378,9 @@ export default function AiChatPage() {
                 </Highlight>
               </span>
             </h1>
-            <p className="page-subtitle mt-1 text-xs sm:text-sm truncate">{t("ai_subtitle")}</p>
+            <p className="page-subtitle hidden sm:block mt-1 text-xs sm:text-sm truncate">{t("ai_subtitle")}</p>
             {chatQuota && chatQuota.limit !== -1 && (
-              <div className="mt-2">
+              <div className="mt-1 sm:mt-2">
                 <QuotaBar item={chatQuota} compact hideIfUnlimited />
               </div>
             )}
@@ -395,7 +395,7 @@ export default function AiChatPage() {
               <button
                 type="button"
                 onClick={clearHistory}
-                className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors w-11 h-11 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-md hover:bg-[var(--card)] touch-manipulation"
+                className="inline-flex items-center justify-center gap-1.5 text-xs text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors w-9 h-9 sm:w-auto sm:h-auto sm:px-3 sm:py-2 rounded-md hover:bg-[var(--card)] touch-manipulation"
                 title={t("ai_clear")}
                 aria-label={t("ai_clear")}
               >
@@ -472,7 +472,7 @@ export default function AiChatPage() {
           </div>
 
           {/* Composer */}
-          <div className="border-t border-[var(--border)] bg-[var(--card)] p-3 sm:p-4 relative space-y-2.5">
+          <div className="border-t border-[var(--border)] bg-[var(--card)] p-2 sm:p-4 relative space-y-1.5 sm:space-y-2.5 shrink-0">
             {!historyLoading && quickPrompts.length > 0 && messages.length > 0 && (
               <QuickPrompts
                 prompts={quickPrompts}
@@ -480,7 +480,7 @@ export default function AiChatPage() {
                 disabled={loading}
               />
             )}
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-1.5 sm:gap-2">
               <motion.div
                 layout
                 className="flex-1 flex items-center gap-1 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--input-bg)] px-2 focus-within:ring-2 focus-within:ring-[var(--accent)]/30"
@@ -518,24 +518,24 @@ export default function AiChatPage() {
                   placeholder={t("ai_placeholder")}
                   rows={1}
                   disabled={loading}
-                  className="flex-1 min-w-0 resize-none bg-transparent px-1 py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none disabled:opacity-50 max-h-[200px]"
+                  className="flex-1 min-w-0 resize-none bg-transparent px-1 py-2 sm:py-2.5 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none disabled:opacity-50 max-h-[120px] sm:max-h-[200px]"
                 />
               </motion.div>
               <button
                 type="button"
                 onClick={() => void send()}
                 disabled={loading || !input.trim()}
-                className="shrink-0 flex items-center justify-center w-12 h-12 rounded-full bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-1)]"
+                className="shrink-0 flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[var(--accent)] text-white hover:bg-[var(--accent-hover)] active:bg-[var(--accent-active)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-[var(--shadow-1)]"
                 aria-label={t("ai_aria_send")}
               >
                 {loading ? (
-                  <Icon icon="svg-spinners:180-ring" width={20} />
+                  <Icon icon="svg-spinners:180-ring" width={18} />
                 ) : (
-                  <Icon icon="solar:plain-3-bold-duotone" width={22} />
+                  <Icon icon="solar:plain-3-bold-duotone" width={20} />
                 )}
               </button>
             </div>
-            <p className="text-[10px] text-[var(--muted-foreground)] text-center">
+            <p className="text-[10px] text-[var(--muted-foreground)] text-center hidden sm:block">
               {t("ai_hint_enter")}
             </p>
           </div>
@@ -605,7 +605,7 @@ function MobileContextStrip({
   }
 
   return (
-    <div className="lg:hidden -mx-1 px-1 flex items-center gap-2 overflow-x-auto no-scrollbar">
+    <div className="lg:hidden shrink-0 -mx-1 px-1 flex items-center gap-2 overflow-x-auto no-scrollbar">
       {loading
         ? Array.from({ length: 4 }).map((_, i) => (
             <div
