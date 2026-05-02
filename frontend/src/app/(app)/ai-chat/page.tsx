@@ -419,7 +419,7 @@ export default function AiChatPage() {
 
         {error && (
           <div
-            className="rounded-[var(--radius)] border border-[var(--warning)] bg-[var(--color-sand)]/80 px-3 py-2 text-sm"
+            className="rounded-[var(--radius)] border border-[var(--warning)] bg-[var(--color-sand)]/80 px-3 py-2 text-sm break-words"
             role="alert"
           >
             {error}
@@ -663,26 +663,26 @@ function EmptyState({
       : t("ai_empty_neutral");
 
   return (
-    <div className="text-center py-6 sm:py-10 max-w-xl mx-auto space-y-5 px-2">
-      <div className="flex items-end justify-center gap-3">
-        <Scribble variant="squiggle" className="w-20 h-20 text-[var(--color-latte)] -rotate-6" />
-        <div className="text-left max-w-[24ch]">
-          <p className="font-display text-2xl text-[var(--foreground)] leading-tight">
+    <div className="text-center py-6 sm:py-10 max-w-xl mx-auto space-y-5 px-1 sm:px-2">
+      <div className="flex items-end justify-center gap-2 sm:gap-3">
+        <Scribble variant="squiggle" className="w-14 h-14 sm:w-20 sm:h-20 shrink-0 text-[var(--color-latte)] -rotate-6" />
+        <div className="text-left min-w-0">
+          <p className="font-display text-xl sm:text-2xl text-[var(--foreground)] leading-tight">
             {t("ai_empty_title")}
           </p>
-          <p className="text-sm text-[var(--muted-foreground)] mt-2 leading-relaxed">{knows}</p>
+          <p className="text-xs sm:text-sm text-[var(--muted-foreground)] mt-2 leading-relaxed">{knows}</p>
         </div>
       </div>
 
       {prompts.length > 0 && (
-        <div className="flex flex-wrap gap-2 justify-center pt-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center pt-2">
           {prompts.slice(0, 6).map((p) => (
             <button
               key={p.label}
               type="button"
               onClick={() => onPick(p.prompt)}
               className={[
-                "inline-flex items-center gap-1.5 text-xs px-3.5 min-h-11 rounded-full border transition-colors touch-manipulation",
+                "inline-flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs px-2.5 sm:px-3.5 min-h-9 sm:min-h-11 rounded-full border transition-colors touch-manipulation",
                 p.accent
                   ? "bg-[var(--accent)] text-white border-[var(--accent)] hover:bg-[var(--accent-hover)]"
                   : "bg-[var(--card)] text-[var(--foreground)] border-[var(--border)] hover:border-[var(--accent)]/50",

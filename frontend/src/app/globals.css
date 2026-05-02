@@ -172,6 +172,12 @@ html[data-tma="1"] .h-app-screen {
   .card-base { border-radius: var(--radius); }
 }
 
+/* Prevent horizontal page scroll on mobile caused by slightly-wider content */
+html,
+body {
+  overflow-x: hidden;
+}
+
 /* Base styles */
 body {
   background: var(--background);

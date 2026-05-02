@@ -79,7 +79,7 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-8 shadow-[var(--shadow-1)]">
+        <div className="bg-[var(--card)] border border-[var(--card-border)] rounded-[var(--radius-lg)] p-4 sm:p-8 shadow-[var(--shadow-1)]">
           {/* Height */}
           {step === "height" && (
             <div className="space-y-4">

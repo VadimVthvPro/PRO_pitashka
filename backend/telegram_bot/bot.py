@@ -53,6 +53,24 @@ async def start_bot() -> None:
     dp.include_router(notifications_router)
     dp.include_router(payments_router)
 
+    # Menu button: «Открыть NutriFit» в нижней панели каждого чата.
+    # Без magic-code — это просто главная страница; если пользователь
+    # уже залогинен (cookie), откроется dashboard напрямую.
+    try:
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        from app import brand as _brand
+        frontend = (settings.FRONTEND_URL or "").rstrip("/")
+        if frontend:
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text=f"Открыть {_brand.display_name()}",
+                    web_app=WebAppInfo(url=frontend),
+                ),
+            )
+            logger.info("Menu button set: %s -> %s", _brand.display_name(), frontend)
+    except Exception as e:
+        logger.warning("Failed to set menu button: %s", e)
+
     _task = asyncio.create_task(_run_polling())
     logger.info("Telegram bot started (OTP + notifications mode)")
 

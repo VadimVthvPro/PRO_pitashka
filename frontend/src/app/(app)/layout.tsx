@@ -22,7 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar />
       {/* pb calibrated to BottomNav: 60px bar + safe-area bottom + 12px
           breathing gap. Reset on lg+ where the bar is gone. */}
-      <main className="flex-1 pb-[calc(72px+var(--safe-bottom))] lg:pb-0 relative z-[2]">
+      <main className="flex-1 min-w-0 pb-[calc(72px+var(--safe-bottom))] lg:pb-0 relative z-[2]">
         <MobileTopBar />
         <div className="max-w-[1200px] mx-auto px-4 lg:px-10 py-5 lg:py-10">
           <PageTransition>{children}</PageTransition>

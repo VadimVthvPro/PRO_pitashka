@@ -6,7 +6,7 @@ OTP привязан к `user_main.user_id = message.from_user.id` (не к @use
 1. Upsert'ит user_main (авторегистрация).
 2. Генерирует OTP-код.
 3. Шлёт сообщение с двумя кнопками:
-   - «Открыть NutriFit» — URL magic link (/api/auth/magic?code=...),
+   - «Открыть NutriFit» — WebApp (Telegram Mini App) с magic link,
      автоматически логинит без ввода кода.
    - «Прислать новый ключ» — callback, генерирует свежий код.
 4. Код видим в тексте сообщения для ручного входа с другого устройства.
@@ -16,7 +16,14 @@ import logging
 
 from aiogram import Router
 from aiogram.filters import CommandStart
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    MenuButtonWebApp,
+    Message,
+    WebAppInfo,
+)
 
 from app import brand as _brand
 from app.config import get_settings
@@ -27,16 +34,22 @@ logger = logging.getLogger(__name__)
 otp_router = Router()
 
 
+def _frontend_base() -> str:
+    return (get_settings().FRONTEND_URL or "http://localhost:3000").rstrip("/")
+
+
 def _magic_url(code: str) -> str:
-    """URL для автовхода: backend верифицирует код и ставит cookies."""
-    base = (get_settings().FRONTEND_URL or "http://localhost:3000").rstrip("/")
-    return f"{base}/api/auth/magic?code={code}"
+    return f"{_frontend_base()}/api/auth/magic?code={code}"
 
 
 def _otp_keyboard(code: str) -> InlineKeyboardMarkup:
+    brand_name = _brand.display_name()
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🌐 Открыть NutriFit", url=_magic_url(code))],
+            [InlineKeyboardButton(
+                text=f"🌐 Открыть {brand_name}",
+                web_app=WebAppInfo(url=_magic_url(code)),
+            )],
             [InlineKeyboardButton(text="🔁 Прислать новый ключ", callback_data="otp:new")],
         ]
     )
