@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { Icon } from "@iconify/react";
@@ -30,6 +30,14 @@ const CODE_ALPHABET = /[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]/g;
 const CODE_LENGTH = 6;
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageInner />
+    </Suspense>
+  );
+}
+
+function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { lang, setLang, t } = useI18n();
