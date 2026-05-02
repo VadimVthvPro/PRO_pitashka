@@ -87,6 +87,7 @@ export function UserEditor({
       await api(`/api/admin/users/${user.user_id}`, {
         method: "PATCH",
         body: JSON.stringify(dirtyFields),
+        timeoutMs: 30_000,
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 2000);
@@ -106,6 +107,7 @@ export function UserEditor({
       await api(`/api/admin/users/${user.user_id}/ban`, {
         method: "POST",
         body: JSON.stringify({ reason: banReason || null }),
+        timeoutMs: 30_000,
       });
       onSaved();
     } catch (e) {
@@ -119,7 +121,7 @@ export function UserEditor({
     setSaving(true);
     setError(null);
     try {
-      await api(`/api/admin/users/${user.user_id}/unban`, { method: "POST" });
+      await api(`/api/admin/users/${user.user_id}/unban`, { method: "POST", timeoutMs: 30_000 });
       onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : t("error"));

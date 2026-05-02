@@ -394,6 +394,26 @@ async def generate_recipe(meal_type: str, user_info: dict, lang: str = "ru") -> 
     return (response.text or "").strip()
 
 
+@async_retry(**_GEMINI_RETRY)
+async def analyze_custom_workout(
+    description: str, user_info: dict, lang: str = "ru",
+) -> dict:
+    model = _model_for(
+        f"custom_workout:{lang}",
+        prompts.system_custom_workout(lang),
+    )
+    response = await _call_model(
+        lambda: model.generate_content_async(
+            prompts.prompt_custom_workout(description, user_info),
+            generation_config=_generation_config(json_only=True, max_tokens=1024),
+        )
+    )
+    data = _safe_json_loads(response.text)
+    if not isinstance(data, dict):
+        raise AIUpstreamError("custom workout response is not a JSON object", retryable=False)
+    return data
+
+
 # ---------------------------------------------------------------------------
 # Chat
 # ---------------------------------------------------------------------------

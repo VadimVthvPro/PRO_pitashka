@@ -247,6 +247,35 @@ def prompt_workout_plan(user_info: dict[str, Any]) -> str:
     )
 
 
+def system_custom_workout(lang: str, brand: str | None = None) -> str:
+    b = _b(brand)
+    return (
+        f"You are {b}'s workout analyst. You receive a free-text description "
+        "of a workout the user just completed and return a JSON object with "
+        "structured info about it. You never converse, never explain — you "
+        f"only emit valid JSON. The 'name' field MUST be in {lang_name(lang)}. "
+        "If the description is not about a workout, return "
+        '{"error": "not_a_workout"}.'
+    )
+
+
+def prompt_custom_workout(description: str, user_info: dict[str, Any]) -> str:
+    weight = user_info.get("weight") or "70"
+    sex = user_info.get("sex") or "—"
+    return (
+        "Analyse the workout described below. Return ONE JSON object with "
+        "exactly these keys:\n"
+        '  "name" — short descriptive name in the target language (e.g. "Силовая: грудь и трицепс")\n'
+        '  "calories" — integer, estimated kcal burned\n'
+        '  "duration_minutes" — integer, estimated duration in minutes\n\n'
+        "Base calorie estimates on the user's weight, sex, and exercise "
+        "intensity. Use MET values from the Compendium of Physical Activities "
+        "where applicable. Output JSON only, no prose.\n\n"
+        f"<user_input>\nUser weight: {weight} kg\nSex: {sex}\n"
+        f"Workout description:\n{description.strip()[:2000]}\n</user_input>"
+    )
+
+
 def system_recipe(lang: str, brand: str | None = None) -> str:
     b = _b(brand)
     return (

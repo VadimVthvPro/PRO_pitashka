@@ -48,6 +48,7 @@ const jetbrainsMono = JetBrains_Mono({
 const metadataTitleByBrand: Record<typeof brand.name, string> = {
   propitashka: "PROpitashka — Персональный помощник по питанию и фитнесу",
   profit: "PROfit — AI-наставник по питанию и тренировкам",
+  nutrifit: "NutriFit — Баланс еды, энергии и прогресса",
 };
 
 export const metadata: Metadata = {
@@ -86,6 +87,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: telegramBootstrapScript }} />
       </head>
       <body className="min-h-full flex flex-col font-body">
+        <script dangerouslySetInnerHTML={{ __html: `("ontouchstart"in window||navigator.maxTouchPoints>0)&&document.body.setAttribute("data-touch","true")` }} />
         <ThemeProvider>
           <I18nProvider>
             <TelegramMiniAppBridge />

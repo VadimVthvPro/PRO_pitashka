@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { Icon } from "@iconify/react";
 import { api } from "@/lib/api";
 import { WorkoutIcon } from "@/components/workouts/WorkoutIcon";
 import { ScrollReveal, Stagger, StaggerItem } from "@/components/motion/ScrollReveal";
@@ -145,6 +147,46 @@ export default function WorkoutsPage() {
     }
   }
 
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customDesc, setCustomDesc] = useState("");
+  const [customSubmitting, setCustomSubmitting] = useState(false);
+  const [customError, setCustomError] = useState("");
+  const [customResult, setCustomResult] = useState<{ name: string; calories: number; duration: number } | null>(null);
+
+  function openCustom() {
+    setCustomOpen(true);
+    setCustomDesc("");
+    setCustomError("");
+    setCustomResult(null);
+  }
+
+  function closeCustom() {
+    if (customSubmitting) return;
+    setCustomOpen(false);
+  }
+
+  async function submitCustom() {
+    if (!customDesc.trim()) return;
+    setCustomError("");
+    setCustomSubmitting(true);
+    try {
+      const res = await api<WorkoutSaveResponse>(`/api/workouts/custom?lang=${lang}`, {
+        method: "POST",
+        body: JSON.stringify({ description: customDesc, workout_date: date }),
+      });
+      if (res.error) { setCustomError(res.error); return; }
+      handleActivityResponse(res);
+      setTotalsCal(res.total_today_cal);
+      setTotalsMin(res.total_today_duration);
+      setCustomResult({ name: res.training_name, calories: res.calories, duration: res.duration });
+      await loadDay();
+    } catch (e) {
+      setCustomError(e instanceof Error ? e.message : t("error"));
+    } finally {
+      setCustomSubmitting(false);
+    }
+  }
+
   const loading = typesLoading || dayLoading;
 
   return (
@@ -266,6 +308,35 @@ export default function WorkoutsPage() {
               </motion.button>
             </StaggerItem>
           ))}
+
+          {/* Custom workout card */}
+          <StaggerItem key="custom">
+            <motion.button
+              type="button"
+              onClick={openCustom}
+              whileHover={{ y: -4, scale: 1.01 }}
+              whileTap={{ scale: 0.98 }}
+              transition={{ type: "spring", stiffness: 350, damping: 22 }}
+              className="w-full h-full text-left card-base p-5 hover:border-[var(--accent)] hover:shadow-[var(--shadow-2)] border-dashed"
+            >
+              <div className="flex items-start gap-4">
+                <div className="shrink-0 w-14 h-14 rounded-[var(--radius)] bg-gradient-to-br from-[var(--accent)]/10 to-[var(--accent)]/5 flex items-center justify-center text-[var(--accent)]">
+                  <Icon icon="solar:pen-new-square-bold-duotone" width={32} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3
+                    className="font-bold text-lg text-[var(--foreground)] leading-tight"
+                    style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}
+                  >
+                    {t("workout_custom_title")}
+                  </h3>
+                  <p className="text-xs text-[var(--muted-foreground)] mt-1 line-clamp-2">
+                    {t("workout_custom_desc")}
+                  </p>
+                </div>
+              </div>
+            </motion.button>
+          </StaggerItem>
         </Stagger>
       )}
 
@@ -283,6 +354,103 @@ export default function WorkoutsPage() {
           </p>
         </div>
       )}
+
+      {/* Custom workout modal */}
+      <AnimatePresence>
+        {customOpen && (
+          <motion.div
+            key="custom-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-4 bg-[var(--foreground)]/30 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+          >
+            <button type="button" className="absolute inset-0 cursor-default" onClick={closeCustom} />
+            <motion.div
+              key="custom-sheet"
+              initial={{ opacity: 0, y: 32 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ type: "spring", stiffness: 320, damping: 26 }}
+              className="relative w-full sm:max-w-md bg-[var(--card)] border border-[var(--card-border)] rounded-t-[var(--radius-xl)] sm:rounded-[var(--radius-xl)] shadow-[var(--shadow-3)] z-10 flex flex-col max-h-[92dvh] sm:max-h-[min(640px,88vh)] overflow-hidden"
+            >
+              <span className="sm:hidden block w-10 h-1 rounded-full bg-[var(--border)] mx-auto mt-3 mb-1" aria-hidden />
+              <div className="px-6 pt-4 pb-3 flex items-center gap-3 border-b border-[var(--border)]">
+                <div className="shrink-0 w-12 h-12 rounded-[var(--radius)] bg-gradient-to-br from-[var(--accent)]/10 to-[var(--accent)]/5 flex items-center justify-center text-[var(--accent)]">
+                  <Icon icon="solar:pen-new-square-bold-duotone" width={28} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="text-2xl font-bold truncate" style={{ fontFamily: "var(--font-display)", letterSpacing: "-0.01em" }}>
+                    {t("workout_custom_title")}
+                  </h2>
+                  <p className="text-xs text-[var(--muted-foreground)]">{t("workout_custom_hint")}</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+                {customResult ? (
+                  <div className="card-base p-4 space-y-2 border-[var(--success)] bg-[var(--success)]/5">
+                    <p className="text-sm font-semibold text-[var(--foreground)]">{customResult.name}</p>
+                    <div className="flex gap-4 text-sm font-mono tabular-nums text-[var(--muted-foreground)]">
+                      <span>{customResult.calories} {t("kcal")}</span>
+                      <span>{customResult.duration} {t("min")}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <label className="block text-xs font-medium uppercase tracking-wider text-[var(--muted-foreground)] mb-1">
+                      {t("workout_custom_label")}
+                    </label>
+                    <textarea
+                      value={customDesc}
+                      onChange={(e) => setCustomDesc(e.target.value)}
+                      rows={4}
+                      maxLength={2000}
+                      placeholder={t("workout_custom_placeholder")}
+                      className="w-full px-4 py-3 bg-[var(--input-bg)] border border-[var(--border)] rounded-[var(--radius)] text-[var(--foreground)] text-sm resize-none focus:border-[var(--accent)] focus:outline-none focus:ring-3 focus:ring-[var(--accent)]/15"
+                    />
+                  </>
+                )}
+                {customError && (
+                  <p className="text-sm text-[var(--destructive)]">{customError}</p>
+                )}
+              </div>
+
+              <div
+                className="shrink-0 px-6 py-4 border-t border-[var(--border)] bg-[var(--card)] flex gap-3"
+                style={{ paddingBottom: "max(1rem, calc(var(--safe-bottom) + 0.75rem))" }}
+              >
+                <button
+                  type="button"
+                  onClick={closeCustom}
+                  disabled={customSubmitting}
+                  className="flex-1 min-h-12 rounded-[var(--radius)] border border-[var(--border)] text-[var(--foreground)] hover:bg-[var(--color-sand)]/50 disabled:opacity-50 touch-manipulation font-medium"
+                >
+                  {customResult ? t("common_close") : t("workouts_modal_cancel")}
+                </button>
+                {!customResult && (
+                  <button
+                    type="button"
+                    onClick={() => void submitCustom()}
+                    disabled={customSubmitting || !customDesc.trim()}
+                    className="flex-1 min-h-12 rounded-[var(--radius)] bg-[var(--accent)] text-white font-semibold hover:bg-[var(--accent-hover)] disabled:opacity-50 active:scale-[0.97] transition-transform touch-manipulation flex items-center justify-center gap-2"
+                  >
+                    {customSubmitting ? (
+                      <>
+                        <Icon icon="solar:refresh-circle-bold-duotone" width={18} className="animate-spin" />
+                        {t("workout_custom_analyzing")}
+                      </>
+                    ) : t("workout_custom_analyze")}
+                  </button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {modalType && (
@@ -377,6 +545,19 @@ export default function WorkoutsPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Floating «обсудить тренировку с AI» */}
+      <Link
+        href={`/ai-chat?prefill=${encodeURIComponent(t("workout_ai_prefill"))}&context=workout`}
+        aria-label={t("workout_ai_ask_aria")}
+        className="fixed z-40 right-4 sm:right-8 bottom-[calc(84px+var(--safe-bottom))] lg:bottom-8 inline-flex items-center gap-2 pl-4 pr-5 py-3 rounded-full bg-[var(--accent)] text-white font-semibold shadow-[var(--shadow-accent)] hover:bg-[var(--accent-hover)] active:scale-95 transition-all touch-manipulation"
+      >
+        <span className="relative inline-flex items-center justify-center w-7 h-7 rounded-full bg-white/15">
+          <Icon icon="solar:chat-round-dots-bold-duotone" width={18} />
+          <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[var(--success)] border-2 border-[var(--accent)]" aria-hidden />
+        </span>
+        <span className="text-sm whitespace-nowrap">{t("workout_ai_ask")}</span>
+      </Link>
     </div>
   );
 }

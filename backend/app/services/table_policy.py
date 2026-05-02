@@ -94,15 +94,36 @@ TABLE_POLICY: dict[str, dict[str, Any]] = {
         "editable": {"title", "body", "tags", "payload"},
         "hint_key": "admin_table_hint_social_posts",
     },
-    # --- READ-ONLY TABLES --------------------------------------------------
-    "audit_log":     {"pk": "id", "read_only": True},
-    "otp_codes":     {"pk": "id", "read_only": True},
-    "web_sessions":  {"pk": "id", "read_only": True},
-    "admin_users":   {"pk": "id", "read_only": True},
-    "chat_history":  {"pk": "id", "read_only": True},
-    "social_likes":  {"pk": "id", "read_only": True},
+    # --- previously read-only, now partially editable -----------------------
+    "audit_log": {
+        "pk": "id",
+        "editable": {"detail", "category"},
+    },
+    "otp_codes": {
+        "pk": "id",
+        "editable": {"used"},
+    },
+    "web_sessions": {
+        "pk": "id",
+        "editable": {"revoked_at"},
+    },
+    "admin_users": {
+        "pk": "id",
+        "editable": {"role", "is_active"},
+    },
+    "chat_history": {
+        "pk": "id",
+        "editable": {"message_text"},
+    },
+    "social_likes": {
+        "pk": "id",
+        "editable": {"value"},
+    },
     "social_follows": {"pk": "id", "read_only": True},
-    "app_settings":  {"pk": "key", "read_only": True},  # managed via /settings
+    "app_settings": {
+        "pk": "key",
+        "editable": {"value", "description"},
+    },
 }
 
 

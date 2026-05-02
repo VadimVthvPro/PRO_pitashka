@@ -203,6 +203,13 @@ async def refresh_session(pool: asyncpg.Pool, refresh_token: str) -> tuple[str, 
     if not session:
         return None
 
+    banned = await pool.fetchval(
+        "SELECT banned_at FROM user_main WHERE user_id = $1", user_id,
+    )
+    if banned is not None:
+        await pool.execute("DELETE FROM web_sessions WHERE id = $1", session["id"])
+        return None
+
     await pool.execute("DELETE FROM web_sessions WHERE id = $1", session["id"])
     return await create_session(pool, user_id)
 

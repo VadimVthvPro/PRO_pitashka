@@ -35,15 +35,21 @@ export function BadgeToast() {
   const { badgeQueue } = useStreakStore();
   const [current, setCurrent] = useState<BadgeDTO | null>(null);
 
+  // Pick the next badge from the queue when nothing is showing
   useEffect(() => {
-    if (current) return;
-    if (badgeQueue.length === 0) return;
+    if (current || badgeQueue.length === 0) return;
     const next = dequeueBadge();
     setCurrent(next);
     fireConfetti({ y: 0.3 });
-    const dismissTimer = setTimeout(() => setCurrent(null), 5000);
-    return () => clearTimeout(dismissTimer);
-  }, [badgeQueue, current]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [badgeQueue.length, current]);
+
+  // Auto-dismiss the currently showing badge after 7 seconds
+  useEffect(() => {
+    if (!current) return;
+    const id = setTimeout(() => setCurrent(null), 7000);
+    return () => clearTimeout(id);
+  }, [current]);
 
   const style = current ? TIER_STYLES[current.tier] : null;
 

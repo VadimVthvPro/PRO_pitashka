@@ -19,6 +19,7 @@ ALLOWED_TABLES = {
     "training_coefficients", "chat_history", "admin_users",
     "web_sessions", "otp_codes", "user_settings",
     "audit_log", "social_posts", "social_likes", "social_follows",
+    "app_settings",
 }
 
 ADMIN_COOKIE_NAME = "admin_panel_token"
@@ -201,6 +202,7 @@ async def delete_row(
         typed_value = pk_value
 
     try:
+        await db.execute("SET LOCAL statement_timeout = '15s'")
         deleted = await repo.delete_row(table_name, pk_column, typed_value)
     except Exception as exc:
         msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
@@ -496,10 +498,9 @@ async def update_table_row(
         return {"ok": True, "changed": [], "row": {k: _json_safe(v) for k, v in before.items()}}
 
     try:
+        await db.execute("SET LOCAL statement_timeout = '15s'")
         updated = await repo.update_row(table_name, pk_column, pk_typed, changes)
     except Exception as exc:  # asyncpg.PostgresError + DataError land here
-        # Surface constraint violations / data errors as 400 instead of 500;
-        # message is short & admin-only, so exposing Postgres detail is fine.
         msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
         raise HTTPException(status_code=400, detail=f"DB rejected update: {msg[:300]}")
     if updated is None:
@@ -1228,10 +1229,15 @@ async def admin_user_patch(
     set_clauses = [f"{col} = ${idx}" for idx, col in enumerate(updates.keys(), start=1)]
     values = list(updates.values())
     values.append(target_id)
-    await db.execute(
-        f"UPDATE user_main SET {', '.join(set_clauses)} WHERE user_id = ${len(values)}",
-        *values,
-    )
+    try:
+        await db.execute("SET LOCAL statement_timeout = '15s'")
+        await db.execute(
+            f"UPDATE user_main SET {', '.join(set_clauses)} WHERE user_id = ${len(values)}",
+            *values,
+        )
+    except Exception as exc:
+        msg = getattr(exc, "detail", None) or str(exc) or exc.__class__.__name__
+        raise HTTPException(status_code=400, detail=f"DB rejected update: {msg[:300]}")
 
     # Audit: keep large strings out of JSONB — truncate bio/display_name.
     audit_payload = {k: (v[:120] + "…") if isinstance(v, str) and len(v) > 120 else v

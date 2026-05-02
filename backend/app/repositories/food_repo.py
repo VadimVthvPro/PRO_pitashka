@@ -86,6 +86,17 @@ class FoodRepository:
         )
         return int(row["c"]) if row else 0
 
+    async def update_by_id(
+        self, user_id: int, food_id: int,
+        name: str, protein: float, fat: float, carbs: float, calories: float,
+    ) -> dict | None:
+        row = await self.pool.fetchrow(
+            "UPDATE food SET name_of_food = $3, b = $4, g = $5, u = $6, cal = $7 "
+            "WHERE id = $1 AND user_id = $2 RETURNING id, name_of_food, b, g, u, cal, photo_url",
+            food_id, user_id, name, protein, fat, carbs, calories,
+        )
+        return dict(row) if row else None
+
     async def delete_by_id(self, user_id: int, food_id: int) -> bool:
         res = await self.pool.execute(
             "DELETE FROM food WHERE id = $1 AND user_id = $2",

@@ -2,7 +2,7 @@ import logging
 from datetime import date
 from fastapi import APIRouter, HTTPException, UploadFile, File, Query
 from app.dependencies import DbDep, CurrentUserDep, RedisDep
-from app.models.food import FoodManualRequest
+from app.models.food import FoodManualRequest, FoodUpdateRequest
 from app.repositories.food_repo import FoodRepository
 from app.services import ai_service, streak_service, quota_service
 from app.services.quota_service import QuotaExceeded
@@ -279,3 +279,26 @@ async def repeat_day(
         "streak": update,
         "newly_earned_badges": new_badges,
     }
+
+
+@router.patch("/{food_id}")
+async def update_food_item(
+    food_id: int, body: FoodUpdateRequest, user_id: CurrentUserDep, db: DbDep,
+):
+    repo = FoodRepository(db)
+    updated = await repo.update_by_id(
+        user_id=user_id, food_id=food_id,
+        name=body.name, protein=body.b, fat=body.g, carbs=body.u, calories=body.cal,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    return updated
+
+
+@router.delete("/{food_id}")
+async def delete_food_item(food_id: int, user_id: CurrentUserDep, db: DbDep):
+    repo = FoodRepository(db)
+    deleted = await repo.delete_by_id(user_id, food_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Запись не найдена")
+    return {"ok": True}

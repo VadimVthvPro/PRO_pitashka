@@ -19,6 +19,14 @@ class FoodItem(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class FoodUpdateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=255)
+    b: float = Field(ge=0)
+    g: float = Field(ge=0)
+    u: float = Field(ge=0)
+    cal: float = Field(ge=0)
+
+
 class FoodDayTotals(BaseModel):
     total_cal: float
     total_protein: float

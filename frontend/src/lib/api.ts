@@ -62,16 +62,31 @@ async function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export interface ApiOptions extends RequestInit {
+  timeoutMs?: number;
+}
+
+export async function api<T>(path: string, init?: ApiOptions): Promise<T> {
   const headers = new Headers(init?.headers);
   if (init?.body !== undefined && typeof init.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
+  const timeoutMs = init?.timeoutMs;
+  let controller: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (timeoutMs && timeoutMs > 0 && !init?.signal) {
+    controller = new AbortController();
+    timer = setTimeout(() => controller!.abort(), timeoutMs);
+  }
+
+  const { timeoutMs: _drop, ...fetchInit } = init ?? {};
+
   const doFetch = () => fetch(`${API_BASE}${path}`, {
     credentials: "include",
-    ...init,
+    ...fetchInit,
     headers,
+    signal: controller?.signal ?? fetchInit.signal,
   });
 
   let res = await doFetch();
@@ -85,6 +100,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       throw new Error("Session expired");
     }
   }
+
+  if (timer) clearTimeout(timer);
 
   const text = await res.text();
   if (!res.ok) {

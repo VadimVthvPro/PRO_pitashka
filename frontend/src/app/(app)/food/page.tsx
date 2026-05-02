@@ -102,6 +102,52 @@ export default function FoodPage() {
   const [repeatSubmitting, setRepeatSubmitting] = useState(false);
   const [repeatError, setRepeatError] = useState("");
 
+  const [editingItem, setEditingItem] = useState<FoodItem | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", b: 0, g: 0, u: 0, cal: 0 });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  function openEdit(item: FoodItem) {
+    setEditingItem(item);
+    setEditForm({
+      name: item.name_of_food,
+      b: item.b, g: item.g, u: item.u, cal: item.cal,
+    });
+    setEditError("");
+  }
+
+  function recalcCal(b: number, g: number, u: number) {
+    return Math.round(b * 4 + g * 9 + u * 4);
+  }
+
+  async function saveEdit() {
+    if (!editingItem?.id) return;
+    setEditSaving(true);
+    setEditError("");
+    try {
+      await api(`/api/food/${editingItem.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(editForm),
+      });
+      setEditingItem(null);
+      await loadDay();
+    } catch (e) {
+      setEditError(e instanceof Error ? e.message : t("error"));
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function deleteItem(id: number) {
+    if (!window.confirm(t("food_confirm_delete"))) return;
+    try {
+      await api(`/api/food/${id}`, { method: "DELETE" });
+      await loadDay();
+    } catch (e) {
+      setDayError(e instanceof Error ? e.message : t("error"));
+    }
+  }
+
   const loadDay = useCallback(async () => {
     setDayError("");
     setLoadingDay(true);
@@ -443,7 +489,6 @@ export default function FoodPage() {
               <input
                 type="file"
                 accept="image/*"
-                capture="environment"
                 className="hidden"
                 id="food-photo-input"
                 onChange={(e) => {
@@ -508,7 +553,6 @@ export default function FoodPage() {
                 <input
                   type="file"
                   accept="image/*"
-                  capture="environment"
                   className="hidden"
                   id="food-photo-input-replace"
                   onChange={(e) => {
@@ -895,7 +939,7 @@ export default function FoodPage() {
                       {group.items.map((f, i) => (
                         <div
                           key={`${gi}-${f.id ?? i}`}
-                          className="flex items-center gap-3 px-3 sm:px-4 py-2.5"
+                          className="group/row flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2.5"
                         >
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium text-[var(--foreground)] truncate">
@@ -915,6 +959,26 @@ export default function FoodPage() {
                               {t("food_macro_kcal")}
                             </p>
                           </div>
+                          {f.id != null && (
+                            <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 [body[data-touch='true']_&]:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={() => openEdit(f)}
+                                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-[var(--color-sand)] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors touch-manipulation"
+                                aria-label={t("food_edit_aria")}
+                              >
+                                <Icon icon="solar:pen-2-bold-duotone" width={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => f.id != null && deleteItem(f.id)}
+                                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-[var(--destructive)]/10 text-[var(--muted-foreground)] hover:text-[var(--destructive)] transition-colors touch-manipulation"
+                                aria-label={t("food_delete_aria")}
+                              >
+                                <Icon icon="solar:trash-bin-minimalistic-bold-duotone" width={14} />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -941,6 +1005,76 @@ export default function FoodPage() {
         </span>
         <span className="text-sm whitespace-nowrap">{t("food_ai_ask")}</span>
       </Link>
+
+      {/* Edit food item modal */}
+      {editingItem && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setEditingItem(null)} />
+          <div className="relative bg-[var(--card)] border border-[var(--card-border)] rounded-t-[var(--radius-lg)] sm:rounded-[var(--radius-lg)] w-full sm:max-w-md p-5 sm:p-6 space-y-4 shadow-[var(--shadow-2)] animate-in slide-in-from-bottom duration-200">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-lg text-[var(--foreground)]">{t("food_edit_title")}</h3>
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-[var(--color-sand)] text-[var(--muted-foreground)] transition-colors"
+              >
+                <Icon icon="solar:close-circle-bold-duotone" width={20} />
+              </button>
+            </div>
+
+            <label className="block">
+              <span className="text-xs font-medium text-[var(--muted-foreground)] uppercase tracking-wider">{t("food_edit_name")}</span>
+              <input
+                type="text"
+                value={editForm.name}
+                onChange={(e) => setEditForm((p) => ({ ...p, name: e.target.value }))}
+                className="mt-1 w-full px-3 py-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] text-[var(--foreground)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+              />
+            </label>
+
+            <div className="grid grid-cols-4 gap-2">
+              {([
+                ["b", t("food_macro_protein_short")] as const,
+                ["g", t("food_macro_fat_short")] as const,
+                ["u", t("food_macro_carbs_short")] as const,
+                ["cal", t("food_macro_kcal")] as const,
+              ]).map(([key, label]) => (
+                <label key={key} className="block">
+                  <span className="text-[10px] font-medium text-[var(--muted-foreground)] uppercase tracking-wider">{label}</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={key === "cal" ? 1 : 0.1}
+                    value={editForm[key]}
+                    onChange={(e) => {
+                      const val = Math.max(0, parseFloat(e.target.value) || 0);
+                      setEditForm((p) => {
+                        const next = { ...p, [key]: val };
+                        if (key !== "cal") next.cal = recalcCal(next.b, next.g, next.u);
+                        return next;
+                      });
+                    }}
+                    className="mt-1 w-full px-2 py-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg)] text-[var(--foreground)] text-sm tabular-nums font-mono focus:outline-none focus:ring-2 focus:ring-[var(--ring)]"
+                  />
+                </label>
+              ))}
+            </div>
+
+            {editError && (
+              <p className="text-sm text-[var(--destructive)]">{editError}</p>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void saveEdit()}
+              disabled={editSaving || !editForm.name.trim()}
+              className="w-full py-2.5 rounded-[var(--radius-md)] bg-[var(--accent)] text-white font-semibold text-sm hover:bg-[var(--accent-hover)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              {editSaving ? t("saving") : t("food_edit_save")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

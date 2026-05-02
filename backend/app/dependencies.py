@@ -41,9 +41,18 @@ async def get_current_user_id(request: Request, settings: SettingsDep) -> int:
         user_id = payload.get("sub")
         if user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-        return int(user_id)
+        uid = int(user_id)
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    pool = await get_pool()
+    banned = await pool.fetchval(
+        "SELECT banned_at FROM user_main WHERE user_id = $1", uid,
+    )
+    if banned is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")
+
+    return uid
 
 
 CurrentUserDep = Annotated[int, Depends(get_current_user_id)]

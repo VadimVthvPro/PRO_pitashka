@@ -30,7 +30,7 @@ class WorkoutRepository:
         return float(row["calories"]) if row and row["calories"] else 0.0
 
     async def save(
-        self, user_id: int, training_type_id: int, training_name: str,
+        self, user_id: int, training_type_id: int | None, training_name: str,
         workout_date: date, duration: int, calories: float,
     ) -> dict:
         row = await self.pool.fetchrow(
