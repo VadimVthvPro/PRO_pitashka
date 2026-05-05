@@ -212,8 +212,8 @@ async def delete_row(
 
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'DELETE', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'DELETE', $2, 'admin', 200, 0, $3)
         """,
         user_id,
         f"/api/admin/tables/{table_name}/{pk_column}/{pk_value}",
@@ -520,8 +520,8 @@ async def update_table_row(
 
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'PATCH', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'PATCH', $2, 'admin', 200, 0, $3)
         """,
         me_id,
         f"/api/admin/tables/{table_name}/{pk_column}/{pk_value}",
@@ -1095,8 +1095,8 @@ async def admin_delete_ai_message(message_id: int, request: Request, db: DbDep):
     await db.execute("DELETE FROM chat_history WHERE id = $1", message_id)
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'DELETE', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'DELETE', $2, 'admin', 200, 0, $3)
         """,
         me_id,
         f"/api/admin/ai/message/{message_id}",
@@ -1244,8 +1244,8 @@ async def admin_user_patch(
                      for k, v in updates.items()}
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'PATCH', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'PATCH', $2, 'admin', 200, 0, $3)
         """,
         me_id,
         f"/api/admin/users/{target_id}",
@@ -1280,8 +1280,8 @@ async def admin_user_ban(
         raise HTTPException(status_code=404, detail="user not found")
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, 0, $3)
         """,
         me_id, f"/api/admin/users/{target_id}/ban",
         json.dumps({"target": target_id, "reason": reason}),
@@ -1306,8 +1306,8 @@ async def admin_user_unban(target_id: int, request: Request, db: DbDep):
         raise HTTPException(status_code=404, detail="user not found")
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, 0, $3)
         """,
         me_id, f"/api/admin/users/{target_id}/unban",
         json.dumps({"target": target_id}),
@@ -1398,8 +1398,8 @@ async def admin_grant_tier(
 
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, 0, $3)
         """,
         me_id, f"/api/admin/users/{target_id}/grant-tier",
         json.dumps({
@@ -1485,8 +1485,8 @@ async def admin_revoke_tier(
     await subscription_service.admin_expire_all(db, redis, target_id)
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'POST', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'POST', $2, 'admin', 200, 0, $3)
         """,
         me_id, f"/api/admin/users/{target_id}/revoke-tier",
         json.dumps({"target": target_id}),
@@ -1557,8 +1557,8 @@ async def admin_set_setting(
         raise HTTPException(status_code=400, detail=str(e))
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'PUT', $2, 'admin', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'PUT', $2, 'admin', 200, 0, $3)
         """,
         me_id, f"/api/admin/settings/{key}",
         json.dumps({"key": key, "new_value": stored}),
@@ -1736,8 +1736,8 @@ async def admin_social_post_patch(
 
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'PATCH', $2, 'social', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'PATCH', $2, 'social', 200, 0, $3)
         """,
         me_id, f"/api/admin/social/posts/{post_id}",
         json.dumps({"post_id": post_id, "action": action, "reason": reason}),
@@ -1757,8 +1757,8 @@ async def admin_social_post_delete(post_id: int, request: Request, db: DbDep):
     await db.execute("DELETE FROM social_posts WHERE id = $1", post_id)
     await db.execute(
         """
-        INSERT INTO audit_log (user_id, method, path, category, status_code, detail)
-        VALUES ($1, 'DELETE', $2, 'social', 200, $3)
+        INSERT INTO audit_log (user_id, method, path, category, status_code, duration_ms, detail)
+        VALUES ($1, 'DELETE', $2, 'social', 200, 0, $3)
         """,
         me_id, f"/api/admin/social/posts/{post_id}",
         json.dumps({"post_id": post_id, "owner_user_id": row["user_id"]}),
